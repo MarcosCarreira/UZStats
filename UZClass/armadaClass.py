@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import datetime
 
 # %% Armada Data Class
 
@@ -71,13 +72,35 @@ class Armada_Data():
                                            }, inplace = True)
         self.data_frame.drop(['Time.1', 'Date.1','Index','Index.1',\
                               'Date', 'Time'],axis=1, inplace=True)
-            
-    def plot_html_price(self,path_out):
+        
+        
+    def plot_html_1mintick(self,path_out, start_xaxis = pd.to_timedelta('07:30:00')):
         #layout = self.__plot_html_layout('Bid Price', 'Ask Price', 'Price Time Series')
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
-        fig.add_trace(go.Scatter(x=self.data_frame.DateTime, y=self.data_frame.bid_1_price, name = 'Bid'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=self.data_frame.DateTime, y=self.data_frame.ask_1_price, name = 'Ask'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=self.data_frame.DateTime,y=self.__get_BAspread(), name = 'Bid-ask spread'), row=2, col=1)
+        data = self.data_frame.copy()
+        data = data.set_index(['DateTime'])
+        
+        start_xaxis = self.get_processing_date() + start_xaxis
+        end_xaxis = start_xaxis + pd.to_timedelta('00:01:00')
+        
+        data = data.loc[start_xaxis:end_xaxis]
+        
+        #data['trade_price_minus_1']=data.trade_price.shift(-1)
+        #data['buy']=np.where((data['trade_price_minus_1']==data.bid_1_price)
+        #                     & (data['trade_price_minus_1'].notna())
+        #                     & (data.bid_1_price.notna())
+        #                     , True, False)
+        
+        fig = make_subplots(rows=3, cols=1, row_width=[0.2, 0.2, 0.4], 
+                            shared_xaxes=True)
+        fig.add_trace(go.Scatter(x=data.index, y=data.bid_1_price, 
+                            name = 'Bid'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=data.ask_1_price, 
+                            name = 'Ask'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=data.trade_qty, 
+                            name = 'Trade Qty'), row=2, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=self.__get_BAspread(data), 
+                            name = 'Bid-ask spread'), row=3, col=1)
+        
         
         file = path_out+self.get_file_name()+"_price.html"
         print('saving html plot to ', file)
@@ -107,8 +130,93 @@ class Armada_Data():
                    )
         return layout
     
-    def __get_BAspread(self):
-        spread = (self.data_frame.ask_1_price - self.data_frame.bid_1_price)/2
+    def __custom_resampler_abs_sum(self,array):
+        return np.sum(np.abs(array))
+    
+    def _time_weighted_spread(self, data):
+        return ((data['ba_spread']*data['dt']).sum())/\
+            (data['dt'].sum())
+            
+    def _get_ba_spread(self):
+        df = self.data_frame.copy()
+        df['ba_spread'] = (df.ask_1_price - df.bid_1_price)
+        df = df.set_index(self.data_frame['DateTime'])
+        return  df.ba_spread
+        
+    def _get_delta_t(self):
+        df = self.data_frame.copy()
+        df['dt'] = self.data_frame.DateTime.diff().shift(-1)
+        df = df.set_index(self.data_frame['DateTime'])
+        return  df.dt
+        
+    
+    def plot_html_ohlc(self, pathout, 
+                       freq='1min',start_xaxis = pd.to_timedelta('09:00:00'),
+                       end_xaxis = pd.to_timedelta('16:00:00')):
+        
+        data = self.data_frame.copy()
+        data = data.set_index(['DateTime'])
+        
+        start_xaxis = self.get_processing_date() + start_xaxis
+        end_xaxis = self.get_processing_date() + end_xaxis
+        
+        # prepare OHLC data
+        data['mid_price'] = (data.ask_1_price + data.bid_1_price)/2
+        ohlc = data.mid_price.resample(freq).ohlc()
+        ohlc = ohlc.loc[start_xaxis:end_xaxis]
+        
+        
+        # prepare Volume data
+        volume = pd.DataFrame(data.trade_qty.resample(freq)\
+                              .apply(self.__custom_resampler_abs_sum))
+        #volume = volume.set_index(ohlc.index)    
+        volume = volume.loc[start_xaxis:end_xaxis]
+        
+        # prepare time weigthed spread data
+        data['ba_spread'] = self._get_ba_spread()
+        data['dt'] = self._get_delta_t() 
+        data_masked = data[data.ba_spread > 0]
+        time_weighted_spread = pd.DataFrame(\
+            data_masked.groupby(pd.Grouper(freq=freq)).apply(self._time_weighted_spread))
+        #time_weighted_spread = time_weighted_spread.set_index(ohlc.index)    
+        time_weighted_spread.columns = ['time_weighted_spread']
+        time_weighted_spread = time_weighted_spread.loc[start_xaxis:end_xaxis]
+        
+        
+        # plotting
+        fig = make_subplots(rows=3, cols=1, shared_xaxes=True, 
+        row_width=[0.2, 0.2, 0.4],vertical_spacing=0.1,
+        subplot_titles=('Open High Low Close Candlestick', 'Volume', 
+                        'Time Weighted Spread'))
+        
+        fig.add_trace(go.Candlestick(name='OHLC',
+                x=ohlc.index,
+                open=ohlc.open, high=ohlc.high,
+                low=ohlc.low, close=ohlc.close,
+                increasing_line_color= 'green', decreasing_line_color= 'red'),
+                row=1, col=1)
+        
+    
+        fig.add_trace(go.Bar(name='Volume', x=volume.index, \
+                y=volume.trade_qty), row=2, col=1)
+            
+        fig.add_trace(go.Bar(x=time_weighted_spread.index, \
+                y=time_weighted_spread.time_weighted_spread , 
+                name = 'Time Weighted Spread', marker_color='black'), 
+                row=3,col=1)
+        
+        fig.update_layout(
+                xaxis=dict(rangeslider=dict(visible=False),type="date", 
+                       )) 
+
+          
+        file = pathout+self.get_processing_date().strftime('%Y%m%d')+freq+"ohlc.html"
+        print('saving html plot to ', file)
+        fig.write_html(file)
+
+    
+    def __get_BAspread(self, data):
+        spread = (data.ask_1_price - data.bid_1_price)
         return spread
     
     def __column_datetime(self):
@@ -142,7 +250,7 @@ class Armada_UZModel_output:
             Armada_UZModel_output.df_cont_alt_by_ticks, ignore_index = True)
         self.df_uz_stats = self.df_uz_stats.append(\
             Armada_UZModel_output.df_uz_stats, ignore_index = True)
-        
+    
     def print2file_df_cont_alt_by_ticks(self,pathout):
         file_name = pathout+'CAticks_timeSeries.csv'
         print('Saving file: ',file_name)
@@ -224,6 +332,22 @@ class ArmadaData_UZModel():
         #write here to check if field empty then calc_trades, if not return
         self.__calc_trades()
         return self.df_trades
+    
+    def ohlc(self, pathout):
+        ohlc = pd.DataFrame()
+        self.df_trades = self.df_trades.set_index(['DateTime'])
+        ohlc = self.df_trades.trade_price.resample('1min').ohlc()
+        
+        fig = go.Figure(data=[go.Candlestick(
+                x=ohlc.index,
+                open=ohlc.open, high=ohlc.high,
+                low=ohlc.low, close=ohlc.close,
+                increasing_line_color= 'cyan', decreasing_line_color= 'gray'
+        )])
+        file = pathout+"ohlc.html"
+        print('saving html plot to ', file)
+        fig.write_html(file)
+        return ohlc
 
     def get_uz_coal_byk(self):
         # if empty then
@@ -520,7 +644,7 @@ class ArmadaData_UZModel():
         
         fig.add_trace(go.Scatter(x=self.data_frame_trades.DateTime, y=self.data_frame_trades.Al), row=1, col=1)
         fig.add_trace(go.Scatter(x=self.data_frame_trades.DateTime, y=self.data_frame_trades.Co), row=1, col=1)
-        fig.add_trace(go.Scatter(x=self.data_frame.DateTime,y=self.__get_BAspread()), row=2, col=1)
+        fig.add_trace(go.Scatter(x=self.data_frame.DateTime,y=self.__get_BAspread(self.data_frame)), row=2, col=1)
         fig.update_traces(marker=dict(size=12,
                               line=dict(width=2,
                                         color='DarkSlateGrey')),
