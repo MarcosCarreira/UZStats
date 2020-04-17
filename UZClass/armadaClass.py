@@ -18,7 +18,6 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import datetime
 
 # %% Armada Data Class
 
@@ -27,12 +26,17 @@ class Armada_Data():
     def __init__(self, file_path, file_name):
         self.file_name = file_name
         self.file_path = file_path
+        self.measures = pd.DataFrame()
+        self.data_frame = pd.DataFrame()
+        
         print('Reading file '+file_path+file_name)
         self.__read_ArmadaData()
         print('Re-formatting Data')
         self.__column_datetime()
         print('Armada Data Object Construction Sucessfull')
         self.__rename_columns()
+        print('Construct Data Frame with Basic Measures')
+        self.__calc_basic_measures()
         
     def __read_ArmadaData(self):
         self.data_frame = pd.read_csv(self.file_path+self.file_name \
@@ -72,7 +76,49 @@ class Armada_Data():
                                            }, inplace = True)
         self.data_frame.drop(['Time.1', 'Date.1','Index','Index.1',\
                               'Date', 'Time'],axis=1, inplace=True)
+    
+    def __calc_basic_measures(self):
+        self.measures = pd.DataFrame()
+        self.__get_ba_spread()
+        self.__get_delta_t()
+        self.__get_mid_price()
+        self.__trade_indicator()
         
+    
+    def __trade_indicator(self):
+        self.measures['trade_indicator'] = self.data_frame.trade_price.isnull().copy()
+        
+    def __get_ba_spread(self, data=None):
+        if data is not None:
+            spread = (data.ask_1_price - data.bid_1_price)
+            return spread
+        else:
+            df = self.data_frame.copy()
+            self.measures['ba_spread'] = (df.ask_1_price - df.bid_1_price)    
+    
+    def __get_delta_t(self, data=None):
+        if data is not None:
+            delta_t = self.data_frame.DateTime.diff().shift(-1)
+            return delta_t
+        else:
+            self.measures['dt'] = self.data_frame.DateTime.diff().shift(-1) 
+    
+    def __get_mid_price(self, data=None):
+        if data is not None:
+            mid_price = (data.ask_1_price + data.bid_1_price)/2
+            return mid_price
+        else:
+            self.measures['mid_price'] = \
+                (self.data_frame.ask_1_price + self.data_frame.bid_1_price)/2
+    
+    
+    def __rlz_vol_log(self,prices):
+        '''rlzvollog(prices) calculates the realized volatility of a time series
+    of prices using logreturns
+    Inputs: Time Series of prices
+    Outputs: scalar with the volatility for the period'''
+        pxs = np.log(prices/prices.shift(1))
+        self.measures['realized_vol']=np.sqrt(np.sum(pxs*pxs))
         
     def plot_html_1mintick(self,path_out, start_xaxis = pd.to_timedelta('07:30:00')):
         #layout = self.__plot_html_layout('Bid Price', 'Ask Price', 'Price Time Series')
@@ -98,7 +144,7 @@ class Armada_Data():
                             name = 'Ask'), row=1, col=1)
         fig.add_trace(go.Scatter(x=data.index, y=data.trade_qty, 
                             name = 'Trade Qty'), row=2, col=1)
-        fig.add_trace(go.Scatter(x=data.index, y=self.__get_BAspread(data), 
+        fig.add_trace(go.Scatter(x=data.index, y=self.__get_ba_spread(data), 
                             name = 'Bid-ask spread'), row=3, col=1)
         
         
@@ -133,21 +179,13 @@ class Armada_Data():
     def __custom_resampler_abs_sum(self,array):
         return np.sum(np.abs(array))
     
-    def _time_weighted_spread(self, data):
-        return ((data['ba_spread']*data['dt']).sum())/\
-            (data['dt'].sum())
-            
-    def _get_ba_spread(self):
-        df = self.data_frame.copy()
-        df['ba_spread'] = (df.ask_1_price - df.bid_1_price)
-        df = df.set_index(self.data_frame['DateTime'])
-        return  df.ba_spread
-        
-    def _get_delta_t(self):
-        df = self.data_frame.copy()
-        df['dt'] = self.data_frame.DateTime.diff().shift(-1)
-        df = df.set_index(self.data_frame['DateTime'])
-        return  df.dt
+    def get_time_weighted_spread(self, data=None):
+        if data is not None:    
+            return ((data['ba_spread']*data['dt']).sum())/\
+                (data['dt'].sum())
+            return ((self.data_frame['ba_spread']*self.data_frame['dt']).sum())/\
+                (self.data_frame['dt'].sum())
+    
         
     
     def plot_html_ohlc(self, pathout, 
@@ -173,11 +211,11 @@ class Armada_Data():
         volume = volume.loc[start_xaxis:end_xaxis]
         
         # prepare time weigthed spread data
-        data['ba_spread'] = self._get_ba_spread()
-        data['dt'] = self._get_delta_t() 
+        data = data.assign(ba_spread=self.measures.ba_spread.values)
+        data = data.assign(dt=self.measures.dt .values)
         data_masked = data[data.ba_spread > 0]
         time_weighted_spread = pd.DataFrame(\
-            data_masked.groupby(pd.Grouper(freq=freq)).apply(self._time_weighted_spread))
+            data_masked.groupby(pd.Grouper(freq=freq)).apply(self.get_time_weighted_spread))
         #time_weighted_spread = time_weighted_spread.set_index(ohlc.index)    
         time_weighted_spread.columns = ['time_weighted_spread']
         time_weighted_spread = time_weighted_spread.loc[start_xaxis:end_xaxis]
@@ -214,10 +252,7 @@ class Armada_Data():
         print('saving html plot to ', file)
         fig.write_html(file)
 
-    
-    def __get_BAspread(self, data):
-        spread = (data.ask_1_price - data.bid_1_price)
-        return spread
+
     
     def __column_datetime(self):
         '''column_datetime(data_frame) creates the column 'DateTime'
