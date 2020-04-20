@@ -13,6 +13,7 @@ import timeit
 import pandas as pd
 from armadaClass import ArmadaData_UZModel as uz
 from armadaClass import Armada_Data as ad
+from armadaClass import Armada_TOB as atob
 #from armadaClass import Armada_UZModel_output as auo
 
 
@@ -22,7 +23,7 @@ PATHIN = PATHPROJ+'/CLOB_data/'
 PATHOUT = PATHPROJ+'/UZClass/'
 
 TS = 0.5
-START_TIME = pd.to_timedelta('09:00:00')
+START_TIME = pd.to_timedelta('07:30:00')
 END_TIME = pd.to_timedelta('18:15:00')
 
 FILE1 = '20180105_6EH8.zip'
@@ -76,7 +77,32 @@ def run_unc_zones_read(pathin, pathout, file_name, tick_value, start_time,\
     uz_obj.print2file_df_uz_stats(pathout)
     data.plot_html_1mintick(pathout,pd.to_timedelta('07:29:50'))
 
+def run_tob(pathin, pathout, file_name, tick_value, start_time,\
+                  end_time, save_files=False):
+    '''run_unc_zones(pathin, pathout, file_name, tick_value, end_of_time)
+    returns the uncertainty zones data frame'''
+    data = ad(pathin,file_name)
+    tob_obj = atob(data)
+    start = '07:29:50'
+    end = '07:50:10'
+    agg = tob_obj.get_net_number_aggression(pd.to_timedelta(start),pd.to_timedelta(end))
+    print('# of aggression between ',start, end,'is ',  agg)
+    #tob_obj.plot_html_1sec_rolling_number_aggression(pd.to_timedelta(start), pd.to_timedelta(end), pathout)
+    #data.plot_html_1mintick(pathout,pd.to_timedelta('07:29:50'))
+    tob_obj.print2file_df_tob(pathout)
+
+def run_benchmark(pathin, pathout, file_name, tick_value, start_time,\
+                  end_time):
+
+    import armadauzdf
     
-# Run test
-run_unc_zones_read(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+    armadauzdf.run_unc_zones(pathin, pathout, file_name, tick_value, start_time,\
+                  end_time, 9.25, False)
+        
+    
+    
+# %% Run test
+#run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+run_benchmark(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+#run_unc_zones_read(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #runc_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME)

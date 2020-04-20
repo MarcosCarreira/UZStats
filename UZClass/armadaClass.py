@@ -22,6 +22,8 @@ from plotly.subplots import make_subplots
 # %% Armada Data Class
 
 class Armada_Data():
+
+# %% Main Functions    
     
     def __init__(self, file_path, file_name):
         self.file_name = file_name
@@ -83,11 +85,20 @@ class Armada_Data():
         self.__get_delta_t()
         self.__get_mid_price()
         self.__trade_indicator()
-        
+
+# %% Public Functions
+      
+    def get_file_name(self):
+        return self.file_name[:-4]
     
+    def get_processing_date(self):
+        return pd.to_datetime(self.file_name[0:8],format='%Y%m%d')
+
+# %% Measures Functions 
+        
     def __trade_indicator(self):
         self.measures['trade_indicator'] = self.data_frame.trade_price.isnull().copy()
-        
+    
     def __get_ba_spread(self, data=None):
         if data is not None:
             spread = (data.ask_1_price - data.bid_1_price)
@@ -111,7 +122,6 @@ class Armada_Data():
             self.measures['mid_price'] = \
                 (self.data_frame.ask_1_price + self.data_frame.bid_1_price)/2
     
-    
     def __rlz_vol_log(self,prices):
         '''rlzvollog(prices) calculates the realized volatility of a time series
     of prices using logreturns
@@ -120,6 +130,30 @@ class Armada_Data():
         pxs = np.log(prices/prices.shift(1))
         self.measures['realized_vol']=np.sqrt(np.sum(pxs*pxs))
         
+    def __custom_resampler_abs_sum(self,array):
+        return np.sum(np.abs(array))
+    
+    def get_time_weighted_spread(self, data=None):
+        if data is not None:    
+            return ((data['ba_spread']*data['dt']).sum())/\
+                (data['dt'].sum())
+            return ((self.data_frame['ba_spread']*self.data_frame['dt']).sum())/\
+                (self.data_frame['dt'].sum())
+    
+    def __column_datetime(self):
+        '''column_datetime(data_frame) creates the column 'DateTime'
+        concatenating 'Date' and 'Time' and converting it to datetime.
+        Inputs: Data Frame from Armada
+        Outputs: Copy of DataFrame with 'DateTime' column added'''
+        data_framec = self.data_frame.copy()
+        data_framec['Date'] = pd.to_datetime(data_framec['Date'],\
+            format="%m/%d/%Y")
+        data_framec['Time'] = pd.to_timedelta(data_framec['Time'], unit='ns')
+        data_framec['DateTime'] = data_framec['Date']+data_framec['Time']
+        self.data_frame = data_framec
+
+# %%  Plots Functions
+
     def plot_html_1mintick(self,path_out, start_xaxis = pd.to_timedelta('07:30:00')):
         #layout = self.__plot_html_layout('Bid Price', 'Ask Price', 'Price Time Series')
         data = self.data_frame.copy()
@@ -176,17 +210,7 @@ class Armada_Data():
                    )
         return layout
     
-    def __custom_resampler_abs_sum(self,array):
-        return np.sum(np.abs(array))
-    
-    def get_time_weighted_spread(self, data=None):
-        if data is not None:    
-            return ((data['ba_spread']*data['dt']).sum())/\
-                (data['dt'].sum())
-            return ((self.data_frame['ba_spread']*self.data_frame['dt']).sum())/\
-                (self.data_frame['dt'].sum())
-    
-        
+
     
     def plot_html_ohlc(self, pathout, 
                        freq='1min',start_xaxis = pd.to_timedelta('09:00:00'),
@@ -253,24 +277,365 @@ class Armada_Data():
         fig.write_html(file)
 
 
-    
-    def __column_datetime(self):
-        '''column_datetime(data_frame) creates the column 'DateTime'
-        concatenating 'Date' and 'Time' and converting it to datetime.
-        Inputs: Data Frame from Armada
-        Outputs: Copy of DataFrame with 'DateTime' column added'''
-        data_framec = self.data_frame.copy()
-        data_framec['Date'] = pd.to_datetime(data_framec['Date'],\
-            format="%m/%d/%Y")
-        data_framec['Time'] = pd.to_timedelta(data_framec['Time'], unit='ns')
-        data_framec['DateTime'] = data_framec['Date']+data_framec['Time']
-        self.data_frame = data_framec
+# %% Armada To-Of-Book Class
         
-    def get_file_name(self):
-        return self.file_name[:-4]
+class Armada_TOB(Armada_Data):
     
-    def get_processing_date(self):
-        return pd.to_datetime(self.file_name[0:8],format='%Y%m%d')
+    def __init__(self, Armada_Data):
+        self.Armada_Data = Armada_Data
+        self.tob = pd.DataFrame()
+        #to delete once algo completed
+        self.tob['traded_price'] = self.Armada_Data.data_frame.trade_price.copy() 
+        self.tob['traded_qty'] = self.Armada_Data.data_frame.trade_qty.copy() 
+        ######
+        self.__fill_tob_data()
+        self.__fill_price_traded()
+        self.__fill_aggression()
+        self.num_consecutive_trade = self.__find_num_consecutive_trade()
+        print(self.Armada_Data.get_file_name()+' max_runs = '+str(self.num_consecutive_trade))
+        self.__fill_tob()
+        
+    def __fill_tob(self):
+        # initialize to original not filled tob
+        self.tob['bid_1_price'] = self.Armada_Data.data_frame.bid_1_price.copy()
+        self.tob['ask_1_price'] = self.Armada_Data.data_frame.ask_1_price.copy()
+        self.tob['bid_1_qty'] = self.Armada_Data.data_frame.bid_1_qty.copy()
+        self.tob['ask_1_qty'] = self.Armada_Data.data_frame.ask_1_qty.copy()
+        
+        self.tob['bool_trade'] = self.Armada_Data.measures.trade_indicator.copy() == False
+        
+        
+        # if trade happened        
+        for i in reversed(range(self.num_consecutive_trade + 1)):
+            
+            self.tob['bool_idx'] = self.tob['cumsum'].astype('int64') == i
+            shift_bid_price = self.tob.bid_1_price.shift(-1)
+            shift_bid_qty = self.tob.bid_1_qty.shift(-1)
+            shift_ask_price = self.tob.ask_1_price.shift(-1)
+            shift_ask_qty = self.tob.ask_1_qty.shift(-1)
+            
+            #If ask or bid price t+1 = trade price t 
+            self.tob['bool_bid_D'] = self.Armada_Data.data_frame.trade_price == shift_bid_price
+            self.tob['bool_ask_D'] = self.Armada_Data.data_frame.trade_price == shift_ask_price      
+            
+            self.tob.bid_1_qty.loc[    \
+                self.tob.bool_idx &    \
+                self.tob.bool_trade &  \
+                self.tob.bool_bid_D] = \
+                pd.Series(np.sum([self.Armada_Data.data_frame.trade_qty , shift_bid_qty], axis=0))
+            
+            self.tob.bid_1_price.loc[    \
+                self.tob.bool_idx &    \
+                self.tob.bool_trade &  \
+                self.tob.bool_bid_D] = self.Armada_Data.data_frame.trade_price
+                
+            self.tob.ask_1_qty.loc[    \
+                self.tob.bool_idx &    \
+                self.tob.bool_trade &  \
+                self.tob.bool_ask_D] = \
+                pd.Series(np.sum([self.Armada_Data.data_frame.trade_qty , shift_ask_qty], axis=0))
+                
+            self.tob.ask_1_price.loc[    \
+                self.tob.bool_idx &    \
+                self.tob.bool_trade &  \
+                self.tob.bool_ask_D] = self.Armada_Data.data_frame.trade_price
+
+            #If ask or bid price t+1 != trade price t 
+            self.tob['bool_bid_C'] = self.Armada_Data.data_frame.trade_price != shift_bid_price
+            self.tob['bool_ask_C'] = self.Armada_Data.data_frame.trade_price != shift_ask_price      
+            
+            self.tob.ask_1_qty.loc[    \
+                self.tob.bool_idx &    \
+                self.tob.bool_trade &  \
+                self.tob.bool_ask_C] = self.Armada_Data.data_frame.trade_qty
+                
+            self.tob.ask_1_price.loc[    \
+                self.tob.bool_idx &    \
+                self.tob.bool_trade &  \
+                self.tob.bool_ask_C] = self.Armada_Data.data_frame.trade_price
+                
+            self.tob.bid_1_qty.loc[    \
+                self.tob.bool_idx &    \
+                self.tob.bool_trade &  \
+                self.tob.bool_bid_C] = self.Armada_Data.data_frame.trade_qty
+                
+            self.tob.bid_1_price.loc[    \
+                self.tob.bool_idx &    \
+                self.tob.bool_trade &  \
+                self.tob.bool_bid_C] = self.Armada_Data.data_frame.trade_price
+            
+            # if side not traded: 
+            #{Qty_Other_Side[t] , Price_Other_Side[t]} = 
+            #{Qty_Other_Side[t+1] , Price_Other_Side[t+1]} # side not traded
+
+            self.tob.ask_1_price.loc[    \
+                self.tob.bid_price_traded & \
+                self.tob.bool_idx] = shift_ask_price
+                
+            self.tob.ask_1_qty.loc[
+                self.tob.bid_price_traded & 
+                self.tob.bool_idx] = shift_ask_qty
+            
+            self.tob.bid_1_price.loc[    \
+                self.tob.ask_price_traded & \
+                self.tob.bool_idx] = shift_bid_price
+                
+            self.tob.bid_1_qty.loc[
+                self.tob.ask_price_traded & 
+                self.tob.bool_idx] = shift_bid_qty
+        
+        self.tob.drop(['bool_bid_C', 'bool_ask_C','bool_ask_D','bool_bid_D',\
+                              'bool_idx', 'bool_trade', 'cumsum'],axis=1, inplace=True)
+        print('tob fill completed')
+        
+    def __fill_tob_data(self):
+        self.tob['bid_1_price_last'] = self.Armada_Data.data_frame.bid_1_price.copy()
+        self.tob.bid_1_price_last.fillna(method='ffill', inplace=True)
+        
+        self.tob['ask_1_price_last'] = self.Armada_Data.data_frame.ask_1_price.copy()
+        self.tob.ask_1_price_last.fillna(method='ffill', inplace=True)
+       
+    def __fill_price_traded(self):
+        self.tob['bid_price_traded'] = self.tob.bid_1_price_last >=\
+        self.Armada_Data.data_frame.trade_price
+        
+        self.tob['ask_price_traded'] = self.tob.ask_1_price_last <=\
+        self.Armada_Data.data_frame.trade_price
+    
+    def __fill_aggression(self):
+        self.tob['aggression'] = np.vectorize(self.aggression_id)\
+        (self.tob.bid_price_traded, self.tob.ask_price_traded,\
+        self.Armada_Data.measures.trade_indicator)
+            
+    def get_net_number_aggression(self, start_time, end_time):
+        start = self.Armada_Data.get_processing_date() + start_time
+        end = self.Armada_Data.get_processing_date() + end_time
+        df_aggression = pd.DataFrame(self.tob.aggression)
+        df_aggression = \
+            df_aggression.set_index(self.Armada_Data.data_frame.DateTime.copy())
+        df_aggression = df_aggression.loc[start:end]
+        number_aggression = np.nansum(df_aggression)
+        return number_aggression
+    
+    def get_rolling_number_aggression(self, start_time, end_time):
+        date = self.Armada_Data.get_processing_date()
+        start_lag =  date + start_time - pd.to_timedelta('00:00:01')
+        start = date + start_time
+        end = date + end_time
+        
+        df_aggression = pd.DataFrame(self.tob.aggression)
+        df_aggression = \
+            df_aggression.set_index(self.Armada_Data.data_frame.DateTime.copy())
+        df_aggression = df_aggression.loc[start_lag:end]
+        #df_aggression = abs(df_aggression)
+        number_aggression = df_aggression.rolling('1s').sum()
+        
+        number_aggression = number_aggression.loc[start:end]
+        return number_aggression
+    
+    def plot_html_1sec_rolling_number_aggression(self, start_time, end_time, path_out):
+        number_aggression = self.get_rolling_number_aggression(start_time, end_time)
+        
+        #layout = self.__plot_html_layout('Bid Qty', 'Ask Qty', 'Quantity Time Series')
+        fig = go.Figure([go.Scatter(x=number_aggression.index, y=number_aggression.aggression)])
+        fig.update_layout(title_text="1 Second Rolling Net Number of Aggression")
+        file = path_out+self.Armada_Data.get_file_name()+"_1sec_roll_net_number_aggression.html"
+        print('saving html plot to ', file)
+        fig.write_html(file)  
+        
+    def __find_num_consecutive_trade(self):
+        boolean_series = self.Armada_Data.measures.trade_indicator == False
+        cumsum = boolean_series.cumsum()
+        temp = cumsum.sub(cumsum.mask(boolean_series).ffill().fillna(0)).astype(int)
+        num_consecutive_trade = temp.max()
+        ###can be deleted later#
+        self.tob['cumsum'] = temp
+        ###
+        return num_consecutive_trade
+    
+    def print2file_df_tob(self,pathout):
+        file_name = pathout+'tob.csv'
+        zip_name = pathout + 'tob.zip'
+        print('Saving file: ',file_name)
+        data_to_print = self.tob.copy()
+        data_to_print = \
+            data_to_print.set_index(self.Armada_Data.data_frame.DateTime.copy())
+        
+        #self.data_to_print.to_csv(file_name)
+        compression_opts = dict(method='zip', archive_name=file_name)
+        data_to_print.to_csv(zip_name, index=False, compression=compression_opts) 
+        
+        
+    # %% Agression functions
+
+    def aggression_id(self,bid_traded, ask_traded, order_flag):
+        '''aggression_id(bid_traded, ask_traded, order_flag) returns
+        aggression_value, which is equal to:
+        0 for an order event (no trade)
+        +1 for a trade at the ask
+        -1 for a trade at the bid
+        nan for a trade without a previous bid/ask'''
+        if order_flag:
+            aggression_value = 0
+        else:
+            if bid_traded:
+                aggression_value = -1
+            elif ask_traded:
+                aggression_value = +1
+            else:
+                aggression_value = np.nan
+        return aggression_value
+
+    def fill_aggression_id(data_frame):
+        '''fill_aggression_id(data_frame) applies aggression_id to a data_frame,
+        with the last bid and ask prices bracketing trade prices for the
+        aggression flag'''
+        data_framec = data_frame.copy()
+        new_columns = list(data_frame.columns)+['Aggression']
+        data_framec['Bid_Price_Last'] = data_framec['Bid 1 Price'].copy()
+        data_framec['Ask_Price_Last'] = data_framec['Ask 1 Price'].copy()
+        data_framec['Bid_Price_Last'].fillna(method='ffill', inplace=True)
+        data_framec['Ask_Price_Last'].fillna(method='ffill', inplace=True)
+        data_framec['Bid_Price_Traded'] = data_framec['Bid_Price_Last'] >=\
+            data_framec['Trade Price']
+        data_framec['Ask_Price_Traded'] = data_framec['Ask_Price_Last'] <=\
+            data_framec['Trade Price']
+        data_framec['Aggression'] = np.vectorize(aggression_id)\
+            (data_framec['Bid_Price_Traded'], data_framec['Ask_Price_Traded'],\
+            data_framec['OT'])
+        return data_framec[new_columns]
+    
+    def previous_tob(aggression_flag, trade_price, trade_quantity,\
+            bid_quantity, bid_price, ask_price, ask_quantity):
+        '''previous_tob_core(aggression_flag, trade_price, trade_quantity,\
+        bid_quantity, bid_price, ask_price, ask_quantity) returns\
+        a list with the new top of the book: bid_quantity, bid_price,\
+        ask_price, ask_quantity'''
+        top_of_book = {'Bid_Qty': bid_quantity, 'Bid_Price': bid_price,\
+                       'Ask_Price': ask_price, 'Ask_Qty': ask_quantity}
+        if bid_price > -1:
+            if aggression_flag == -1:
+                if trade_price == bid_price:
+                    top_of_book['Bid_Qty'] += trade_quantity
+                else:
+                    top_of_book['Bid_Qty'] = trade_quantity
+                    top_of_book['Bid_Price'] = trade_price
+                if trade_price == ask_price:
+                    top_of_book['Ask_Qty'] = np.nan
+                    top_of_book['Ask_Price'] = np.nan
+            elif aggression_flag == 1:
+                if trade_price == ask_price:
+                    top_of_book['Ask_Qty'] += trade_quantity
+                else:
+                    top_of_book['Ask_Qty'] = trade_quantity
+                    top_of_book['Ask_Price'] = trade_price
+                if trade_price == bid_price:
+                    top_of_book['Bid_Qty'] = np.nan
+                    top_of_book['Bid_Price'] = np.nan
+        return list(top_of_book.values())
+    
+    def init_previous_tob(data_frame):
+        '''init_previous_tob(data_frame) applies previous_tob to a data_frame,
+        returning new fields that indicate the previous top of book
+        ('Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty')'''
+        data_framec = data_frame.copy()
+        data_framec['Bid_Qty'] = data_framec['Bid 1 Qty'].shift(-1)
+        data_framec['Bid_Price'] = data_framec['Bid 1 Price'].shift(-1)
+        data_framec['Ask_Price'] = data_framec['Ask 1 Price'].shift(-1)
+        data_framec['Ask_Qty'] = data_framec['Ask 1 Qty'].shift(-1)
+        new_columns = list(data_framec.columns)
+        processed_list = list(map(previous_tob,\
+            data_framec['Aggression'], data_framec['Trade Price'],\
+            data_framec['Trade Qty'], data_framec['Bid_Qty'],\
+            data_framec['Bid_Price'], data_framec['Ask_Price'],\
+            data_framec['Ask_Qty']))
+        new_data_frame = pd.DataFrame(np.array(processed_list),\
+            columns=['Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty'],\
+            index=data_framec.index)
+        data_framec['Bid_Qty'] = np.where(data_framec['OT'],\
+            data_framec['Bid 1 Qty'], new_data_frame['Bid_Qty'])
+        data_framec['Bid_Price'] = np.where(data_framec['OT'],\
+            data_framec['Bid 1 Price'], new_data_frame['Bid_Price'])
+        data_framec['Ask_Price'] = np.where(data_framec['OT'],\
+            data_framec['Ask 1 Price'], new_data_frame['Ask_Price'])
+        data_framec['Ask_Qty'] = np.where(data_framec['OT'],\
+            data_framec['Ask 1 Qty'], new_data_frame['Ask_Qty'])
+        beg_orders = data_framec[data_framec['OT']].index[0]
+        new_cols = ['Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty']
+        data_framec.loc[:max(beg_orders-1, 0), new_cols] = np.nan
+        return data_framec[new_columns]
+    
+    def rec_previous_tob(data_frame):
+        '''rec_previous_tob(data_frame) applies previous_tob to a data_frame,
+        returning new fields that indicate the previous top of book
+        ('Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty')'''
+        data_framec = data_frame.copy()
+        new_columns = list(data_framec.columns)
+        data_framec['Bid_Qty_0'] = data_framec['Bid_Qty'].shift(-1)
+        data_framec['Bid_Price_0'] = data_framec['Bid_Price'].shift(-1)
+        data_framec['Ask_Price_0'] = data_framec['Ask_Price'].shift(-1)
+        data_framec['Ask_Qty_0'] = data_framec['Ask_Qty'].shift(-1)
+        processed_list = list(map(previous_tob,\
+            data_framec['Aggression'], data_framec['Trade Price'],\
+            data_framec['Trade Qty'], data_framec['Bid_Qty_0'],\
+            data_framec['Bid_Price_0'], data_framec['Ask_Price_0'],\
+            data_framec['Ask_Qty_0']))
+        new_data_frame = pd.DataFrame(np.array(processed_list),\
+            columns=['Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty'],\
+            index=data_framec.index)
+        data_framec['Bid_Qty'] = np.where(data_framec['OT'],\
+            data_framec['Bid_Qty'], new_data_frame['Bid_Qty'])
+        data_framec['Bid_Price'] = np.where(data_framec['OT'],\
+            data_framec['Bid_Price'], new_data_frame['Bid_Price'])
+        data_framec['Ask_Price'] = np.where(data_framec['OT'],\
+            data_framec['Ask_Price'], new_data_frame['Ask_Price'])
+        data_framec['Ask_Qty'] = np.where(data_framec['OT'],\
+            data_framec['Ask_Qty'], new_data_frame['Ask_Qty'])
+        beg_orders = data_framec[data_framec['OT']].index[0]
+        new_cols = ['Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty']
+        data_framec.loc[:max(beg_orders-1, 0), new_cols] = np.nan
+        return data_framec[new_columns]
+    
+    def find_max_run(boolean_series):
+        '''find_max_run(boolean_series) finds the maximum number of
+        consecutive trades ('OT' False)'''
+        series_string = np.where(boolean_series, ' ', '1')
+        string_boolean = pd.Series(series_string).sum()
+        list_split = string_boolean.split()
+        lengths_runs = np.vectorize(len)(pd.Series(list_split))
+        return lengths_runs.max()
+    
+    def loop_previous_tob(data_frame, max_runs=1):
+        '''loop_previous_tob(data_frame, max_runs=1) applies
+        previous_tob to a data_frame max_runs+2 times, returning
+        new fields that indicate the previous top of book
+        ('Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty')'''
+        data_framec = data_frame.copy()
+        print('original')
+        loop_1_df = init_previous_tob(data_framec)
+        print('init 0')
+        loop_0_df = data_frame.copy()
+        j = 0
+        while j <= max_runs:
+            loop_0_df = loop_1_df.copy()
+            loop_1_df = rec_previous_tob(loop_0_df)
+            if j%10 == 0:
+                print('loop '+str(j))
+            j += 1
+        prev_tob_df = loop_1_df.copy()
+        prev_tob_df['Bid_Qty'].fillna(method='ffill', inplace=True)
+        prev_tob_df['Bid_Price'].fillna(method='ffill', inplace=True)
+        prev_tob_df['Ask_Price'].fillna(method='ffill', inplace=True)
+        prev_tob_df['Ask_Qty'].fillna(method='ffill', inplace=True)
+        beg_orders = prev_tob_df[prev_tob_df['OT']].index[0]
+        new_cols = ['Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty']
+        prev_tob_df.loc[:max(beg_orders-1, 0), new_cols] = np.nan
+        print('end')
+        return prev_tob_df
+        
+
+
+# %% Armada UZ Model Output Class
     
 class Armada_UZModel_output:
     df_cont_alt_by_ticks = pd.DataFrame()
@@ -315,7 +680,7 @@ class Armada_UZModel_output:
         
         
     
-
+# %% Armada UZ Model Class
 
 class ArmadaData_UZModel():
     df = pd.DataFrame()
