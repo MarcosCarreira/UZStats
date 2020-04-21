@@ -25,10 +25,10 @@ PATHOUT = PATHPROJ+'/UZClass/'
 
 TS = 0.5
 START_TIME = pd.to_timedelta('07:30:00')
-END_TIME = pd.to_timedelta('18:15:00')
+END_TIME = pd.to_timedelta('07:45:00')
 
 FILE1 = '20180105_6EH8.zip'
-#FILE1 = '20190514_6EM9.zip'
+FILE_BMF = 'DOLG1720170119.csv'
 
 def runc_multi_days(pathin, pathout, tick_value, start_time, end_time, file_names = []):
     
@@ -83,7 +83,7 @@ def run_tob(pathin, pathout, file_name, tick_value, start_time,\
     '''run_unc_zones(pathin, pathout, file_name, tick_value, end_of_time)
     returns the uncertainty zones data frame'''
     data = ad(pathin,file_name)
-    tob_obj = atob(data)
+    tob_obj = atob(data, tick_value)
     #start = '07:29:50'
     #end = '07:50:10'
     #agg = tob_obj.get_net_number_aggression(pd.to_timedelta(start),pd.to_timedelta(end))
@@ -100,6 +100,12 @@ def run_benchmark(pathin, pathout, file_name, tick_value, start_time,\
     armadauzdf.run_unc_zones(pathin, pathout, file_name, tick_value, start_time,\
                   end_time, 9.25, False)
 
+def run_BFM_tob(pathin, pathout, file_name, tick_value, start_time,\
+                  end_time, save_files=False):
+    data = ad(pathin,file_name)
+    tob_obj = atob(data, tick_value)
+    print('done')
+    
 def run_compare_tob(pathin, pathout, file_names = []):
     
     file_before = 'tob_before.zip'
@@ -142,7 +148,8 @@ def run_compare_tob(pathin, pathout, file_names = []):
     #print(df_bid_1_price.sum())
     
 # %% Run test
-run_compare_tob(PATHIN, PATHOUT)
+run_BFM_tob(PATHIN, PATHOUT, FILE_BMF, TS, START_TIME, END_TIME)
+#run_compare_tob(PATHIN, PATHOUT)
 #run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_benchmark(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_unc_zones_read(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
