@@ -14,6 +14,7 @@ import pandas as pd
 from armadaClass import ArmadaData_UZModel as uz
 from armadaClass import Armada_Data as ad
 from armadaClass import Armada_TOB as atob
+import numpy as np
 #from armadaClass import Armada_UZModel_output as auo
 
 
@@ -83,13 +84,13 @@ def run_tob(pathin, pathout, file_name, tick_value, start_time,\
     returns the uncertainty zones data frame'''
     data = ad(pathin,file_name)
     tob_obj = atob(data)
-    start = '07:29:50'
-    end = '07:50:10'
-    agg = tob_obj.get_net_number_aggression(pd.to_timedelta(start),pd.to_timedelta(end))
-    print('# of aggression between ',start, end,'is ',  agg)
+    #start = '07:29:50'
+    #end = '07:50:10'
+    #agg = tob_obj.get_net_number_aggression(pd.to_timedelta(start),pd.to_timedelta(end))
+    #print('# of aggression between ',start, end,'is ',  agg)
     #tob_obj.plot_html_1sec_rolling_number_aggression(pd.to_timedelta(start), pd.to_timedelta(end), pathout)
     #data.plot_html_1mintick(pathout,pd.to_timedelta('07:29:50'))
-    tob_obj.print2file_df_tob(pathout)
+    tob_obj.print2file_df_tob(pathout, start_time, end_time)
 
 def run_benchmark(pathin, pathout, file_name, tick_value, start_time,\
                   end_time):
@@ -98,11 +99,51 @@ def run_benchmark(pathin, pathout, file_name, tick_value, start_time,\
     
     armadauzdf.run_unc_zones(pathin, pathout, file_name, tick_value, start_time,\
                   end_time, 9.25, False)
-        
+
+def run_compare_tob(pathin, pathout, file_names = []):
     
+    file_before = 'tob_before.zip'
+    file_after = 'tob.zip'
+    tob_before = pd.read_csv(pathout+file_before)
+    tob_after = pd.read_csv(pathout+file_after)
+    tob_after2 = tob_after[3:699774]
+    
+    tob_before.rename(columns = {'Bid 1 Qty':'bid_1_qty',\
+                                       'Bid 2 Qty':'bid_2_qty',\
+                                       'Bid 1 Price':'bid_1_price',\
+                                       'Bid 2 Price':'bid_2_price',\
+                                       'Bid 1 Ord':'bid_1_ord',\
+                                       'Ask 1 Ord':'ask_1_ord',\
+                                       'Bid 2 Ord':'bid_2_ord',\
+                                       'Ask 2 Ord':'ask_2_ord',\
+                                       'Ask 1 Qty':'ask_1_qty',\
+                                       'Ask 2 Qty':'ask_2_qty',\
+                                       'Ask 1 Price':'ask_1_price',\
+                                       'Ask 2 Price':'ask_2_price',\
+                                       'Trade Price':'trade_price',\
+                                       'Trade Qty':'trade_qty',\
+                                    'Aggression':'aggression',\
+                                           }, inplace = True)
+    #tob_before.drop(['bid_2_qty', 'bid_2_price','bid_2_ord','ask_2_ord',\
+    #            'ask_2_qty', 'ask_2_price', 'OT'],axis=1, inplace=True)
+    #tob_after2.drop(['bid_1_price_last', 'ask_1_price_last','bid_price_traded'\
+    #                 ,'ask_price_traded'],axis=1, inplace=True)
+    
+    tob_before = \
+            tob_before.set_index(tob_before['DateTime'])
+    tob_after2 = \
+            tob_after2.set_index(tob_after2['DateTime'])
+            
+        
+    bid_1_pr_match = pd.DataFrame( np.where(tob_after2['bid_1_price'] == tob_before['Bid_Price'], True, False), index= tob_before.index)
+    #df_bid_1_price['before']=tob_before['Bid_Price'].copy()
+    #df_bid_1_price['after']=tob_after2['bid_1_price'].copy()
+    df = pd.concat([tob_after2, tob_before, bid_1_pr_match], axis=1)
+    #print(df_bid_1_price.sum())
     
 # %% Run test
+run_compare_tob(PATHIN, PATHOUT)
 #run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
-run_benchmark(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+#run_benchmark(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_unc_zones_read(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #runc_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME)

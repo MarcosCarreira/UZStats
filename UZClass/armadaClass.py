@@ -13,7 +13,7 @@ May-2019
 '''
 
 # %% Import packages
-
+import timeit
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -282,6 +282,7 @@ class Armada_Data():
 class Armada_TOB(Armada_Data):
     
     def __init__(self, Armada_Data):
+        start = timeit.default_timer()
         self.Armada_Data = Armada_Data
         self.tob = pd.DataFrame()
         #to delete once algo completed
@@ -294,6 +295,10 @@ class Armada_TOB(Armada_Data):
         self.num_consecutive_trade = self.__find_num_consecutive_trade()
         print(self.Armada_Data.get_file_name()+' max_runs = '+str(self.num_consecutive_trade))
         self.__fill_tob()
+        stop = timeit.default_timer()
+        print('Time Spent: ', round(stop - start), ' seconds')
+        print('--END-------')
+        
         
     def __fill_tob(self):
         # initialize to original not filled tob
@@ -370,22 +375,27 @@ class Armada_TOB(Armada_Data):
 
             self.tob.ask_1_price.loc[    \
                 self.tob.bid_price_traded & \
-                self.tob.bool_idx] = shift_ask_price
+                self.tob.bool_idx] = np.nan #shift_ask_price
                 
             self.tob.ask_1_qty.loc[
                 self.tob.bid_price_traded & 
-                self.tob.bool_idx] = shift_ask_qty
+                self.tob.bool_idx] = np.nan #shift_ask_qty
             
             self.tob.bid_1_price.loc[    \
                 self.tob.ask_price_traded & \
-                self.tob.bool_idx] = shift_bid_price
+                self.tob.bool_idx] = np.nan #shift_bid_price
                 
             self.tob.bid_1_qty.loc[
                 self.tob.ask_price_traded & 
-                self.tob.bool_idx] = shift_bid_qty
+                self.tob.bool_idx] = np.nan #shift_bid_qty
         
-        self.tob.drop(['bool_bid_C', 'bool_ask_C','bool_ask_D','bool_bid_D',\
-                              'bool_idx', 'bool_trade', 'cumsum'],axis=1, inplace=True)
+        #self.tob.drop(['bool_bid_C', 'bool_ask_C','bool_ask_D','bool_bid_D',\
+        #                      'bool_idx', 'bool_trade', 'cumsum'],axis=1, inplace=True)
+        self.tob.ask_1_price.fillna(method='ffill', inplace=True)
+        self.tob.ask_1_qty.fillna(method='ffill', inplace=True)
+        self.tob.bid_1_price.fillna(method='ffill', inplace=True)
+        self.tob.bid_1_qty.fillna(method='ffill', inplace=True)
+        
         print('tob fill completed')
         
     def __fill_tob_data(self):
@@ -453,14 +463,20 @@ class Armada_TOB(Armada_Data):
         ###
         return num_consecutive_trade
     
-    def print2file_df_tob(self,pathout):
+    def print2file_df_tob(self,pathout, start_time, end_time):
         file_name = pathout+'tob.csv'
         zip_name = pathout + 'tob.zip'
         print('Saving file: ',file_name)
+        date = self.Armada_Data.get_processing_date()
+        start = (date + start_time)
+        end = (date + end_time)
         data_to_print = self.tob.copy()
+        data_to_print['DateTime'] = self.Armada_Data.data_frame.DateTime.copy()
         data_to_print = \
             data_to_print.set_index(self.Armada_Data.data_frame.DateTime.copy())
-        
+        data_to_print = data_to_print.loc[start:end]
+        #date_filter = (data_to_print['DateTime'].to_timedelta() >start & data_to_print['DateTime'].to_timedelta()<end)
+        #data_to_print = data_to_print.loc[data_to_print['DateTime'].dt > start & data_to_print['DateTime'].dt < end]
         #self.data_to_print.to_csv(file_name)
         compression_opts = dict(method='zip', archive_name=file_name)
         data_to_print.to_csv(zip_name, index=False, compression=compression_opts) 
