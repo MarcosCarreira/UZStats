@@ -103,14 +103,15 @@ def run_benchmark(pathin, pathout, file_name, tick_value, start_time,\
 def run_BFM_tob(pathin, pathout, file_name, tick_value, start_time,\
                   end_time, save_files=False):
     data = ad(pathin,file_name, 'BMF')
+    print(data.file_name)
     print(data.get_processing_date()) # test if bug if fixed
     data.plot_html_ohlc(pathout,'1min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
-    uz_obj = uz(data,tick_value,start_time,end_time)
-    uz_obj.print2file_df_cont_alt_by_ticks(pathout)
-    uz_obj.print2file_df_uz_stats(pathout)
     tob_obj = atob(data, tick_value)
     tob_obj.print2file_df_tob(pathout, start_time, end_time)
     data.plot_html_1mintick(pathout,pd.to_timedelta('08:59:55'))
+    uz_obj = uz(data,tick_value,start_time,end_time)
+    uz_obj.print2file_df_cont_alt_by_ticks(pathout)
+    uz_obj.print2file_df_uz_stats(pathout)
 
     print('done')
     

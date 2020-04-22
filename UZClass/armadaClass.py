@@ -25,24 +25,71 @@ class Armada_Data():
 
 # %% Main Functions    
     
-    def __init__(self, file_path, file_name, filename_format = 'CME'):
-        self.filename_format = filename_format
-        self.file_name = file_name
-        self.file_path = file_path
-        self.measures = pd.DataFrame()
-        self.data_frame = pd.DataFrame()
+    def __init__(self, file_path, file_name, exchange = 'CME'):
+        self.__exchange = exchange
+        self.__file_name = file_name
+        self.__file_path = file_path
+        self.__df = pd.DataFrame()
+        self.__measures = pd.DataFrame()
         
-        print('Reading file '+file_path+file_name)
+        print('Reading file '+ self.file_entire_path)
         self.__read_ArmadaData()
-        print('Re-formatting Data')
+        print('Re-formatting data')
         self.__column_datetime()
-        print('Armada Data Object Construction Sucessfull')
         self.__rename_columns()
-        print('Construct Data Frame with Basic Measures')
-        self.__calc_basic_measures()
+        print('Construct Data Frame with Basic Measures')        
+        self.__calc_basic_measures() # Marcos to check if needed here or get() function
+        print('Remove data outside exchange trading hours')
+        self.__filter_exchange_data_by_time()
+        print('Armada Data Object Construction Successfull')
         
+    
+    @property
+    def file_name(self):
+            return self.__file_name
+    @property
+    def file_name_long(self):
+            return self.__file_name[:-4]
+    @property
+    def file_entire_path(self):
+        return (self.__file_path+self.__file_name)
+    @property
+    def exchange(self):
+        return self.__exchange
+    @property
+    def df(self):
+        return self.__df
+    @property
+    def measures(self):
+        return self.__measures
+    
+    # %% Public Functions
+    
+    def get_processing_date(self):
+        if self.__exchange == 'CME':
+            return pd.to_datetime(self.file_name[0:8],format='%Y%m%d')
+        if self.__exchange == 'BMF':
+            return pd.to_datetime(self.file_name[6:-4],format='%Y%m%d')
+        
+    def get_exchange_starting_time(self):
+        if self.__exchange == 'CME':
+            return self.get_processing_date()\
+                                + pd.to_timedelta('00:00:00')
+        if self.__exchange == 'BMF':
+            return self.get_processing_date()\
+                                + pd.to_timedelta('09:00:00')
+                                
+    def get_exchange_end_time(self):
+        if self.__exchange == 'CME':
+            return self.get_processing_date()\
+                                + pd.to_timedelta('16:00:00')
+        if self.__exchange == 'BMF':
+            return self.get_processing_date()\
+                                + pd.to_timedelta('23:59:59')
+# %% Main Functions
+    
     def __read_ArmadaData(self):
-        self.data_frame = pd.read_csv(self.file_path+self.file_name \
+        self.__df = pd.read_csv(self.file_entire_path \
                                           ,dtype={'Index':int,
                                                 'Date':str,
                                                 'Time':str,
@@ -62,7 +109,7 @@ class Armada_Data():
                                                 'Ask 2 Ord':float
                                                 })
     def __rename_columns(self):
-        self.data_frame.rename(columns = {'Bid 1 Qty':'bid_1_qty',\
+        self.__df.rename(columns = {'Bid 1 Qty':'bid_1_qty',\
                                        'Bid 2 Qty':'bid_2_qty',\
                                        'Bid 1 Price':'bid_1_price',\
                                        'Bid 2 Price':'bid_2_price',\
@@ -77,47 +124,51 @@ class Armada_Data():
                                        'Trade Price':'trade_price',\
                                        'Trade Qty':'trade_qty',\
                                            }, inplace = True)
-        self.data_frame.drop(['Time.1', 'Date.1','Index','Index.1',\
-                              'Date', 'Time'],axis=1, inplace=True)
-    
+        self.__df.drop(['Time.1', 'Date.1','Index','Index.1',\
+                              'Date', 'Time'],axis=1, inplace=True)   
     def __calc_basic_measures(self):
-        self.measures = pd.DataFrame()
         self.__get_ba_spread()
         self.__get_delta_t()
         self.__get_mid_price()
-        self.__trade_indicator()
-
-# %% Public Functions
-      
-    def get_file_name(self):
-        return self.file_name[:-4]
+        self.__trade_indicator()  
     
-    def get_processing_date(self):
-        if self.filename_format == 'CME':
-            return pd.to_datetime(self.file_name[0:8],format='%Y%m%d')
-        if self.filename_format == 'BMF':
-            return pd.to_datetime(self.file_name[6:-4],format='%Y%m%d')
+    def __filter_exchange_data_by_time(self):
+        # set start and end time
+        start_time = self.get_exchange_starting_time()
+        end_time = self.get_exchange_end_time()
         
+        # truncating df
+        df_tmp = self.__df.copy()
+        df_tmp = df_tmp.set_index(['DateTime'])
+        df_tmp = df_tmp.loc[start_time:end_time]
+        df_tmp = df_tmp.reset_index()
+        self.__df = df_tmp        
+        # truncating df
+        measures_tmp = self.__measures.copy()
+        measures_tmp = measures_tmp.set_index(self.__df.DateTime)
+        measures_tmp = measures_tmp.loc[start_time:end_time]
+        measures_tmp = measures_tmp.reset_index()
+        self.__measures = measures_tmp
 
 # %% Measures Functions 
         
     def __trade_indicator(self):
-        self.measures['trade_indicator'] = self.data_frame.trade_price.isnull().copy()
+        self.measures['trade_indicator'] = self.__df.trade_price.isnull().copy()
     
     def __get_ba_spread(self, data=None):
         if data is not None:
             spread = (data.ask_1_price - data.bid_1_price)
             return spread
         else:
-            df = self.data_frame.copy()
+            df = self.__df.copy()
             self.measures['ba_spread'] = (df.ask_1_price - df.bid_1_price)    
     
     def __get_delta_t(self, data=None):
         if data is not None:
-            delta_t = self.data_frame.DateTime.diff().shift(-1)
+            delta_t = self.df.DateTime.diff().shift(-1)
             return delta_t
         else:
-            self.measures['dt'] = self.data_frame.DateTime.diff().shift(-1) 
+            self.measures['dt'] = self.__df.DateTime.diff().shift(-1) 
     
     def __get_mid_price(self, data=None):
         if data is not None:
@@ -125,7 +176,7 @@ class Armada_Data():
             return mid_price
         else:
             self.measures['mid_price'] = \
-                (self.data_frame.ask_1_price + self.data_frame.bid_1_price)/2
+                (self.__df.ask_1_price + self.__df.bid_1_price)/2
     
     def __rlz_vol_log(self,prices):
         '''rlzvollog(prices) calculates the realized volatility of a time series
@@ -138,30 +189,30 @@ class Armada_Data():
     def __custom_resampler_abs_sum(self,array):
         return np.sum(np.abs(array))
     
-    def get_time_weighted_spread(self, data=None):
+    def __get_time_weighted_spread(self, data=None):
         if data is not None:    
             return ((data['ba_spread']*data['dt']).sum())/\
                 (data['dt'].sum())
-            return ((self.data_frame['ba_spread']*self.data_frame['dt']).sum())/\
-                (self.data_frame['dt'].sum())
+            return ((self.__df['ba_spread']*self.__df['dt']).sum())/\
+                (self.__df['dt'].sum())
     
     def __column_datetime(self):
         '''column_datetime(data_frame) creates the column 'DateTime'
         concatenating 'Date' and 'Time' and converting it to datetime.
         Inputs: Data Frame from Armada
         Outputs: Copy of DataFrame with 'DateTime' column added'''
-        data_framec = self.data_frame.copy()
+        data_framec = self.__df.copy()
         data_framec['Date'] = pd.to_datetime(data_framec['Date'],\
             format="%m/%d/%Y")
         data_framec['Time'] = pd.to_timedelta(data_framec['Time'], unit='ns')
         data_framec['DateTime'] = data_framec['Date']+data_framec['Time']
-        self.data_frame = data_framec
+        self.__df = data_framec
 
 # %%  Plots Functions
 
     def plot_html_1mintick(self,path_out, start_xaxis = pd.to_timedelta('07:30:00')):
         #layout = self.__plot_html_layout('Bid Price', 'Ask Price', 'Price Time Series')
-        data = self.data_frame.copy()
+        data = self.__df.copy()
         data = data.set_index(['DateTime'])
         
         start_xaxis = self.get_processing_date() + start_xaxis
@@ -187,41 +238,28 @@ class Armada_Data():
                             name = 'Bid-ask spread'), row=3, col=1)
         
         
-        file = path_out+self.get_file_name()+"_price.html"
+        file = path_out+self.file_name_long+"_price.html"
         print('saving html plot to ', file)
         fig.write_html(file)
         
     def plot_html_qty(self,path_out):
         layout = self.__plot_html_layout('Bid Qty', 'Ask Qty', 'Quantity Time Series')
-        bid_data = go.Scatter(x=self.data_frame.DateTime,
-                         y=self.data_frame.bid_1_qty)
-        ask_data = go.Scatter(x=self.data_frame.DateTime,
-                        y=self.data_frame.ask_1_qty)
+        bid_data = go.Scatter(x=self.__df.DateTime,
+                         y=self.__df.bid_1_qty)
+        ask_data = go.Scatter(x=self.__df.DateTime,
+                        y=self.__df.ask_1_qty)
         fig = go.Figure(data=[bid_data, ask_data], layout=layout)
         fig.update_layout(height=600, width=600, title_text="Stacked Subplots")
-        file = path_out+self.get_file_name+"_qty.html"
+        file = path_out+self.file_name_long+"_qty.html"
         print('saving html plot to ', file)
         fig.write_html(file)  
-        
-    def __plot_html_layout(self,yaxis_text, yaxis2_text, title_text):
-        layout = go.Layout(height=1000, width=1400,
-                   title=title_text,
-                   # Same x and first y
-                   xaxis=dict(title='Date'),
-                   yaxis=dict(title=yaxis_text, color='red'),
-                   # Add a second yaxis to the right of the plot
-                   yaxis2=dict(title=yaxis2_text, color='blue',
-                               overlaying='y', side='right')
-                   )
-        return layout
     
-
     
     def plot_html_ohlc(self, pathout, 
                        freq='1min',start_xaxis = pd.to_timedelta('09:00:00'),
                        end_xaxis = pd.to_timedelta('16:00:00')):
         
-        data = self.data_frame.copy()
+        data = self.__df.copy()
         data = data.set_index(['DateTime'])
         
         start_xaxis = self.get_processing_date() + start_xaxis
@@ -244,7 +282,7 @@ class Armada_Data():
         data = data.assign(dt=self.measures.dt .values)
         data_masked = data[data.ba_spread > 0]
         time_weighted_spread = pd.DataFrame(\
-            data_masked.groupby(pd.Grouper(freq=freq)).apply(self.get_time_weighted_spread))
+            data_masked.groupby(pd.Grouper(freq=freq)).apply(self.__get_time_weighted_spread))
         #time_weighted_spread = time_weighted_spread.set_index(ohlc.index)    
         time_weighted_spread.columns = ['time_weighted_spread']
         time_weighted_spread = time_weighted_spread.loc[start_xaxis:end_xaxis]
@@ -283,7 +321,7 @@ class Armada_Data():
         fig.write_html(file)
 
 
-# %% Armada To-Of-Book Class
+# %% Armada Top-Of-Book Class
         
 class Armada_TOB(Armada_Data):
     tick_value = float()
@@ -293,15 +331,15 @@ class Armada_TOB(Armada_Data):
         self.tick_value = tick_value
         self.tob = pd.DataFrame()
         #to delete once algo completed
-        self.tob['traded_price'] = self.Armada_Data.data_frame.trade_price.copy() 
-        self.tob['traded_qty'] = self.Armada_Data.data_frame.trade_qty.copy() 
+        self.tob['traded_price'] = self.Armada_Data.df.trade_price.copy() 
+        self.tob['traded_qty'] = self.Armada_Data.df.trade_qty.copy() 
         ######
         print('Filling intermediate values in order book')
         self.__fill_tob_data()
         self.__fill_price_traded()
         #self.__fill_aggression()
         self.num_consecutive_trade = self.__find_num_consecutive_trade()
-        print(self.Armada_Data.get_file_name()+' max_runs = '+str(self.num_consecutive_trade))
+        print(self.Armada_Data.file_name+' max_runs = '+str(self.num_consecutive_trade))
         self.__fill_tob()
         stop = timeit.default_timer()
         print('Time spent on top-of-book filling: ', round(stop - start), ' seconds')
@@ -315,16 +353,16 @@ class Armada_TOB(Armada_Data):
         bid_qty_before = self.tob.bid_1_qty.shift(+1).copy()
         ask_qty_before = self.tob.ask_1_qty.shift(+1).copy()
         isconsumption = self.depl.depl_or_fill
-        delta_t = self.Armada_Data.data_frame.DateTime.diff().shift(+1)
+        delta_t = self.Armada_Data.df.DateTime.diff().shift(+1)
         
         
         
     def __fill_tob(self):
         # initialize to original not filled tob
-        self.tob['bid_1_price'] = self.Armada_Data.data_frame.bid_1_price.copy()
-        self.tob['ask_1_price'] = self.Armada_Data.data_frame.ask_1_price.copy()
-        self.tob['bid_1_qty'] = self.Armada_Data.data_frame.bid_1_qty.copy()
-        self.tob['ask_1_qty'] = self.Armada_Data.data_frame.ask_1_qty.copy()
+        self.tob['bid_1_price'] = self.Armada_Data.df.bid_1_price.copy()
+        self.tob['ask_1_price'] = self.Armada_Data.df.ask_1_price.copy()
+        self.tob['bid_1_qty'] = self.Armada_Data.df.bid_1_qty.copy()
+        self.tob['ask_1_qty'] = self.Armada_Data.df.ask_1_qty.copy()
         
         self.tob['bool_trade'] = self.Armada_Data.measures.trade_indicator.copy() == False
         
@@ -339,54 +377,54 @@ class Armada_TOB(Armada_Data):
             shift_ask_qty = self.tob.ask_1_qty.shift(-1)
             
             #If ask or bid price t+1 = trade price t 
-            self.tob['bool_bid_D'] = self.Armada_Data.data_frame.trade_price == shift_bid_price
-            self.tob['bool_ask_D'] = self.Armada_Data.data_frame.trade_price == shift_ask_price      
+            self.tob['bool_bid_D'] = self.Armada_Data.df.trade_price == shift_bid_price
+            self.tob['bool_ask_D'] = self.Armada_Data.df.trade_price == shift_ask_price      
             
             self.tob.bid_1_qty.loc[    \
                 self.tob.bool_idx &    \
                 self.tob.bool_trade &  \
                 self.tob.bool_bid_D] = \
-                pd.Series(np.sum([self.Armada_Data.data_frame.trade_qty , shift_bid_qty], axis=0))
+                pd.Series(np.sum([self.Armada_Data.df.trade_qty , shift_bid_qty], axis=0))
             
             self.tob.bid_1_price.loc[    \
                 self.tob.bool_idx &    \
                 self.tob.bool_trade &  \
-                self.tob.bool_bid_D] = self.Armada_Data.data_frame.trade_price
+                self.tob.bool_bid_D] = self.Armada_Data.df.trade_price
                 
             self.tob.ask_1_qty.loc[    \
                 self.tob.bool_idx &    \
                 self.tob.bool_trade &  \
                 self.tob.bool_ask_D] = \
-                pd.Series(np.sum([self.Armada_Data.data_frame.trade_qty , shift_ask_qty], axis=0))
+                pd.Series(np.sum([self.Armada_Data.df.trade_qty , shift_ask_qty], axis=0))
                 
             self.tob.ask_1_price.loc[    \
                 self.tob.bool_idx &    \
                 self.tob.bool_trade &  \
-                self.tob.bool_ask_D] = self.Armada_Data.data_frame.trade_price
+                self.tob.bool_ask_D] = self.Armada_Data.df.trade_price
 
             #If ask or bid price t+1 != trade price t 
-            self.tob['bool_bid_C'] = self.Armada_Data.data_frame.trade_price != shift_bid_price
-            self.tob['bool_ask_C'] = self.Armada_Data.data_frame.trade_price != shift_ask_price      
+            self.tob['bool_bid_C'] = self.Armada_Data.df.trade_price != shift_bid_price
+            self.tob['bool_ask_C'] = self.Armada_Data.df.trade_price != shift_ask_price      
             
             self.tob.ask_1_qty.loc[    \
                 self.tob.bool_idx &    \
                 self.tob.bool_trade &  \
-                self.tob.bool_ask_C] = self.Armada_Data.data_frame.trade_qty
+                self.tob.bool_ask_C] = self.Armada_Data.df.trade_qty
                 
             self.tob.ask_1_price.loc[    \
                 self.tob.bool_idx &    \
                 self.tob.bool_trade &  \
-                self.tob.bool_ask_C] = self.Armada_Data.data_frame.trade_price
+                self.tob.bool_ask_C] = self.Armada_Data.df.trade_price
                 
             self.tob.bid_1_qty.loc[    \
                 self.tob.bool_idx &    \
                 self.tob.bool_trade &  \
-                self.tob.bool_bid_C] = self.Armada_Data.data_frame.trade_qty
+                self.tob.bool_bid_C] = self.Armada_Data.df.trade_qty
                 
             self.tob.bid_1_price.loc[    \
                 self.tob.bool_idx &    \
                 self.tob.bool_trade &  \
-                self.tob.bool_bid_C] = self.Armada_Data.data_frame.trade_price
+                self.tob.bool_bid_C] = self.Armada_Data.df.trade_price
             
             # if side not traded: 
             #{Qty_Other_Side[t] , Price_Other_Side[t]} = 
@@ -416,18 +454,18 @@ class Armada_TOB(Armada_Data):
         self.tob.bid_1_qty.fillna(method='ffill', inplace=True)
         
     def __fill_tob_data(self):
-        self.tob['bid_1_price_last'] = self.Armada_Data.data_frame.bid_1_price.copy()
+        self.tob['bid_1_price_last'] = self.Armada_Data.df.bid_1_price.copy()
         self.tob.bid_1_price_last.fillna(method='ffill', inplace=True)
         
-        self.tob['ask_1_price_last'] = self.Armada_Data.data_frame.ask_1_price.copy()
+        self.tob['ask_1_price_last'] = self.Armada_Data.df.ask_1_price.copy()
         self.tob.ask_1_price_last.fillna(method='ffill', inplace=True)
        
     def __fill_price_traded(self):
         self.tob['bid_price_traded'] = self.tob.bid_1_price_last >=\
-        self.Armada_Data.data_frame.trade_price
+        self.Armada_Data.df.trade_price
         
         self.tob['ask_price_traded'] = self.tob.ask_1_price_last <=\
-        self.Armada_Data.data_frame.trade_price
+        self.Armada_Data.df.trade_price
     
     def __fill_aggression(self):
         self.tob['aggression'] = np.vectorize(self.aggression_id)\
@@ -439,7 +477,7 @@ class Armada_TOB(Armada_Data):
         end = self.Armada_Data.get_processing_date() + end_time
         df_aggression = pd.DataFrame(self.tob.aggression)
         df_aggression = \
-            df_aggression.set_index(self.Armada_Data.data_frame.DateTime.copy())
+            df_aggression.set_index(self.Armada_Data.df.DateTime.copy())
         df_aggression = df_aggression.loc[start:end]
         number_aggression = np.nansum(df_aggression)
         return number_aggression
@@ -452,7 +490,7 @@ class Armada_TOB(Armada_Data):
         
         df_aggression = pd.DataFrame(self.tob.aggression)
         df_aggression = \
-            df_aggression.set_index(self.Armada_Data.data_frame.DateTime.copy())
+            df_aggression.set_index(self.Armada_Data.df.DateTime.copy())
         df_aggression = df_aggression.loc[start_lag:end]
         #df_aggression = abs(df_aggression)
         number_aggression = df_aggression.rolling('1s').sum()
@@ -466,7 +504,7 @@ class Armada_TOB(Armada_Data):
         #layout = self.__plot_html_layout('Bid Qty', 'Ask Qty', 'Quantity Time Series')
         fig = go.Figure([go.Scatter(x=number_aggression.index, y=number_aggression.aggression)])
         fig.update_layout(title_text="1 Second Rolling Net Number of Aggression")
-        file = path_out+self.Armada_Data.get_file_name()+"_1sec_roll_net_number_aggression.html"
+        file = path_out+self.Armada_Data.file_name+"_1sec_roll_net_number_aggression.html"
         print('saving html plot to ', file)
         fig.write_html(file)  
         
@@ -535,14 +573,14 @@ class Armada_TOB(Armada_Data):
         the data_frame
         the tick value'''
         tick_value = self.tick_value
-        bid_1_price = self.Armada_Data.data_frame.bid_1_price.copy()
-        ask_1_price = self.Armada_Data.data_frame.ask_1_price.copy()
-        bid_1_qty = self.Armada_Data.data_frame.bid_1_qty.copy()
-        ask_1_qty = self.Armada_Data.data_frame.ask_1_qty.copy()
-        bid_2_price = self.Armada_Data.data_frame.bid_2_price.copy()
-        ask_2_price = self.Armada_Data.data_frame.ask_2_price.copy()
-        bid_2_qty = self.Armada_Data.data_frame.bid_2_qty.copy()
-        ask_2_qty = self.Armada_Data.data_frame.ask_2_qty.copy()
+        bid_1_price = self.Armada_Data.df.bid_1_price.copy()
+        ask_1_price = self.Armada_Data.df.ask_1_price.copy()
+        bid_1_qty = self.Armada_Data.df.bid_1_qty.copy()
+        ask_1_qty = self.Armada_Data.df.ask_1_qty.copy()
+        bid_2_price = self.Armada_Data.df.bid_2_price.copy()
+        ask_2_price = self.Armada_Data.df.ask_2_price.copy()
+        bid_2_qty = self.Armada_Data.df.bid_2_qty.copy()
+        ask_2_qty = self.Armada_Data.df.ask_2_qty.copy()
         
         
         mid_price = (bid_1_price + ask_1_price) / 2
@@ -628,7 +666,7 @@ class Armada_TOB(Armada_Data):
         
         df_masked = self.ord_indic[mask1 & mask2]
         df_masked['delta_t'] = \
-            self.Armada_Data.data_frame.DateTime[mask1 & mask2].diff().shift(-1)
+            self.Armada_Data.df.DateTime[mask1 & mask2].diff().shift(-1)
         
         def delta_t_weigh(field):
             return ((df_masked[field]*df_masked['delta_t']).sum())/\
@@ -641,7 +679,7 @@ class Armada_TOB(Armada_Data):
         df_dict['tw_bid12tomid'] = delta_t_weigh('bid_12_to_midprice')
         df_dict['tw_ask12tomid'] = delta_t_weigh('ask_12_to_midprice')
         
-        df_masked = self.Armada_Data.data_frame[mask1 & mask2]
+        df_masked = self.Armada_Data.df[mask1 & mask2]
         
         df_dict['tw_bid1qty'] = delta_t_weigh('bid_1_qty')
         df_dict['tw_ask1qty'] = delta_t_weigh('ask_1_qty')
@@ -659,9 +697,9 @@ class Armada_TOB(Armada_Data):
         start = (date + start_time)
         end = (date + end_time)
         data_to_print = self.tob.copy()
-        data_to_print['DateTime'] = self.Armada_Data.data_frame.DateTime.copy()
+        data_to_print['DateTime'] = self.Armada_Data.df.DateTime.copy()
         data_to_print = \
-            data_to_print.set_index(self.Armada_Data.data_frame.DateTime.copy())
+            data_to_print.set_index(self.Armada_Data.df.DateTime.copy())
         data_to_print = data_to_print.loc[start:end]
         #date_filter = (data_to_print['DateTime'].to_timedelta() >start & data_to_print['DateTime'].to_timedelta()<end)
         #data_to_print = data_to_print.loc[data_to_print['DateTime'].dt > start & data_to_print['DateTime'].dt < end]
@@ -739,8 +777,8 @@ class ArmadaData_UZModel():
     def __init__(self, Armada_Data, tick_value \
                  , start_time = pd.to_timedelta('00:00:00')\
                  , end_time = pd.to_timedelta('23:59:59')):
-        self.df = Armada_Data.data_frame
-        self.file_out = Armada_Data.get_file_name()
+        self.df = Armada_Data.df
+        self.file_out = Armada_Data.file_name_long
         self.processing_date = Armada_Data.get_processing_date()
         #self.df = data_frame
         self.tick_value = tick_value
@@ -1086,548 +1124,16 @@ class ArmadaData_UZModel():
         
         fig.add_trace(go.Scatter(x=self.data_frame_trades.DateTime, y=self.data_frame_trades.Al), row=1, col=1)
         fig.add_trace(go.Scatter(x=self.data_frame_trades.DateTime, y=self.data_frame_trades.Co), row=1, col=1)
-        fig.add_trace(go.Scatter(x=self.data_frame.DateTime,y=self.__get_BAspread(self.data_frame)), row=2, col=1)
+        fig.add_trace(go.Scatter(x=self.__df.DateTime,y=self.__get_BAspread(self.__df)), row=2, col=1)
         fig.update_traces(marker=dict(size=12,
                               line=dict(width=2,
                                         color='DarkSlateGrey')),
                   selector=dict(mode='markers'))
         
-        file = path_out+self.get_file_name()+"_price.html"
+        file = path_out+self.file_name(True)+"_price.html"
         print('saving html plot to ', file)
         fig.write_html(file)
     
     def get_Armada_UZModel_output(self):
         return Armada_UZModel_output(self.df_cont_alt_by_ticks, self.df_uz_stats)
         
-
-
-# %% Agression functions
-
-
-
-def fill_aggression_id(data_frame):
-    '''fill_aggression_id(data_frame) applies aggression_id to a data_frame,
-    with the last bid and ask prices bracketing trade prices for the
-    aggression flag'''
-    data_framec = data_frame.copy()
-    new_columns = list(data_frame.columns)+['Aggression']
-    data_framec['Bid_Price_Last'] = data_framec['Bid 1 Price'].copy()
-    data_framec['Ask_Price_Last'] = data_framec['Ask 1 Price'].copy()
-    data_framec['Bid_Price_Last'].fillna(method='ffill', inplace=True)
-    data_framec['Ask_Price_Last'].fillna(method='ffill', inplace=True)
-    data_framec['Bid_Price_Traded'] = data_framec['Bid_Price_Last'] >=\
-        data_framec['Trade Price']
-    data_framec['Ask_Price_Traded'] = data_framec['Ask_Price_Last'] <=\
-        data_framec['Trade Price']
-    data_framec['Aggression'] = np.vectorize(aggression_id)\
-        (data_framec['Bid_Price_Traded'], data_framec['Ask_Price_Traded'],\
-        data_framec['OT'])
-    return data_framec[new_columns]
-
-def previous_tob(aggression_flag, trade_price, trade_quantity,\
-        bid_quantity, bid_price, ask_price, ask_quantity):
-    '''previous_tob_core(aggression_flag, trade_price, trade_quantity,\
-    bid_quantity, bid_price, ask_price, ask_quantity) returns\
-    a list with the new top of the book: bid_quantity, bid_price,\
-    ask_price, ask_quantity'''
-    top_of_book = {'Bid_Qty': bid_quantity, 'Bid_Price': bid_price,\
-                   'Ask_Price': ask_price, 'Ask_Qty': ask_quantity}
-    if bid_price > -1:
-        if aggression_flag == -1:
-            if trade_price == bid_price:
-                top_of_book['Bid_Qty'] += trade_quantity
-            else:
-                top_of_book['Bid_Qty'] = trade_quantity
-                top_of_book['Bid_Price'] = trade_price
-            if trade_price == ask_price:
-                top_of_book['Ask_Qty'] = np.nan
-                top_of_book['Ask_Price'] = np.nan
-        elif aggression_flag == 1:
-            if trade_price == ask_price:
-                top_of_book['Ask_Qty'] += trade_quantity
-            else:
-                top_of_book['Ask_Qty'] = trade_quantity
-                top_of_book['Ask_Price'] = trade_price
-            if trade_price == bid_price:
-                top_of_book['Bid_Qty'] = np.nan
-                top_of_book['Bid_Price'] = np.nan
-    return list(top_of_book.values())
-
-def init_previous_tob(data_frame):
-    '''init_previous_tob(data_frame) applies previous_tob to a data_frame,
-    returning new fields that indicate the previous top of book
-    ('Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty')'''
-    data_framec = data_frame.copy()
-    data_framec['Bid_Qty'] = data_framec['Bid 1 Qty'].shift(-1)
-    data_framec['Bid_Price'] = data_framec['Bid 1 Price'].shift(-1)
-    data_framec['Ask_Price'] = data_framec['Ask 1 Price'].shift(-1)
-    data_framec['Ask_Qty'] = data_framec['Ask 1 Qty'].shift(-1)
-    new_columns = list(data_framec.columns)
-    processed_list = list(map(previous_tob,\
-        data_framec['Aggression'], data_framec['Trade Price'],\
-        data_framec['Trade Qty'], data_framec['Bid_Qty'],\
-        data_framec['Bid_Price'], data_framec['Ask_Price'],\
-        data_framec['Ask_Qty']))
-    new_data_frame = pd.DataFrame(np.array(processed_list),\
-        columns=['Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty'],\
-        index=data_framec.index)
-    data_framec['Bid_Qty'] = np.where(data_framec['OT'],\
-        data_framec['Bid 1 Qty'], new_data_frame['Bid_Qty'])
-    data_framec['Bid_Price'] = np.where(data_framec['OT'],\
-        data_framec['Bid 1 Price'], new_data_frame['Bid_Price'])
-    data_framec['Ask_Price'] = np.where(data_framec['OT'],\
-        data_framec['Ask 1 Price'], new_data_frame['Ask_Price'])
-    data_framec['Ask_Qty'] = np.where(data_framec['OT'],\
-        data_framec['Ask 1 Qty'], new_data_frame['Ask_Qty'])
-    beg_orders = data_framec[data_framec['OT']].index[0]
-    new_cols = ['Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty']
-    data_framec.loc[:max(beg_orders-1, 0), new_cols] = np.nan
-    return data_framec[new_columns]
-
-def rec_previous_tob(data_frame):
-    '''rec_previous_tob(data_frame) applies previous_tob to a data_frame,
-    returning new fields that indicate the previous top of book
-    ('Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty')'''
-    data_framec = data_frame.copy()
-    new_columns = list(data_framec.columns)
-    data_framec['Bid_Qty_0'] = data_framec['Bid_Qty'].shift(-1)
-    data_framec['Bid_Price_0'] = data_framec['Bid_Price'].shift(-1)
-    data_framec['Ask_Price_0'] = data_framec['Ask_Price'].shift(-1)
-    data_framec['Ask_Qty_0'] = data_framec['Ask_Qty'].shift(-1)
-    processed_list = list(map(previous_tob,\
-        data_framec['Aggression'], data_framec['Trade Price'],\
-        data_framec['Trade Qty'], data_framec['Bid_Qty_0'],\
-        data_framec['Bid_Price_0'], data_framec['Ask_Price_0'],\
-        data_framec['Ask_Qty_0']))
-    new_data_frame = pd.DataFrame(np.array(processed_list),\
-        columns=['Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty'],\
-        index=data_framec.index)
-    data_framec['Bid_Qty'] = np.where(data_framec['OT'],\
-        data_framec['Bid_Qty'], new_data_frame['Bid_Qty'])
-    data_framec['Bid_Price'] = np.where(data_framec['OT'],\
-        data_framec['Bid_Price'], new_data_frame['Bid_Price'])
-    data_framec['Ask_Price'] = np.where(data_framec['OT'],\
-        data_framec['Ask_Price'], new_data_frame['Ask_Price'])
-    data_framec['Ask_Qty'] = np.where(data_framec['OT'],\
-        data_framec['Ask_Qty'], new_data_frame['Ask_Qty'])
-    beg_orders = data_framec[data_framec['OT']].index[0]
-    new_cols = ['Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty']
-    data_framec.loc[:max(beg_orders-1, 0), new_cols] = np.nan
-    return data_framec[new_columns]
-
-def find_max_run(boolean_series):
-    '''find_max_run(boolean_series) finds the maximum number of
-    consecutive trades ('OT' False)'''
-    series_string = np.where(boolean_series, ' ', '1')
-    string_boolean = pd.Series(series_string).sum()
-    list_split = string_boolean.split()
-    lengths_runs = np.vectorize(len)(pd.Series(list_split))
-    return lengths_runs.max()
-
-def loop_previous_tob(data_frame, max_runs=1):
-    '''loop_previous_tob(data_frame, max_runs=1) applies
-    previous_tob to a data_frame max_runs+2 times, returning
-    new fields that indicate the previous top of book
-    ('Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty')'''
-    data_framec = data_frame.copy()
-    print('original')
-    loop_1_df = init_previous_tob(data_framec)
-    print('init 0')
-    loop_0_df = data_frame.copy()
-    j = 0
-    while j <= max_runs:
-        loop_0_df = loop_1_df.copy()
-        loop_1_df = rec_previous_tob(loop_0_df)
-        if j%10 == 0:
-            print('loop '+str(j))
-        j += 1
-    prev_tob_df = loop_1_df.copy()
-    prev_tob_df['Bid_Qty'].fillna(method='ffill', inplace=True)
-    prev_tob_df['Bid_Price'].fillna(method='ffill', inplace=True)
-    prev_tob_df['Ask_Price'].fillna(method='ffill', inplace=True)
-    prev_tob_df['Ask_Qty'].fillna(method='ffill', inplace=True)
-    beg_orders = prev_tob_df[prev_tob_df['OT']].index[0]
-    new_cols = ['Bid_Qty', 'Bid_Price', 'Ask_Price', 'Ask_Qty']
-    prev_tob_df.loc[:max(beg_orders-1, 0), new_cols] = np.nan
-    print('end')
-    return prev_tob_df
-
-# %% Depletions
-
-def depletions(data_frame, tick_value):
-    '''depletions(data_frame, tick_value) flags depletions and fills on the
-    queue calculated by df_previous_tob returning new fields that indicate
-    which side (Bid or Ask) was depleted or filled and whether the
-    depletions were caused by a trade or a cancel'''
-    data_framec = data_frame.copy()
-    data_framec['OT_shift'] = data_framec['OT'].shift(+1)
-    data_framec['OT_shift'].fillna(False, inplace=True)
-    data_framec['Bid_Diff'] = data_framec['Bid_Price'].diff()/tick_value
-    data_framec['Ask_Diff'] = data_framec['Ask_Price'].diff()/tick_value
-    data_framec['Bid_Depl_Trade'] = (data_framec['Bid_Diff'] < 0) &\
-        (~ data_framec['OT_shift'])
-    data_framec['Bid_Depl_Cancel'] = (data_framec['Bid_Diff'] < 0) &\
-        data_framec['OT_shift']
-    data_framec['Ask_Depl_Trade'] = (data_framec['Ask_Diff'] > 0) &\
-        (~ data_framec['OT_shift'])
-    data_framec['Ask_Depl_Cancel'] = (data_framec['Ask_Diff'] > 0) &\
-        data_framec['OT_shift']
-    data_framec['Bid_Fill'] = data_framec['Bid_Diff'] > 0
-    data_framec['Ask_Fill'] = data_framec['Ask_Diff'] < 0
-    data_framec['BDT_And_AF'] = data_framec['Bid_Depl_Trade'] &\
-        data_framec['Ask_Fill']
-    data_framec['ADT_And_BF'] = data_framec['Ask_Depl_Trade'] &\
-        data_framec['Bid_Fill']
-    data_framec['Bid_Depl_Trade'] = data_framec['Bid_Depl_Trade'] &\
-        (~ data_framec['BDT_And_AF'])
-    data_framec['Ask_Fill'] = data_framec['Ask_Fill'] &\
-        (~ data_framec['BDT_And_AF'])
-    data_framec['Ask_Depl_Trade'] = data_framec['Ask_Depl_Trade'] &\
-        (~ data_framec['ADT_And_BF'])
-    data_framec['Bid_Fill'] = data_framec['Bid_Fill'] &\
-        (~ data_framec['ADT_And_BF'])
-    data_framec['Depl_Or_Fill'] = data_framec['Bid_Depl_Trade'] |\
-        data_framec['Bid_Depl_Cancel'] | data_framec['Ask_Depl_Trade'] |\
-        data_framec['Ask_Depl_Cancel'] | data_framec['Bid_Fill'] |\
-        data_framec['Ask_Fill'] | data_framec['BDT_And_AF'] |\
-        data_framec['ADT_And_BF']
-    return data_framec
-
-# %% Orders
-
-def microprice(qbid, pbid, qask, pask):
-    ''' fwp(qbid,pbid,qask,pask) returns the microprice
-    (pbid*qask+pask*qbid)/(qbid+qask) given:
-    amount on bid qbid, price on bid pbid,
-    amount on ask qask, price on ask pask'''
-    return (pbid*qask+pask*qbid)/(qbid+qask)
-
-def spread_ticks(pbid, pask, tick_value):
-    '''fsp(pbid,pask,tick_value) returns the spread between bid and ask prices
-    in ticks given:
-    price on bid pbid,
-    price on ask pask,
-    tick value'''
-    return np.round((pask-pbid)/tick_value)
-
-def imbalance(qbid, qask):
-    '''imbalance(qbid,qask) returns the imbalance qbid/(qbid+qask)-1/2 given:
-    amount on bid qbid, amount on ask qask'''
-    return qbid/(qbid+qask)-1/2
-
-def order_indicators(data_frame, tick_value):
-    '''order_indicators(data_frame,tick_value) returns the midprice, the
-    microprice, the level 1 and level 2 spreads in ticks, the weighted
-    execution price and the associated distance of the average execution
-    price on each side to the midprice, the imbalance and a discretization
-    of the imbalance given:
-    the data_frame
-    the tick value'''
-    data_framec = data_frame.copy()
-    data_framec['MidPrice'] = (data_framec['Bid 1 Price']+\
-        data_framec['Ask 1 Price'])/2
-    data_framec['Micro_Price'] = microprice(data_framec['Bid_Qty'],\
-        data_framec['Bid_Price'], data_framec['Ask_Qty'],\
-        data_framec['Ask_Price'])
-    data_framec['Spread_Lvl_1_Ticks'] = (data_framec['Ask 1 Price']-\
-        data_framec['Bid 1 Price'])/tick_value
-    data_framec['Bid_to_MidPrice'] = (data_framec['MidPrice']-\
-        data_framec['Bid 1 Price'])/tick_value
-    data_framec['Ask_to_MidPrice'] = (data_framec['Ask 1 Price']-\
-        data_framec['MidPrice'])/tick_value
-    data_framec['Spread_Lvl_2_Ticks'] = (data_framec['Ask 2 Price']-\
-        data_framec['Bid 2 Price'])/tick_value
-    data_framec['Bid 12 Price'] = (\
-        data_framec['Bid 1 Price']*data_framec['Bid 1 Qty']+\
-        data_framec['Bid 2 Price']*data_framec['Bid 2 Qty'])/\
-        (data_framec['Bid 1 Qty']+data_framec['Bid 2 Qty'])
-    data_framec['Bid_12_to_MidPrice'] = (data_framec['MidPrice']-\
-        data_framec['Bid 12 Price'])/tick_value
-    data_framec['Ask 12 Price'] = (\
-        data_framec['Ask 1 Price']*data_framec['Ask 1 Qty']+\
-        data_framec['Ask 2 Price']*data_framec['Ask 2 Qty'])/\
-        (data_framec['Ask 1 Qty']+data_framec['Ask 2 Qty'])
-    data_framec['Ask_12_to_MidPrice'] = (data_framec['Ask 12 Price']-\
-        data_framec['MidPrice'])/tick_value
-    data_framec['Spread_Ticks'] = spread_ticks(data_framec['Bid_Price'],\
-        data_framec['Ask_Price'], tick_value)
-    data_framec['Imbalance'] = imbalance(data_framec['Bid_Qty'],\
-        data_framec['Ask_Qty'])
-    data_framec['Imbal_Sign'] = pd.cut(data_framec['Imbalance'],\
-               [-0.5, -0.2, +0.2, +0.5], labels=[-1, 0, 1])
-    return data_framec
-
-# %% States functions
-
-def ot_states(data_frame, margins=False):
-    '''ot_states(data_frame, normalize=False) returns a transition matrix
-    for the states 'Aggression' (for trades) and 'Imbal_Sign' (for orders);
-    'Aggression' is multiplied by 2, so -2 indicates a trade at the Bid and
-    +2 indicates a trade at the Ask; 'Imbal_Sign' is -1 for a low imbalance
-    value (more Qty on Ask) and 'Imbal_Sign' is -1 for a high imbalance
-    value (more Qty on Bid)'''
-    state_1 = pd.Series(np.where(data_frame['Aggression'] == 0,\
-        data_frame['Imbal_Sign'], data_frame['Aggression']*2)).dropna()
-    trans_matrix_1 = pd.crosstab(state_1, state_1.shift(),\
-        rownames=['t'], colnames=['t+1'], margins=margins)
-    return trans_matrix_1
-
-def depl_fill_states(data_frame, margins=False):
-    '''depl_fill_states(data_frame, normalize=False) returns a transition
-    matrix for the different states of Depletion and Fill (caused by trades
-    or cancels, on the Bid or on the Ask):
-    ADC    = Ask_Depl_Cancel
-    ADT    = Ask_Depl_Trade
-    ADT+BF = ADT_And_BF
-    AF     = Ask_Fill
-    BDC    = Bid_Depl_Cancel
-    BDT    = Bid_Depl_Trade
-    BDT+AF = BDT_And_AF
-    BF     = Bid_Fill'''
-    trans_cols = ['Bid_Depl_Trade', 'Bid_Depl_Cancel', 'Ask_Depl_Trade',\
-        'Ask_Depl_Cancel', 'Bid_Fill', 'Ask_Fill', 'BDT_And_AF', 'ADT_And_BF']
-    depl_fill_df = data_frame[data_frame['Depl_Or_Fill']][trans_cols].copy()+0
-    depl_fill_df.columns = ['BDT   ', 'BDC   ', 'ADT   ', 'ADC   ',\
-        'BF    ', 'AF    ', 'BDT+AF', 'ADT+BF']
-    depl_fill_series = pd.Series(\
-        depl_fill_df.columns[np.where(depl_fill_df != 0)[1]])
-    trans_matrix_2 = pd.crosstab(depl_fill_series, depl_fill_series.shift(),\
-        rownames=['t'], colnames=['t+1'], margins=margins)
-    return trans_matrix_2
-
-def reduce_matrix(crostab_matrix):
-    '''reduce_matrix(crostab_matrix) returns a reduced transition matrix for
-    the different states of Depletion and Fill (caused by trades or cancels,
-    on the same side or the opposite side for both Bid and Ask):
-    DC   = Depl_Cancel
-    DT   = Depl_Trade
-    DT+F = DT_And_F
-    F    = Fill'''
-    sub_index = ['DC  ', 'DT  ', 'DT+F', 'F   ']
-    depl_cancel_same = pd.Series(\
-        crostab_matrix.iloc[0, :4].values+\
-        crostab_matrix.iloc[4, 4:].values)
-    depl_cancel_opps = pd.Series(\
-        crostab_matrix.iloc[0, 4:].values+\
-        crostab_matrix.iloc[4, :4].values)
-    depl_cancel_row = pd.concat([depl_cancel_same, depl_cancel_opps]).values
-    depl_traded_same = pd.Series(\
-        crostab_matrix.iloc[1, :4].values+\
-        crostab_matrix.iloc[5, 4:].values)
-    depl_traded_opps = pd.Series(\
-        crostab_matrix.iloc[1, 4:].values+\
-        crostab_matrix.iloc[5, :4].values)
-    depl_traded_row = pd.concat([depl_traded_same, depl_traded_opps]).values
-    depl_trfill_same = pd.Series(\
-        crostab_matrix.iloc[2, :4].values+\
-        crostab_matrix.iloc[6, 4:].values)
-    depl_trfill_opps = pd.Series(\
-        crostab_matrix.iloc[2, 4:].values+\
-        crostab_matrix.iloc[6, :4].values)
-    depl_trfill_row = pd.concat([depl_trfill_same, depl_trfill_opps]).values
-    fill_same = pd.Series(\
-        crostab_matrix.iloc[3, :4].values+\
-        crostab_matrix.iloc[7, 4:].values)
-    fill_opps = pd.Series(\
-        crostab_matrix.iloc[3, 4:].values+\
-        crostab_matrix.iloc[7, :4].values)
-    fill_row = pd.concat([fill_same, fill_opps]).values
-    cols_iterables = [['same', 'opps'], sub_index]
-    cols_index = pd.MultiIndex.from_product(cols_iterables,\
-        names=['side', 'event'])
-    sub_data_frame = pd.DataFrame({\
-        'DC  ':depl_cancel_row, 'DT  ':depl_traded_row,\
-        'DT+F':depl_trfill_row, 'F   ':fill_row})
-    sub_data_frame.index = cols_index
-    return sub_data_frame.transpose()
-
-# %% Statistics functions
-
-def ptox(traded_price, signs, alpha, eta):
-    '''ptox(traded_price, signs, alpha, eta) returns the series of
-    efficient prices given the traded prices, alpha and eta'''
-    return traded_price-alpha*(0.5-eta)*(signs.fillna(0))
-
-# %% Order statistics
-
-def time_weighted_tob(data_frame, file_out):
-    '''time_weighted_spread(data_frame) returns the time weighted spread
-    in ticks, given the data_frame'''
-    df_columns = ['twspr1', 'twspr2', 'bid1tomid', 'ask1tomid', 'bid1qty',\
-        'ask1qty', 'bid12tomid', 'ask12tomid', 'bid12qty', 'ask12qty']
-    df_dict = dict(zip(df_columns, len(df_columns)*[0]))
-    data_framec = data_frame.copy()
-    data_framec['dtO'] = data_framec['DateTime'].diff().shift(-1)
-    data_frame_masked = data_framec[data_framec['Spread_Lvl_1_Ticks'] > 0]
-    def dt0_weigh(field):
-        return ((data_frame_masked[field]*data_frame_masked['dtO']).sum())/\
-            (data_frame_masked['dtO'].sum())
-    df_dict['twspr1'] = dt0_weigh('Spread_Lvl_1_Ticks')
-    df_dict['twspr2'] = dt0_weigh('Spread_Lvl_2_Ticks')
-    df_dict['bid1tomid'] = dt0_weigh('Bid_to_MidPrice')
-    df_dict['ask1tomid'] = dt0_weigh('Ask_to_MidPrice')
-    df_dict['bid1qty'] = dt0_weigh('Bid 1 Qty')
-    df_dict['ask1qty'] = dt0_weigh('Ask 1 Qty')
-    df_dict['bid12tomid'] = dt0_weigh('Bid_12_to_MidPrice')
-    df_dict['ask12tomid'] = dt0_weigh('Ask_12_to_MidPrice')
-    df_dict['bid12qty'] = dt0_weigh('Bid 1 Qty')+dt0_weigh('Bid 2 Qty')
-    df_dict['ask12qty'] = dt0_weigh('Ask 1 Qty')+dt0_weigh('Ask 2 Qty')
-    data_frame_stats = pd.DataFrame(df_dict, index=[file_out])
-    return data_frame_stats
-
-# %% Cost of Trades
-
-def cost_of_trades(data_frame):
-    '''cost_of_trades(data_frame) returns a data frame
-    with trade amounts and costs'''
-    data_framec = data_frame.copy()
-    data_framec['MidPrice_Fill'] = data_framec['MidPrice'].copy()\
-        .fillna(method='ffill')
-    data_framec_trades = data_framec[~data_framec['OT']].copy()
-    data_framec_trades['Cost'] = data_framec_trades['Aggression']*\
-        data_framec_trades['Trade Qty']*\
-        (data_framec_trades['Trade Price']-data_framec_trades['MidPrice_Fill'])
-    data_framec_trades.set_index(['DateTime', 'Aggression', 'MidPrice_Fill'],\
-        inplace=True)
-    cost_data = data_framec_trades[['Trade Qty', 'Cost']].sum(level=[0, 1])\
-        .reset_index()
-    cost_data['Avg_Cost'] = cost_data['Cost']/cost_data['Trade Qty']
-    return cost_data
-
-def mean_cost_of_trades(data_frame):
-    '''mean cost_of_trades(data_frame) returns a data frame
-    with the mean cost of trade for each trade amount'''
-    data_framec = data_frame.copy()
-    cost_series = data_framec.groupby('Trade Qty')['Avg_Cost'].mean()
-    return pd.DataFrame(cost_series).reset_index()
-
-# %% Main script
-
-def run_unc_zones(pathin, pathout, file_name, tick_value, start_time,\
-                  end_time, trading_hours, save_files=False):
-    '''run_unc_zones(pathin, pathout, file_name, tick_value, end_of_time)
-    returns the uncertainty zones data frame'''
-    print('Reading file '+pathin+file_name)
-    data_frame = pd.read_csv(pathin+file_name)
-    file_out = file_name[:-4]
-    print('Preparing data_frame')
-    data_frame = column_datetime(column_ot(data_frame))
-    data_frame = select_times(data_frame, start_time, end_time)
-    print('Running Uncertainty Zones statistics')
-    df_trades = data_frame[~data_frame['OT']].copy()
-    df_trades_time = collapse_time(df_trades)
-    df_trades_price = adduz(collapse_price(df_trades_time), tick_value)
-    df_cont_alt_by_ticks = uz_coal_byk(df_trades_price)
-    df_uz_stats = uz_stats(df_trades_price, file_out, tick_value,\
-                           trading_hours)
-    print('Filling intermediate values in order book')
-    df_agg = fill_aggression_id(data_frame)
-    max_runs = find_max_run(df_agg['OT'])
-    print(file_out+' max_runs = '+str(max_runs))
-    df_tob = loop_previous_tob(df_agg, max_runs)
-    print('Calculating order indicators')
-    df_depl = depletions(df_tob, tick_value)
-    df_imbl = order_indicators(df_depl, tick_value)
-    df_orders = df_imbl[df_imbl['OT']].copy()
-    df_time_weighted_tob = time_weighted_tob(df_orders, file_out)
-    df_ot_trans = ot_states(df_imbl)
-    df_red_deplfill_trans = reduce_matrix(depl_fill_states(df_imbl))
-    df_cost_of_trades = mean_cost_of_trades(cost_of_trades(df_imbl))
-    if save_files:
-        print('Saving files for '+file_name)
-        df_cont_alt_by_ticks.to_hdf(pathout+file_out+'_CAticks.h5',\
-                                    key=file_out, mode='w')
-        df_uz_stats.to_hdf(pathout+file_out+'_UZstats.h5',\
-                           key=file_out, mode='w')
-        df_time_weighted_tob.to_hdf(pathout+file_out+'_OBstats.h5',\
-                           key=file_out, mode='w')
-        df_ot_trans.to_hdf(pathout+file_out+'_OTtrans.h5',\
-                           key=file_out, mode='w')
-        df_red_deplfill_trans.to_hdf(pathout+file_out+'_RDFtrans.h5',\
-                           key=file_out, mode='w')
-        df_cost_of_trades.to_hdf(pathout+file_out+'_COSTtrades.h5',\
-                           key=file_out, mode='w')
-#        df_imbl.to_hdf(pathout+file_out+'_data.h5',\
-#                      key=file_out, mode='w', format='table')
-    print('Finished '+file_name)
-    # no need to return data_frame
-
-# %% StatsUZ
-
-#run_unc_zones(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME,\
-#             TRADING_HOURS, True)
-
-# %% StatsUZ
-
-#run_unc_zones(PATHIN, PATHOUT, FILE2, TS, START_TIME, END_TIME,\
-#             TRADING_HOURS, True)
-
-# %% k DF
-
-#print('Continuations and Alternations: DOL')
-#print('')
-#print(pd.read_hdf(PATHOUT+FILE1[:-4]+'_CAticks.h5'))
-#print('')
-
-# %% k DF
-
-#print('Continuations and Alternations: WDO')
-#print('')
-#print(pd.read_hdf(PATHOUT+FILE2[:-4]+'_CAticks.h5'))
-#print('')
-
-# %% Eta and vols
-
-#print('Uncertainty zones statistics: DOL')
-#print('')
-#print(pd.read_hdf(PATHOUT+FILE1[:-4]+'_UZstats.h5'))
-#print('')
-
-# %% Eta and vols
-
-#print('Uncertainty zones statistics: WDO')
-#print('')
-#print(pd.read_hdf(PATHOUT+FILE2[:-4]+'_UZstats.h5'))
-#print('')
-
-# %% TOB
-
-#print('Top of Book statistics: DOL')
-#print('')
-#print(pd.read_hdf(PATHOUT+FILE1[:-4]+'_OBstats.h5'))
-#print('')
-
-# %% TOB
-
-#print('Top of Book statistics: WDO')
-#print('')
-#print(pd.read_hdf(PATHOUT+FILE2[:-4]+'_OBstats.h5'))
-#print('')
-
-# %% States - Orders and Trades
-
-#print('OT states DOL')
-#print('')
-#print(pd.read_hdf(PATHOUT+FILE1[:-4]+'_OTtrans.h5'))
-#print('')
-
-# %% States - Orders and Trades
-
-#print('OT states WDO')
-#print('')
-#print(pd.read_hdf(PATHOUT+FILE2[:-4]+'_OTtrans.h5'))
-#print('')
-
-# %% States - Depletions and Fills
-
-#print('DeplFill states DOL')
-#print('')
-#print(pd.read_hdf(PATHOUT+FILE1[:-4]+'_RDFtrans.h5'))
-#print('')
-
-# %% States - Depletions and Fills
-
-#print('DeplFill states WDO')
-#print('')
-#print(pd.read_hdf(PATHOUT+FILE2[:-4]+'_RDFtrans.h5'))
-#print('')
