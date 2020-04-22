@@ -25,7 +25,8 @@ class Armada_Data():
 
 # %% Main Functions    
     
-    def __init__(self, file_path, file_name):
+    def __init__(self, file_path, file_name, filename_format = 'CME'):
+        self.filename_format = filename_format
         self.file_name = file_name
         self.file_path = file_path
         self.measures = pd.DataFrame()
@@ -92,7 +93,11 @@ class Armada_Data():
         return self.file_name[:-4]
     
     def get_processing_date(self):
-        return pd.to_datetime(self.file_name[0:8],format='%Y%m%d')
+        if self.filename_format == 'CME':
+            return pd.to_datetime(self.file_name[0:8],format='%Y%m%d')
+        if self.filename_format == 'BMF':
+            return pd.to_datetime(self.file_name[6:-4],format='%Y%m%d')
+        
 
 # %% Measures Functions 
         

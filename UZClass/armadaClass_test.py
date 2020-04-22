@@ -25,7 +25,7 @@ PATHOUT = PATHPROJ+'/UZClass/'
 
 TS = 0.5
 START_TIME = pd.to_timedelta('07:30:00')
-END_TIME = pd.to_timedelta('07:45:00')
+END_TIME = pd.to_timedelta('12:45:00')
 
 FILE1 = '20180105_6EH8.zip'
 FILE_BMF = 'DOLG1720170119.csv'
@@ -102,8 +102,14 @@ def run_benchmark(pathin, pathout, file_name, tick_value, start_time,\
 
 def run_BFM_tob(pathin, pathout, file_name, tick_value, start_time,\
                   end_time, save_files=False):
-    data = ad(pathin,file_name)
+    data = ad(pathin,file_name, 'BMF')
+    print(data.get_processing_date()) # test if bug if fixed
+    data.plot_html_ohlc(pathout,'5min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
+    uz_obj = uz(data,tick_value,start_time,end_time)
+    uz_obj.print2file_df_cont_alt_by_ticks(pathout)
+    uz_obj.print2file_df_uz_stats(pathout)
     tob_obj = atob(data, tick_value)
+    tob_obj.print2file_df_tob(pathout, start_time, end_time)
     print('done')
     
 def run_compare_tob(pathin, pathout, file_names = []):
