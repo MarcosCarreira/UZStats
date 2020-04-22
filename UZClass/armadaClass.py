@@ -37,10 +37,10 @@ class Armada_Data():
         print('Re-formatting data')
         self.__column_datetime()
         self.__rename_columns()
-        print('Construct Data Frame with Basic Measures')        
-        self.__calc_basic_measures() # Marcos to check if needed here or get() function
         print('Remove data outside exchange trading hours')
         self.__filter_exchange_data_by_time()
+        print('Construct Data Frame with Basic Measures')        
+        self.__calc_basic_measures() # Marcos to check if needed here or get() function
         print('Armada Data Object Construction Successfull')
         
     
@@ -143,12 +143,6 @@ class Armada_Data():
         df_tmp = df_tmp.loc[start_time:end_time]
         df_tmp = df_tmp.reset_index()
         self.__df = df_tmp        
-        # truncating df
-        measures_tmp = self.__measures.copy()
-        measures_tmp = measures_tmp.set_index(self.__df.DateTime)
-        measures_tmp = measures_tmp.loc[start_time:end_time]
-        measures_tmp = measures_tmp.reset_index()
-        self.__measures = measures_tmp
 
 # %% Measures Functions 
         
