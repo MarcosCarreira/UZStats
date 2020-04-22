@@ -277,7 +277,8 @@ class Armada_Data():
                        )) 
 
           
-        file = pathout+self.get_processing_date().strftime('%Y%m%d')+freq+"ohlc.html"
+        file = pathout+self.get_processing_date().strftime('%Y%m%d')\
+                +'_'+freq+"_ohlc.html"
         print('saving html plot to ', file)
         fig.write_html(file)
 
