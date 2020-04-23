@@ -28,9 +28,10 @@ class Armada_Data():
     def __init__(self, file_path, file_name, exchange = 'CME'):
         self.__exchange = exchange
         self.__file_name = file_name
+        self.__processing_date = self.get_processing_date()
         self.__file_path = file_path
         self.__df = pd.DataFrame()
-        self.__measures = pd.DataFrame()
+        #self.__measures = pd.DataFrame()
         
         print('Reading file '+ self.file_entire_path)
         self.__read_ArmadaData()
@@ -38,15 +39,17 @@ class Armada_Data():
         self.__column_datetime()
         self.__rename_columns()
         print('Remove data outside exchange trading hours')
-        self.__filter_exchange_data_by_time()
-        print('Construct Data Frame with Basic Measures')        
-        self.__calc_basic_measures() # Marcos to check if needed here or get() function
+        self.__filter_exchange_data_by_time()  
+        self.__filter_exchange_data_prior_first_trade()
         print('Armada Data Object Construction Successfull')
-        
+    
+    @property
+    def processing_date(self):
+        return self.get_processing_date()
     
     @property
     def file_name(self):
-            return self.__file_name
+        return self.__file_name
     @property
     def file_name_long(self):
             return self.__file_name[:-4]
@@ -59,9 +62,7 @@ class Armada_Data():
     @property
     def df(self):
         return self.__df
-    @property
-    def measures(self):
-        return self.__measures
+
     
     # %% Public Functions
     
@@ -73,18 +74,18 @@ class Armada_Data():
         
     def get_exchange_starting_time(self):
         if self.__exchange == 'CME':
-            return self.get_processing_date()\
+            return self.processing_date\
                                 + pd.to_timedelta('00:00:00')
         if self.__exchange == 'BMF':
-            return self.get_processing_date()\
+            return self.processing_date\
                                 + pd.to_timedelta('09:00:00')
                                 
     def get_exchange_end_time(self):
         if self.__exchange == 'CME':
-            return self.get_processing_date()\
+            return self.processing_date\
                                 + pd.to_timedelta('16:00:00')
         if self.__exchange == 'BMF':
-            return self.get_processing_date()\
+            return self.processing_date\
                                 + pd.to_timedelta('23:59:59')
 # %% Main Functions
     
@@ -125,12 +126,14 @@ class Armada_Data():
                                        'Trade Qty':'trade_qty',\
                                            }, inplace = True)
         self.__df.drop(['Time.1', 'Date.1','Index','Index.1',\
-                              'Date', 'Time'],axis=1, inplace=True)   
-    def __calc_basic_measures(self):
-        self.__get_ba_spread()
-        self.__get_delta_t()
-        self.__get_mid_price()
-        self.__trade_indicator()  
+                              'Date', 'Time'],axis=1, inplace=True)    
+    def __filter_exchange_data_prior_first_trade(self):
+        first_trade = self.df[self.get_trade_indicator()].index[0]
+        df_tmp = self.__df.copy()
+        #df_tmp = df_tmp.set_index(['DateTime'])
+        df_tmp = df_tmp.loc[first_trade:]
+        #df_tmp = df_tmp.reset_index()
+        self.__df = df_tmp  
     
     def __filter_exchange_data_by_time(self):
         # set start and end time
@@ -146,8 +149,11 @@ class Armada_Data():
 
 # %% Measures Functions 
         
-    def __trade_indicator(self):
-        self.measures['trade_indicator'] = self.__df.trade_price.isnull().copy()
+    def get_order_indicator(self):
+        return self.__df.trade_price.isnull().copy()
+    
+    def get_trade_indicator(self):
+        return ~(self.get_order_indicator())
     
     def __get_ba_spread(self, data=None):
         if data is not None:
@@ -272,21 +278,19 @@ class Armada_Data():
         volume = volume.loc[start_xaxis:end_xaxis]
         
         # prepare time weigthed spread data
-        data = data.assign(ba_spread=self.measures.ba_spread.values)
-        data = data.assign(dt=self.measures.dt .values)
-        data_masked = data[data.ba_spread > 0]
-        time_weighted_spread = pd.DataFrame(\
-            data_masked.groupby(pd.Grouper(freq=freq)).apply(self.__get_time_weighted_spread))
-        #time_weighted_spread = time_weighted_spread.set_index(ohlc.index)    
-        time_weighted_spread.columns = ['time_weighted_spread']
-        time_weighted_spread = time_weighted_spread.loc[start_xaxis:end_xaxis]
+        #data = data.assign(ba_spread=self.measures.ba_spread.values)
+        #data = data.assign(dt=self.measures.dt .values)
+        #data_masked = data[data.ba_spread > 0]
+        #time_weighted_spread = pd.DataFrame(\
+        #    data_masked.groupby(pd.Grouper(freq=freq)).apply(self.__get_time_weighted_spread))   
+        #time_weighted_spread.columns = ['time_weighted_spread']
+        #time_weighted_spread = time_weighted_spread.loc[start_xaxis:end_xaxis]
         
         
         # plotting
-        fig = make_subplots(rows=3, cols=1, shared_xaxes=True, 
-        row_width=[0.2, 0.2, 0.4],vertical_spacing=0.1,
-        subplot_titles=('Open High Low Close Candlestick', 'Volume', 
-                        'Time Weighted Spread'))
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+        row_width=[0.2, 0.4],vertical_spacing=0.1,
+        subplot_titles=('Open High Low Close Candlestick', 'Volume'))
         
         fig.add_trace(go.Candlestick(name='OHLC',
                 x=ohlc.index,
@@ -299,10 +303,10 @@ class Armada_Data():
         fig.add_trace(go.Bar(name='Volume', x=volume.index, \
                 y=volume.trade_qty), row=2, col=1)
             
-        fig.add_trace(go.Bar(x=time_weighted_spread.index, \
-                y=time_weighted_spread.time_weighted_spread , 
-                name = 'Time Weighted Spread', marker_color='black'), 
-                row=3,col=1)
+        #fig.add_trace(go.Bar(x=time_weighted_spread.index, \
+        #        y=time_weighted_spread.time_weighted_spread , 
+        #        name = 'Time Weighted Spread', marker_color='black'), 
+        #        row=3,col=1)
         
         fig.update_layout(
                 xaxis=dict(rangeslider=dict(visible=False),type="date", 
@@ -321,19 +325,24 @@ class Armada_TOB(Armada_Data):
     tick_value = float()
     def __init__(self, Armada_Data, tick_value):
         start = timeit.default_timer()
-        self.Armada_Data = Armada_Data
-        self.tick_value = tick_value
-        self.tob = pd.DataFrame()
-        #to delete once algo completed
-        self.tob['traded_price'] = self.Armada_Data.df.trade_price.copy() 
-        self.tob['traded_qty'] = self.Armada_Data.df.trade_qty.copy() 
+        self.__Armada_Data = Armada_Data
+        self.__exchange = Armada_Data.exchange
+        self.__file_name = Armada_Data.file_name
+        self.__file_name_long = Armada_Data.file_name_long
+        self.__file_entire_path = Armada_Data.file_entire_path
+        self.__processing_date = Armada_Data.processing_date
+        self.__tick_value = tick_value
+        self.__tob = pd.DataFrame()
+        ######to delete once algo completed
+        self.__tob['traded_price'] = self.__Armada_Data.df.trade_price.copy() 
+        self.__tob['traded_qty'] = self.__Armada_Data.df.trade_qty.copy() 
         ######
         print('Filling intermediate values in order book')
-        self.__fill_tob_data()
+        self.__fill_tob_price_last()
         self.__fill_price_traded()
         #self.__fill_aggression()
         self.num_consecutive_trade = self.__find_num_consecutive_trade()
-        print(self.Armada_Data.file_name+' max_runs = '+str(self.num_consecutive_trade))
+        print(self.__Armada_Data.file_name+' max_runs = '+str(self.num_consecutive_trade))
         self.__fill_tob()
         stop = timeit.default_timer()
         print('Time spent on top-of-book filling: ', round(stop - start), ' seconds')
@@ -342,173 +351,196 @@ class Armada_TOB(Armada_Data):
         print('Calculating order indicators')
         self.__order_indicators()
         print('Order indicators completed')
+
+    @property
+    def file_name(self):
+        return self.__file_name
+    @property
+    def file_name_long(self):
+        return self.__file_name_long
+    @property
+    def file_entire_path(self):
+        return self.__file_entire_path
+
+    @property
+    def tick_value(self):
+        return self.__tick_value
+    
+    @property
+    def tob(self):
+        return self.__tob
         
+    @property
+    def exchange(self):
+        return self.__exchange
+    
+    @property
+    def processing_date(self):
+        return self.__processing_date
+    
+    #def get_processing_date(self):
+    #    return Armada_Data.get_processing_date
+    
     def get_data_for_tob_intensity(self):
-        bid_qty_before = self.tob.bid_1_qty.shift(+1).copy()
-        ask_qty_before = self.tob.ask_1_qty.shift(+1).copy()
+        bid_qty_before = self.__tob.bid_1_qty.shift(+1).copy()
+        ask_qty_before = self.__tob.ask_1_qty.shift(+1).copy()
         isconsumption = self.depl.depl_or_fill
         delta_t = self.Armada_Data.df.DateTime.diff().shift(+1)
         
-        
+        # bid consu,ption
+        # remove level 2 order book lines due to 
+        # bid qty before
+        # detla_t 
+        # count the number of event 
+        # column event (qty added, price change, )
         
     def __fill_tob(self):
         # initialize to original not filled tob
-        self.tob['bid_1_price'] = self.Armada_Data.df.bid_1_price.copy()
-        self.tob['ask_1_price'] = self.Armada_Data.df.ask_1_price.copy()
-        self.tob['bid_1_qty'] = self.Armada_Data.df.bid_1_qty.copy()
-        self.tob['ask_1_qty'] = self.Armada_Data.df.ask_1_qty.copy()
+        self.__tob['bid_1_price'] = self.__Armada_Data.df.bid_1_price.copy()
+        self.__tob['ask_1_price'] = self.__Armada_Data.df.ask_1_price.copy()
+        self.__tob['bid_1_qty'] = self.__Armada_Data.df.bid_1_qty.copy()
+        self.__tob['ask_1_qty'] = self.__Armada_Data.df.ask_1_qty.copy()
         
-        self.tob['bool_trade'] = self.Armada_Data.measures.trade_indicator.copy() == False
-        
+        self.__tob['bool_trade'] = self.__Armada_Data.get_trade_indicator()
         
         # if trade happened        
         for i in reversed(range(self.num_consecutive_trade + 1)):
             
-            self.tob['bool_idx'] = self.tob['cumsum'].astype('int64') == i
-            shift_bid_price = self.tob.bid_1_price.shift(-1)
-            shift_bid_qty = self.tob.bid_1_qty.shift(-1)
-            shift_ask_price = self.tob.ask_1_price.shift(-1)
-            shift_ask_qty = self.tob.ask_1_qty.shift(-1)
+            self.__tob['bool_idx'] = self.__tob['cumsum'].astype('int64') == i
+            shift_bid_price = self.__tob.bid_1_price.shift(-1)
+            shift_bid_qty = self.__tob.bid_1_qty.shift(-1)
+            shift_ask_price = self.__tob.ask_1_price.shift(-1)
+            shift_ask_qty = self.__tob.ask_1_qty.shift(-1)
             
             #If ask or bid price t+1 = trade price t 
-            self.tob['bool_bid_D'] = self.Armada_Data.df.trade_price == shift_bid_price
-            self.tob['bool_ask_D'] = self.Armada_Data.df.trade_price == shift_ask_price      
+            self.__tob['bool_bid_D'] = self.__Armada_Data.df.trade_price == shift_bid_price
+            self.__tob['bool_ask_D'] = self.__Armada_Data.df.trade_price == shift_ask_price      
             
-            self.tob.bid_1_qty.loc[    \
-                self.tob.bool_idx &    \
-                self.tob.bool_trade &  \
-                self.tob.bool_bid_D] = \
-                pd.Series(np.sum([self.Armada_Data.df.trade_qty , shift_bid_qty], axis=0))
+            self.__tob.bid_1_qty.loc[    \
+                self.__tob.bool_idx &    \
+                self.__tob.bool_trade &  \
+                self.__tob.bool_bid_D] = \
+                pd.Series(np.sum([self.__Armada_Data.df.trade_qty , shift_bid_qty], axis=0))
             
-            self.tob.bid_1_price.loc[    \
-                self.tob.bool_idx &    \
-                self.tob.bool_trade &  \
-                self.tob.bool_bid_D] = self.Armada_Data.df.trade_price
+            self.__tob.bid_1_price.loc[    \
+                self.__tob.bool_idx &    \
+                self.__tob.bool_trade &  \
+                self.__tob.bool_bid_D] = self.__Armada_Data.df.trade_price
                 
-            self.tob.ask_1_qty.loc[    \
-                self.tob.bool_idx &    \
-                self.tob.bool_trade &  \
-                self.tob.bool_ask_D] = \
-                pd.Series(np.sum([self.Armada_Data.df.trade_qty , shift_ask_qty], axis=0))
+            self.__tob.ask_1_qty.loc[    \
+                self.__tob.bool_idx &    \
+                self.__tob.bool_trade &  \
+                self.__tob.bool_ask_D] = \
+                pd.Series(np.sum([self.__Armada_Data.df.trade_qty , shift_ask_qty], axis=0))
                 
-            self.tob.ask_1_price.loc[    \
-                self.tob.bool_idx &    \
-                self.tob.bool_trade &  \
-                self.tob.bool_ask_D] = self.Armada_Data.df.trade_price
+            self.__tob.ask_1_price.loc[    \
+                self.__tob.bool_idx &    \
+                self.__tob.bool_trade &  \
+                self.__tob.bool_ask_D] = self.__Armada_Data.df.trade_price
 
             #If ask or bid price t+1 != trade price t 
-            self.tob['bool_bid_C'] = self.Armada_Data.df.trade_price != shift_bid_price
-            self.tob['bool_ask_C'] = self.Armada_Data.df.trade_price != shift_ask_price      
+            self.__tob['bool_bid_C'] = self.__Armada_Data.df.trade_price != shift_bid_price
+            self.__tob['bool_ask_C'] = self.__Armada_Data.df.trade_price != shift_ask_price      
             
-            self.tob.ask_1_qty.loc[    \
-                self.tob.bool_idx &    \
-                self.tob.bool_trade &  \
-                self.tob.bool_ask_C] = self.Armada_Data.df.trade_qty
+            self.__tob.ask_1_qty.loc[    \
+                self.__tob.bool_idx &    \
+                self.__tob.bool_trade &  \
+                self.__tob.bool_ask_C] = self.__Armada_Data.df.trade_qty
                 
-            self.tob.ask_1_price.loc[    \
-                self.tob.bool_idx &    \
-                self.tob.bool_trade &  \
-                self.tob.bool_ask_C] = self.Armada_Data.df.trade_price
+            self.__tob.ask_1_price.loc[    \
+                self.__tob.bool_idx &    \
+                self.__tob.bool_trade &  \
+                self.__tob.bool_ask_C] = self.__Armada_Data.df.trade_price
                 
-            self.tob.bid_1_qty.loc[    \
-                self.tob.bool_idx &    \
-                self.tob.bool_trade &  \
-                self.tob.bool_bid_C] = self.Armada_Data.df.trade_qty
+            self.__tob.bid_1_qty.loc[    \
+                self.__tob.bool_idx &    \
+                self.__tob.bool_trade &  \
+                self.__tob.bool_bid_C] = self.__Armada_Data.df.trade_qty
                 
-            self.tob.bid_1_price.loc[    \
-                self.tob.bool_idx &    \
-                self.tob.bool_trade &  \
-                self.tob.bool_bid_C] = self.Armada_Data.df.trade_price
+            self.__tob.bid_1_price.loc[    \
+                self.__tob.bool_idx &    \
+                self.__tob.bool_trade &  \
+                self.__tob.bool_bid_C] = self.__Armada_Data.df.trade_price
             
             # if side not traded: 
             #{Qty_Other_Side[t] , Price_Other_Side[t]} = 
             #{Qty_Other_Side[t+1] , Price_Other_Side[t+1]} # side not traded
 
-            self.tob.ask_1_price.loc[    \
-                self.tob.bid_price_traded & \
-                self.tob.bool_idx] = np.nan #shift_ask_price
+            self.__tob.ask_1_price.loc[    \
+                self.__tob.bid_price_traded & \
+                self.__tob.bool_idx] = np.nan #shift_ask_price
                 
-            self.tob.ask_1_qty.loc[
-                self.tob.bid_price_traded & 
-                self.tob.bool_idx] = np.nan #shift_ask_qty
+            self.__tob.ask_1_qty.loc[
+                self.__tob.bid_price_traded & 
+                self.__tob.bool_idx] = np.nan #shift_ask_qty
             
-            self.tob.bid_1_price.loc[    \
-                self.tob.ask_price_traded & \
-                self.tob.bool_idx] = np.nan #shift_bid_price
+            self.__tob.bid_1_price.loc[    \
+                self.__tob.ask_price_traded & \
+                self.__tob.bool_idx] = np.nan #shift_bid_price
                 
-            self.tob.bid_1_qty.loc[
-                self.tob.ask_price_traded & 
-                self.tob.bool_idx] = np.nan #shift_bid_qty
+            self.__tob.bid_1_qty.loc[
+                self.__tob.ask_price_traded & 
+                self.__tob.bool_idx] = np.nan #shift_bid_qty
         
         #self.tob.drop(['bool_bid_C', 'bool_ask_C','bool_ask_D','bool_bid_D',\
         #                      'bool_idx', 'bool_trade', 'cumsum'],axis=1, inplace=True)
-        self.tob.ask_1_price.fillna(method='ffill', inplace=True)
-        self.tob.ask_1_qty.fillna(method='ffill', inplace=True)
-        self.tob.bid_1_price.fillna(method='ffill', inplace=True)
-        self.tob.bid_1_qty.fillna(method='ffill', inplace=True)
+        self.__tob.ask_1_price.fillna(method='ffill', inplace=True)
+        self.__tob.ask_1_qty.fillna(method='ffill', inplace=True)
+        self.__tob.bid_1_price.fillna(method='ffill', inplace=True)
+        self.__tob.bid_1_qty.fillna(method='ffill', inplace=True)
         
-    def __fill_tob_data(self):
-        self.tob['bid_1_price_last'] = self.Armada_Data.df.bid_1_price.copy()
-        self.tob.bid_1_price_last.fillna(method='ffill', inplace=True)
+    def __fill_tob_price_last(self):
+        self.__tob['bid_1_price_last'] = self.__Armada_Data.df.bid_1_price.copy()
+        self.__tob.bid_1_price_last.fillna(method='ffill', inplace=True)
         
-        self.tob['ask_1_price_last'] = self.Armada_Data.df.ask_1_price.copy()
-        self.tob.ask_1_price_last.fillna(method='ffill', inplace=True)
+        self.__tob['ask_1_price_last'] = self.__Armada_Data.df.ask_1_price.copy()
+        self.__tob.ask_1_price_last.fillna(method='ffill', inplace=True)
        
     def __fill_price_traded(self):
-        self.tob['bid_price_traded'] = self.tob.bid_1_price_last >=\
-        self.Armada_Data.df.trade_price
+        self.__tob['bid_price_traded'] = self.__tob.bid_1_price_last >=\
+        self.__Armada_Data.df.trade_price
         
-        self.tob['ask_price_traded'] = self.tob.ask_1_price_last <=\
-        self.Armada_Data.df.trade_price
+        self.__tob['ask_price_traded'] = self.__tob.ask_1_price_last <=\
+        self.__Armada_Data.df.trade_price
     
     def __fill_aggression(self):
-        self.tob['aggression'] = np.vectorize(self.aggression_id)\
-        (self.tob.bid_price_traded, self.tob.ask_price_traded,\
-        self.Armada_Data.measures.trade_indicator)
+        self.__tob['aggression'] = np.vectorize(self.aggression_id)\
+        (self.__tob.bid_price_traded, self.__tob.ask_price_traded,\
+        self.__Armada_Data.get_order_indicator())
             
     def get_net_number_aggression(self, start_time, end_time):
-        start = self.Armada_Data.get_processing_date() + start_time
-        end = self.Armada_Data.get_processing_date() + end_time
-        df_aggression = pd.DataFrame(self.tob.aggression)
+        start = self.__Armada_Data.get_processing_date() + start_time
+        end = self.__Armada_Data.get_processing_date() + end_time
+        df_aggression = pd.DataFrame(self.__tob.aggression)
         df_aggression = \
-            df_aggression.set_index(self.Armada_Data.df.DateTime.copy())
+            df_aggression.set_index(self.__Armada_Data.df.DateTime.copy())
         df_aggression = df_aggression.loc[start:end]
         number_aggression = np.nansum(df_aggression)
         return number_aggression
     
     def get_rolling_number_aggression(self, start_time, end_time):
-        date = self.Armada_Data.get_processing_date()
+        date = self.processing_date
         start_lag =  date + start_time - pd.to_timedelta('00:00:01')
         start = date + start_time
         end = date + end_time
         
-        df_aggression = pd.DataFrame(self.tob.aggression)
+        df_aggression = pd.DataFrame(self.__tob.aggression)
         df_aggression = \
-            df_aggression.set_index(self.Armada_Data.df.DateTime.copy())
+            df_aggression.set_index(self.__Armada_Data.df.DateTime.copy())
         df_aggression = df_aggression.loc[start_lag:end]
         #df_aggression = abs(df_aggression)
         number_aggression = df_aggression.rolling('1s').sum()
         
         number_aggression = number_aggression.loc[start:end]
-        return number_aggression
-    
-    def plot_html_1sec_rolling_number_aggression(self, start_time, end_time, path_out):
-        number_aggression = self.get_rolling_number_aggression(start_time, end_time)
-        
-        #layout = self.__plot_html_layout('Bid Qty', 'Ask Qty', 'Quantity Time Series')
-        fig = go.Figure([go.Scatter(x=number_aggression.index, y=number_aggression.aggression)])
-        fig.update_layout(title_text="1 Second Rolling Net Number of Aggression")
-        file = path_out+self.Armada_Data.file_name+"_1sec_roll_net_number_aggression.html"
-        print('saving html plot to ', file)
-        fig.write_html(file)  
+        return number_aggression 
         
     def __find_num_consecutive_trade(self):
-        boolean_series = self.Armada_Data.measures.trade_indicator == False
+        boolean_series = self.__Armada_Data.get_trade_indicator()
         cumsum = boolean_series.cumsum()
         temp = cumsum.sub(cumsum.mask(boolean_series).ffill().fillna(0)).astype(int)
         num_consecutive_trade = temp.max()
         ###can be deleted later#
-        self.tob['cumsum'] = temp
+        self.__tob['cumsum'] = temp
         ###
         return num_consecutive_trade
     
@@ -520,10 +552,10 @@ class Armada_TOB(Armada_Data):
         which side (Bid or Ask) was depleted or filled and whether the
         depletions were caused by a trade or a cancel'''
         tick_value = self.tick_value
-        orders_idx_shift = self.Armada_Data.measures.trade_indicator.shift(+1)
+        orders_idx_shift = self.__Armada_Data.get_order_indicator().shift(+1)
         orders_idx_shift.fillna(False, inplace=True)
-        bid_diff = self.tob.bid_1_price.diff()/tick_value
-        ask_diff = self.tob.ask_1_price.diff()/tick_value
+        bid_diff = self.__tob.bid_1_price.diff()/tick_value
+        ask_diff = self.__tob.ask_1_price.diff()/tick_value
         
         bid_depl_trade = (bid_diff < 0) & (~orders_idx_shift) 
         bid_depl_cancel = (bid_diff < 0) & (orders_idx_shift) 
@@ -567,21 +599,21 @@ class Armada_TOB(Armada_Data):
         the data_frame
         the tick value'''
         tick_value = self.tick_value
-        bid_1_price = self.Armada_Data.df.bid_1_price.copy()
-        ask_1_price = self.Armada_Data.df.ask_1_price.copy()
-        bid_1_qty = self.Armada_Data.df.bid_1_qty.copy()
-        ask_1_qty = self.Armada_Data.df.ask_1_qty.copy()
-        bid_2_price = self.Armada_Data.df.bid_2_price.copy()
-        ask_2_price = self.Armada_Data.df.ask_2_price.copy()
-        bid_2_qty = self.Armada_Data.df.bid_2_qty.copy()
-        ask_2_qty = self.Armada_Data.df.ask_2_qty.copy()
+        bid_1_price = self.__Armada_Data.df.bid_1_price.copy()
+        ask_1_price = self.__Armada_Data.df.ask_1_price.copy()
+        bid_1_qty = self.__Armada_Data.df.bid_1_qty.copy()
+        ask_1_qty = self.__Armada_Data.df.ask_1_qty.copy()
+        bid_2_price = self.__Armada_Data.df.bid_2_price.copy()
+        ask_2_price = self.__Armada_Data.df.ask_2_price.copy()
+        bid_2_qty = self.__Armada_Data.df.bid_2_qty.copy()
+        ask_2_qty = self.__Armada_Data.df.ask_2_qty.copy()
         
         
         mid_price = (bid_1_price + ask_1_price) / 2
         
-        micro_price = self.__microprice(self.tob.bid_1_qty,\
-            self.tob.bid_1_price, self.tob.ask_1_qty,\
-            self.tob.ask_1_price)
+        micro_price = self.__microprice(self.__tob.bid_1_qty,\
+            self.__tob.bid_1_price, self.__tob.ask_1_qty,\
+            self.__tob.ask_1_price)
             
         spread_1_ticks = (ask_1_price-bid_1_price)/tick_value
         spread_2_ticks = (ask_2_price-bid_2_price)/tick_value
@@ -599,11 +631,11 @@ class Armada_TOB(Armada_Data):
         
         ask_12_to_midprice = (mid_price - ask_12_price)/tick_value
         
-        spread_ticks = self.__spread_ticks(self.tob.bid_1_price, \
-                                           self.tob.ask_1_price\
+        spread_ticks = self.__spread_ticks(self.__tob.bid_1_price, \
+                                           self.__tob.ask_1_price\
                                                , tick_value)
-        imbalance = self.__imbalance(self.tob.bid_1_qty,\
-            self.tob.ask_1_qty)
+        imbalance = self.__imbalance(self.__tob.bid_1_qty,\
+            self.__tob.ask_1_qty)
         imbal_sign = pd.cut(imbalance, [-0.5, -0.2, +0.2, +0.5],\
                             labels=[-1, 0, 1])
         
@@ -654,13 +686,13 @@ class Armada_TOB(Armada_Data):
         df_dict = dict(zip(df_columns, len(df_columns)*[0]))
         
         #df_orders = df_imbl[df_imbl['OT']].copy()
-        mask1 = self.Armada_Data.measures.trade_indicator.copy()
+        mask1 = self.__Armada_Data.get_order_indicator()
         mask2 = self.ord_indic.spread_1_ticks > 0
         #data_frame_masked = data_framec[data_framec['Spread_Lvl_1_Ticks'] > 0]
         
         df_masked = self.ord_indic[mask1 & mask2]
         df_masked['delta_t'] = \
-            self.Armada_Data.df.DateTime[mask1 & mask2].diff().shift(-1)
+            self.__Armada_Data.df.DateTime[mask1 & mask2].diff().shift(-1)
         
         def delta_t_weigh(field):
             return ((df_masked[field]*df_masked['delta_t']).sum())/\
@@ -673,7 +705,7 @@ class Armada_TOB(Armada_Data):
         df_dict['tw_bid12tomid'] = delta_t_weigh('bid_12_to_midprice')
         df_dict['tw_ask12tomid'] = delta_t_weigh('ask_12_to_midprice')
         
-        df_masked = self.Armada_Data.df[mask1 & mask2]
+        df_masked = self.__Armada_Data.df[mask1 & mask2]
         
         df_dict['tw_bid1qty'] = delta_t_weigh('bid_1_qty')
         df_dict['tw_ask1qty'] = delta_t_weigh('ask_1_qty')
@@ -687,13 +719,13 @@ class Armada_TOB(Armada_Data):
         file_name = pathout+'tob.csv'
         zip_name = pathout + 'tob.zip'
         print('Saving file: ',file_name)
-        date = self.Armada_Data.get_processing_date()
+        date = self.processing_date
         start = (date + start_time)
         end = (date + end_time)
-        data_to_print = self.tob.copy()
-        data_to_print['DateTime'] = self.Armada_Data.df.DateTime.copy()
+        data_to_print = self.__tob.copy()
+        data_to_print['DateTime'] = self.__Armada_Data.df.DateTime.copy()
         data_to_print = \
-            data_to_print.set_index(self.Armada_Data.df.DateTime.copy())
+            data_to_print.set_index(self.__Armada_Data.df.DateTime.copy())
         data_to_print = data_to_print.loc[start:end]
         #date_filter = (data_to_print['DateTime'].to_timedelta() >start & data_to_print['DateTime'].to_timedelta()<end)
         #data_to_print = data_to_print.loc[data_to_print['DateTime'].dt > start & data_to_print['DateTime'].dt < end]
@@ -707,7 +739,67 @@ class Armada_TOB(Armada_Data):
         data_to_print = self.get_time_weighted_tob()
         data_to_print.to_csv(file_name)
         
-
+# %% Plot Functions
+        
+    def plot_html_1sec_rolling_number_aggression(self, start_time, end_time, path_out):
+        number_aggression = self.get_rolling_number_aggression(start_time, end_time)
+        
+        #layout = self.__plot_html_layout('Bid Qty', 'Ask Qty', 'Quantity Time Series')
+        fig = go.Figure([go.Scatter(x=number_aggression.index, y=number_aggression.aggression)])
+        fig.update_layout(title_text="1 Second Rolling Net Number of Aggression")
+        file = path_out+self.__Armada_Data.file_name+"_1sec_roll_net_number_aggression.html"
+        print('saving html plot to ', file)
+        fig.write_html(file) 
+        
+        
+    def plot_html_tob_1mintick(self,path_out, start_xaxis = pd.to_timedelta('07:30:00')):
+        #layout = self.__plot_html_layout('Bid Price', 'Ask Price', 'Price Time Series')
+        data = self.__tob.copy()
+        data = data.set_index(self.__Armada_Data.df.DateTime)
+        
+        traded_qty_signed = np.where(data.bid_price_traded, \
+                                     -1*data.traded_qty, +1*data.traded_qty)
+        
+        
+        data_ord = self.ord_indic.copy()
+        data_ord['traded_qty_signed']= traded_qty_signed
+        data_ord = data_ord.set_index(self.__Armada_Data.df.DateTime)
+        
+        start_xaxis = self.processing_date + start_xaxis
+        end_xaxis = start_xaxis + pd.to_timedelta('00:01:00')
+        
+        data = data.loc[start_xaxis:end_xaxis]
+        data_ord = data_ord.loc[start_xaxis:end_xaxis]
+        
+        #data['trade_price_minus_1']=data.trade_price.shift(-1)
+        #data['buy']=np.where((data['trade_price_minus_1']==data.bid_1_price)
+        #                     & (data['trade_price_minus_1'].notna())
+        #                     & (data.bid_1_price.notna())
+        #                     , True, False)
+        
+        fig = make_subplots(rows=4, cols=1, row_width=[0.2,0.2, 0.2, 0.4], 
+                            shared_xaxes=True)
+        fig.update_layout(title_text="One Minute Top of Book from " + \
+                         start_xaxis.strftime('%Y-%m-%d %H:%M:%S') + " to " \
+                        +end_xaxis.strftime('%Y-%m-%d %H:%M:%S'),\
+                        legend=dict(y=0.5, traceorder='reversed', font_size=10))
+        fig.add_trace(go.Scatter(x=data.index, y=data.bid_1_price, 
+                            name = 'Bid', line_shape='hv'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=data.ask_1_price, 
+                            name = 'Ask', line_shape='hv'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=data_ord.micro_price, 
+                            name = 'Micro price', line_shape='hv'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=data_ord.traded_qty_signed, 
+                            name = 'Signed trade qty', line_shape='hv'), row=2, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=data_ord.spread_ticks, 
+                            name = 'Bid-ask spread in ticks', line_shape='hv'), row=3, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=data_ord.imbalance, 
+                            name = 'Imbalance', line_shape='hv'), row=4, col=1)
+        
+        
+        file = path_out+self.file_name_long+"_tob_1min_tick.html"
+        print('saving html plot to ', file)
+        fig.write_html(file)
 
 # %% Armada UZ Model Output Class
     

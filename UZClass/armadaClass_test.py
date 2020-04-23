@@ -83,14 +83,16 @@ def run_tob(pathin, pathout, file_name, tick_value, start_time,\
     '''run_unc_zones(pathin, pathout, file_name, tick_value, end_of_time)
     returns the uncertainty zones data frame'''
     data = ad(pathin,file_name)
+    print(data.get_processing_date())
     tob_obj = atob(data, tick_value)
     #start = '07:29:50'
     #end = '07:50:10'
+    tob_obj.plot_html_tob_1mintick(pathout,pd.to_timedelta('07:29:50'))
     #agg = tob_obj.get_net_number_aggression(pd.to_timedelta(start),pd.to_timedelta(end))
     #print('# of aggression between ',start, end,'is ',  agg)
     #tob_obj.plot_html_1sec_rolling_number_aggression(pd.to_timedelta(start), pd.to_timedelta(end), pathout)
     #data.plot_html_1mintick(pathout,pd.to_timedelta('07:29:50'))
-    tob_obj.print2file_df_tob(pathout, start_time, end_time)
+    #tob_obj.print2file_df_tob(pathout, start_time, end_time)
 
 def run_benchmark(pathin, pathout, file_name, tick_value, start_time,\
                   end_time):
@@ -104,7 +106,7 @@ def run_BFM_tob(pathin, pathout, file_name, tick_value, start_time,\
                   end_time, save_files=False):
     data = ad(pathin,file_name, 'BMF')
     print(data.file_name)
-    print(data.get_processing_date()) # test if bug if fixed
+    print(data.processing_date) # test if bug if fixed
     data.plot_html_ohlc(pathout,'1min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
     tob_obj = atob(data, tick_value)
     tob_obj.print2file_df_tob(pathout, start_time, end_time)
