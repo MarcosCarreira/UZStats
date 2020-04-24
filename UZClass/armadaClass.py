@@ -351,7 +351,7 @@ class Armada_TOB(Armada_Data):
         print('Calculating order indicators')
         self.__order_indicators()
         print('Order indicators completed')
-        #self.get_data_for_tob_intensity()
+        self.get_data_for_tob_intensity()
 
     @property
     def file_name(self):
@@ -401,38 +401,49 @@ class Armada_TOB(Armada_Data):
         ask_qty_before = df_unique.ask_1_qty.shift(+1).copy()
         
         # get delta_t attribute
-        delta_t = df_unique.DateTime.diff().shift(+1)
+        delta_t = df_unique.DateTime.diff().shift(+1).copy
         
         # get consumption / insertion boolean attribute
         #istrade = ~(df_unique.traded_price.isnull().copy())
         
-        orders_idx_shift = df.order_idx.shift(+1)
+        orders_idx_shift = df_unique.order_idx.shift(+1).copy()
         orders_idx_shift.fillna(False, inplace=True)
         
-        bid_price_diff = df.bid_1_price.diff()/self.tick_value
-        ask_price_diff = df.ask_1_price.diff()/self.tick_value
-        df['bid_depl_trade'] = (bid_price_diff < 0) & (~orders_idx_shift) 
-        df['bid_depl_cancel'] = (bid_price_diff < 0) & (orders_idx_shift) 
+        bid_price_diff = df_unique.bid_1_price.diff().copy()/self.tick_value
+        ask_price_diff = df_unique.ask_1_price.diff().copy()/self.tick_value
+        df_unique['bid_depl_trade'] = (bid_price_diff < 0) & (~orders_idx_shift) 
+        df_unique['bid_depl_cancel'] = (bid_price_diff < 0) & (orders_idx_shift) 
         
-        bid_qty_diff = df.bid_1_qty.diff() 
-        ask_qty_diff = df.ask_1_qty.diff()
+        bid_qty_diff = df_unique.bid_1_qty.diff().copy()
+        ask_qty_diff = df_unique.ask_1_qty.diff().copy()
         # no trade, decrease qty, price the same 
-        bid_qty_less = (bid_qty_diff <0) & (bid_price_diff ==0) & df.order_idx
-        bid_qty_add = (bid_qty_diff >0) & (bid_price_diff ==0) & df.order_idx
+        df_unique['bid_qty_less'] = (bid_qty_diff <0) & (bid_price_diff ==0) & df_unique.order_idx.copy()
+        df_unique['bid_qty_add'] = (bid_qty_diff >0) & (bid_price_diff ==0) & df_unique.order_idx.copy()
         
         
-        df['is_bid_consumption'] = df.bid_depl_trade | df.bid_depl_cancel | bid_qty_less
+        df_unique['bid_OR'] = df_unique.bid_depl_trade | df_unique.bid_depl_cancel \
+                       | df_unique.bid_qty_less | df_unique.bid_qty_add
         
-        df['ask_depl_trade']  = (ask_price_diff < 0) & (~orders_idx_shift) 
-        df['ask_depl_cancel'] = (ask_price_diff < 0) & (orders_idx_shift) 
+        df_unique['ask_depl_trade']  = (ask_price_diff < 0) & (~orders_idx_shift) 
+        df_unique['ask_depl_cancel'] = (ask_price_diff < 0) & (orders_idx_shift) 
         
-        df['is_ask_consumption'] = df.ask_depl_trade | df.ask_depl_cancel
+        # no trade, decrease qty, price the same 
+        df_unique['ask_qty_less'] = (ask_qty_diff <0) & (ask_price_diff ==0) & df_unique.order_idx
+        df_unique['ask_qty_add'] = (ask_qty_diff >0) & (ask_price_diff ==0) & df_unique.order_idx
         
-        test = df[0:100] # for debug
         
-        df['delta_t'] = delta_t
-        df['bid_qty_before'] = bid_qty_before
-        df['ask_qty_before'] = ask_qty_before     
+        df_unique['ask_OR'] = df_unique.ask_depl_trade | df_unique.ask_depl_cancel | \
+                       df_unique.ask_qty_less | df_unique.ask_qty_add
+        
+        # if all true, we have all event cases
+        df_unique['all_OR'] = (~df_unique.order_idx) | df_unique.ask_OR | df_unique.bid_OR
+        print(df_unique.all_OR.sum() / len(df_unique.all_OR))
+        
+        df_unique['delta_t'] = delta_t
+        df_unique['bid_qty_before'] = bid_qty_before
+        df_unique['ask_qty_before'] = ask_qty_before     
+        test = df_unique[0:100] # for debug
+        
         # bid consu,ption
         # remove level 2 order book lines due to 
         # bid qty before
