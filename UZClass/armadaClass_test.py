@@ -159,9 +159,9 @@ def run_compare_tob(pathin, pathout, file_names = []):
     #print(df_bid_1_price.sum())
     
 # %% Run test
-run_BFM_tob(PATHIN, PATHOUT, FILE_BMF, TS, START_TIME, END_TIME)
+#run_BFM_tob(PATHIN, PATHOUT, FILE_BMF, TS, START_TIME, END_TIME)
 #run_compare_tob(PATHIN, PATHOUT)
-#run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_benchmark(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_unc_zones_read(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #runc_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME)

@@ -351,6 +351,7 @@ class Armada_TOB(Armada_Data):
         print('Calculating order indicators')
         self.__order_indicators()
         print('Order indicators completed')
+        #self.get_data_for_tob_intensity()
 
     @property
     def file_name(self):
@@ -382,11 +383,56 @@ class Armada_TOB(Armada_Data):
     #    return Armada_Data.get_processing_date
     
     def get_data_for_tob_intensity(self):
-        bid_qty_before = self.__tob.bid_1_qty.shift(+1).copy()
-        ask_qty_before = self.__tob.ask_1_qty.shift(+1).copy()
-        isconsumption = self.depl.depl_or_fill
-        delta_t = self.Armada_Data.df.DateTime.diff().shift(+1)
         
+        # get data we need
+        df = self.__tob[['bid_1_price', 'bid_1_qty', 'ask_1_price', 'ask_1_qty']].copy()
+        df['trade_price'] = self.__Armada_Data.df.trade_price.copy()
+        df['trade_qty'] = self.__Armada_Data.df.trade_qty.copy()
+        df['DateTime'] = self.__Armada_Data.df.DateTime.copy()
+        df['order_idx'] = self.__Armada_Data.get_order_indicator()
+        df[['bid_traded','ask_traded']] = \
+            self.__tob[['bid_price_traded', 'ask_price_traded']].copy()
+        
+        # run unique - collapse time and remove second level bid / ask
+        df_unique = df.drop_duplicates(subset = ['bid_1_price', 'bid_1_qty', 'ask_1_price', 'ask_1_qty', 'trade_price', 'trade_qty'])
+        
+        # get bid and ask before attributes
+        bid_qty_before = df_unique.bid_1_qty.shift(+1).copy()
+        ask_qty_before = df_unique.ask_1_qty.shift(+1).copy()
+        
+        # get delta_t attribute
+        delta_t = df_unique.DateTime.diff().shift(+1)
+        
+        # get consumption / insertion boolean attribute
+        #istrade = ~(df_unique.traded_price.isnull().copy())
+        
+        orders_idx_shift = df.order_idx.shift(+1)
+        orders_idx_shift.fillna(False, inplace=True)
+        
+        bid_price_diff = df.bid_1_price.diff()/self.tick_value
+        ask_price_diff = df.ask_1_price.diff()/self.tick_value
+        df['bid_depl_trade'] = (bid_price_diff < 0) & (~orders_idx_shift) 
+        df['bid_depl_cancel'] = (bid_price_diff < 0) & (orders_idx_shift) 
+        
+        bid_qty_diff = df.bid_1_qty.diff() 
+        ask_qty_diff = df.ask_1_qty.diff()
+        # no trade, decrease qty, price the same 
+        bid_qty_less = (bid_qty_diff <0) & (bid_price_diff ==0) & df.order_idx
+        bid_qty_add = (bid_qty_diff >0) & (bid_price_diff ==0) & df.order_idx
+        
+        
+        df['is_bid_consumption'] = df.bid_depl_trade | df.bid_depl_cancel | bid_qty_less
+        
+        df['ask_depl_trade']  = (ask_price_diff < 0) & (~orders_idx_shift) 
+        df['ask_depl_cancel'] = (ask_price_diff < 0) & (orders_idx_shift) 
+        
+        df['is_ask_consumption'] = df.ask_depl_trade | df.ask_depl_cancel
+        
+        test = df[0:100] # for debug
+        
+        df['delta_t'] = delta_t
+        df['bid_qty_before'] = bid_qty_before
+        df['ask_qty_before'] = ask_qty_before     
         # bid consu,ption
         # remove level 2 order book lines due to 
         # bid qty before
@@ -397,8 +443,8 @@ class Armada_TOB(Armada_Data):
     def __fill_tob(self):
         # initialize to original not filled tob
         self.__tob['bid_1_price'] = self.__Armada_Data.df.bid_1_price.copy()
-        self.__tob['ask_1_price'] = self.__Armada_Data.df.ask_1_price.copy()
         self.__tob['bid_1_qty'] = self.__Armada_Data.df.bid_1_qty.copy()
+        self.__tob['ask_1_price'] = self.__Armada_Data.df.ask_1_price.copy()
         self.__tob['ask_1_qty'] = self.__Armada_Data.df.ask_1_qty.copy()
         
         self.__tob['bool_trade'] = self.__Armada_Data.get_trade_indicator()
@@ -482,8 +528,10 @@ class Armada_TOB(Armada_Data):
                 self.__tob.ask_price_traded & 
                 self.__tob.bool_idx] = np.nan #shift_bid_qty
         
-        #self.tob.drop(['bool_bid_C', 'bool_ask_C','bool_ask_D','bool_bid_D',\
-        #                      'bool_idx', 'bool_trade', 'cumsum'],axis=1, inplace=True)
+        # remove if debug
+        self.tob.drop(['bool_bid_C', 'bool_ask_C','bool_ask_D','bool_bid_D',\
+                              'bool_idx', 'bool_trade', 'cumsum'],axis=1, inplace=True)
+            
         self.__tob.ask_1_price.fillna(method='ffill', inplace=True)
         self.__tob.ask_1_qty.fillna(method='ffill', inplace=True)
         self.__tob.bid_1_price.fillna(method='ffill', inplace=True)
