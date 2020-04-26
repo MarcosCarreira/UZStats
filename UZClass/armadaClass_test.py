@@ -30,6 +30,16 @@ END_TIME = pd.to_timedelta('12:45:00')
 FILE1 = '20180105_6EH8.zip'
 FILE_BMF = 'DOLG1720170119.csv'
 
+def run_event_data(pathin, pathout, file_name, tick_value, start_time,\
+                  end_time, save_files=False):
+    '''run_unc_zones(pathin, pathout, file_name, tick_value, end_of_time)
+    returns the uncertainty zones data frame'''
+    data = ad(pathin,file_name)
+    print(data.get_processing_date())
+    tob_obj = atob(data, tick_value)
+    tob_obj.print2file_df_event(pathout)
+
+
 def runc_multi_days(pathin, pathout, tick_value, start_time, end_time, file_names = []):
     
     tick_value = TS
@@ -159,9 +169,11 @@ def run_compare_tob(pathin, pathout, file_names = []):
     #print(df_bid_1_price.sum())
     
 # %% Run test
+run_event_data(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+
 #run_BFM_tob(PATHIN, PATHOUT, FILE_BMF, TS, START_TIME, END_TIME)
 #run_compare_tob(PATHIN, PATHOUT)
-run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+#run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_benchmark(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_unc_zones_read(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #runc_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME)

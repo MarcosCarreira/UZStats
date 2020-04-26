@@ -472,6 +472,9 @@ class Armada_TOB(Armada_Data):
         df_unique['ask_depl_cancel'] =ask_depl_cancel
         df_unique['ask_qty_less'] = ask_qty_less
         df_unique['ask_qty_add'] = ask_qty_add
+        df_unique['ask_inspread_add'] = ask_inspread_add
+        df_unique['ask_outspread_less'] = ask_outspread_less
+        
         df_unique['all_event'] = all_event
 
         test = df_unique[0:100] # for debug'''
@@ -829,6 +832,17 @@ class Armada_TOB(Armada_Data):
         print('Saving file: ',file_name)
         data_to_print = self.get_time_weighted_tob()
         data_to_print.to_csv(file_name)
+        
+    
+    def print2file_df_event(self,pathout):
+        file_name = pathout+'df_event.csv'
+        zip_name = pathout + 'df_event.zip'
+        print('Saving file: ',file_name)
+        #date_filter = (data_to_print['DateTime'].to_timedelta() >start & data_to_print['DateTime'].to_timedelta()<end)
+        #data_to_print = data_to_print.loc[data_to_print['DateTime'].dt > start & data_to_print['DateTime'].dt < end]
+        #self.data_to_print.to_csv(file_name)
+        compression_opts = dict(method='zip', archive_name=file_name)
+        self.event.to_csv(zip_name, index=False, compression=compression_opts) 
         
 # %% Plot Functions
         
