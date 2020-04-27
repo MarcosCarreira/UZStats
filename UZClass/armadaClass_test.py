@@ -15,6 +15,8 @@ from armadaClass import ArmadaData_UZModel as uz
 from armadaClass import Armada_Data as ad
 from armadaClass import Armada_TOB as atob
 import numpy as np
+import matplotlib.pyplot as plt 
+import Plotting as pltg
 #from armadaClass import Armada_UZModel_output as auo
 
 
@@ -39,6 +41,168 @@ def run_event_data(pathin, pathout, file_name, tick_value, start_time,\
     tob_obj = atob(data, tick_value)
     tob_obj.print2file_df_intensity(pathout)
 
+
+
+
+def Build_Q_no_regen(IntensVal,q,Qmax0):
+
+    " IntensVal structure is pd.DataFrame(np.zeros((Qmax0*Qmax0,4)),columns=['BidQtyBefore','AskQtyBefore','lambdaCancel','lambdaIns']) "
+
+    " q is the minimum order size "
+
+    " Qmax0 is the maximum order size level "
+
+    " RegenVect structure is np.zeros((2*Qmax0,Qmax0*Qmax0))"
+    ## Build transition matrix finite difference scheme
+
+    Matrix0 = np.zeros((Qmax0*Qmax0,Qmax0*Qmax0))
+
+    for qsame in range(Qmax0) : # QSame Loop // qsame = 1
+
+        for qopp in range(Qmax0) : # QOpp Loop // qopp = 1
+
+            CumIntens = 0.
+
+            ## Cancellation order bid side : 
+
+            if (qsame > 0) : ## the limit is not totally consumed  // No regeneration
+
+                 CumIntens +=  IntensVal['lambdaCancel'][qsame*Qmax0+qopp]  
+
+                 Matrix0[qsame*Qmax0+qopp][(qsame-1)*Qmax0+qopp] += IntensVal['lambdaCancel'][qsame*Qmax0+qopp] 
+
+            ## Cancellation order ask side :
+
+            if (qopp > 0) : ## the limit is not totally consumed // no regeneration
+
+                 CumIntens +=  IntensVal['lambdaCancel'][qopp*Qmax0+qsame]  
+
+                 Matrix0[qsame*Qmax0+qopp][qsame*Qmax0+qopp-1] += IntensVal['lambdaCancel'][qopp*Qmax0+qsame] 
+
+            ## Insertion order bid side :
+
+            if (qsame < Qmax0-1) : ## when qsame = Qmax -1  no more order can be added to the bid limit
+
+                 CumIntens +=  IntensVal['lambdaIns'][qsame*Qmax0+qopp]  
+
+                 Matrix0[qsame*Qmax0+qopp][(qsame+1)*Qmax0+qopp] += IntensVal['lambdaIns'][qsame*Qmax0+qopp]            
+
+            ## Insertion oder ask side
+
+            if (qopp < Qmax0-1) : ## when qopp = Qmax -1  no more order can be added to the ask limit
+
+                 CumIntens +=  IntensVal['lambdaIns'][qopp*Qmax0+qsame]  
+
+                 Matrix0[qsame*Qmax0+qopp][qsame*Qmax0+qopp+1] += IntensVal['lambdaIns'][qopp*Qmax0+qsame]  
+
+            ## Nothing happen 
+
+            Matrix0[qsame*Qmax0+qopp][qsame*Qmax0+qopp] += - CumIntens  
+
+    return Matrix0
+
+## Building matrices ::
+def Compute_intens_val_bis(IntensVal_whole_market, Qmax0 = 30, q = 1):
+    res_sub = IntensVal_whole_market[IntensVal_whole_market['size_before'] <= Qmax0]
+    
+    IntensVal = pd.DataFrame(np.zeros((Qmax0*Qmax0,4)), columns = ['BidQtyBefore', 'AskQtyBefore', 'lambdaCancel', 'lambdaIns'])
+    IntensVal['BidQtyBefore'] = np.repeat(np.arange(1,Qmax0+1)*q,Qmax0)
+    IntensVal['AskQtyBefore'] = np.tile(np.arange(1,Qmax0+1)*q,Qmax0)
+    IntensVal['lambdaCancel'] = np.repeat(res_sub[(res_sub['order_type'] == 'Consumption') ]['Intensity'].values,Qmax0)
+    IntensVal['lambdaIns'] = np.repeat(res_sub[(res_sub['order_type'] == 'Insertion') ]['Intensity'].values,Qmax0)
+    return IntensVal
+
+## compute stationary probabilities
+
+def Proba_stat(Tilde_Q,Qmax0): 
+
+    size = Qmax0*Qmax0
+    Tilde_Q_inv = np.array(Tilde_Q[:-1,:-1]) 
+    for j in range(size-1):
+
+        Tilde_Q_inv[:,j] -= Tilde_Q[-1,j]  
+    F_inv = -Tilde_Q[size-1,:-1]
+    ## Compute the stat proba
+    Proba2 = np.zeros((size))
+    Proba2[:-1] = np.linalg.solve(Tilde_Q_inv.transpose(),F_inv.transpose());Proba2[-1]  = 1-sum(Proba2)
+    return Proba2
+    
+def run_intensity_process(pathin, bid_or_ask='bid', option_save = False):
+    
+    if bid_or_ask == 'bid':
+        file_input = 'df_intensity_bid.csv'
+    else:
+        file_input = 'df_intensity_ask.csv'
+    intens = pd.read_csv(pathin+file_input)
+    
+    ### Compute intensities
+    ##### Initialize parameters
+    q = 1
+    Qmax0 = 30
+
+    ##### Compute intensities
+    IntensVal = Compute_intens_val_bis(intens, Qmax0 = Qmax0, q = q)
+    
+    ##### Test result :: plot values 
+    ###### Initialize parameters
+    order_type_1 = 'lambdaCancel'
+    indexes_limit_1 = np.arange(0,Qmax0)*Qmax0
+    order_type_2 = 'lambdaIns'
+    #option_save = ""#save"
+
+    ###### Plot values
+    plt.plot(IntensVal['BidQtyBefore'][indexes_limit_1],IntensVal[order_type_1][indexes_limit_1], label ='Liquidity consumption', linewidth= 3.0)
+    plt.plot(IntensVal['BidQtyBefore'][indexes_limit_1],IntensVal[order_type_2][indexes_limit_1], label = 'Liquidity provision', linewidth= 3.0)
+    plt.title('')
+    plt.grid()
+    plt.legend(loc = 2, bbox_to_anchor = (.01,.92))
+    if option_save == "save" :
+        plt.savefig(pathin+"\\intensity_all_f_"+".pdf", bbox_inches='tight')
+    plt.show()
+
+
+    ### Compute Q matrix/proba stationary for all market agent :: without regeneration 
+    ###### Initialize the parameters
+    #option_save = True
+    path = pathin; ImageName = "\\Proba_stat_all_agents_ff"
+    
+    ##### Computation
+    Q_no_regen = Build_Q_no_regen(IntensVal,q,Qmax0)
+    
+    ### Compute stationary probabilities 
+    ##### Computation
+    proba = Proba_stat(Q_no_regen,Qmax0)
+    
+    ##### Plot the values
+    ####### First method
+    xpos1 = np.repeat(q*np.arange(1,Qmax0+1),Qmax0)
+    ypos1 = np.tile(q*np.arange(1,Qmax0+1),Qmax0)
+    data_frame = pd.DataFrame(np.zeros((Qmax0*Qmax0,3)),columns=['x','y','Prob'])
+    data_frame['x'] = xpos1
+    data_frame['y'] = ypos1
+    data_frame['Prob'] = proba
+    pltg.Plot_sns(data_frame.pivot("y", "x", "Prob"),option_save,path,ImageName, cbar = True, annot = False)
+
+    
+    ####### Second method
+    Resx = q*np.arange(Qmax0);Resy = q*np.arange(Qmax0); Resz=proba; xlabel='Bid size';ylabel='Ask size'; zlabel='Joint distribution'; optionXY=2
+    elev0= 20; azim0=20; dist0= 12; bins =Qmax0 
+    path = pathin; ImageName ="\\Proba_stat_3D"; xtitle = ""
+    #option="save";path ="D:\\etude\\charles-albert\\Past_Trades_Influence\\Estimator_Cont_Annul\\CompareModelQR_NewMod\\Model_PastTrades_ModelPropg\\Image";ImageName="\\ProbStatRegen_2f";xtitle="" 
+    pltg.Plot3D(Resx,Resy,Resz,Qmax0,xlabel,ylabel,zlabel,option_save,path,ImageName,xtitle,elev0, azim0, dist0,optionXY)
+    
+    ####### Third method
+    labels = [""]
+    path = pathin; ImageName ="\\Proba_stat_all"; xtitle = ""
+    xpos1 = np.repeat(q*np.arange(1,Qmax0+1),Qmax0)
+    ypos1 = np.tile(q*np.arange(1,Qmax0+1),Qmax0)
+    data_frame = pd.DataFrame(np.zeros((Qmax0*Qmax0,3)),columns=['x','y','Prob'])
+    data_frame['x'] = xpos1
+    data_frame['y'] = ypos1
+    data_frame['Prob'] = proba
+    res_bis = data_frame.groupby(['x']).agg({'Prob':'median'})
+    df = [[res_bis.index.values, res_bis.values.flatten()/res_bis.values.sum()]]
+    pltg.Plot_plot(df,labels,option_save,path,ImageName,xtitle = bid_or_ask, Nset_tick_x = False)
 
 def runc_multi_days(pathin, pathout, tick_value, start_time, end_time, file_names = []):
     
@@ -169,7 +333,9 @@ def run_compare_tob(pathin, pathout, file_names = []):
     #print(df_bid_1_price.sum())
     
 # %% Run test
-run_event_data(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+#run_event_data(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+run_intensity_process(PATHOUT, 'ask')
+run_intensity_process(PATHOUT, 'bid')
 
 #run_BFM_tob(PATHIN, PATHOUT, FILE_BMF, TS, START_TIME, END_TIME)
 #run_compare_tob(PATHIN, PATHOUT)
