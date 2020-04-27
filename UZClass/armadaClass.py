@@ -459,7 +459,7 @@ class Armada_TOB(Armada_Data):
         event_bid = pd.DataFrame()
         event_bid['bid_event']= bid_event
         event_bid['consumption'] = consumption_bid
-        event_bid['bid_qty_before'] = bid_qty_before
+        event_bid['size_before'] = bid_qty_before
         event_bid['delta_t'] = delta_t
         
         event_bid = event_bid[event_bid.bid_event==True]
@@ -468,7 +468,7 @@ class Armada_TOB(Armada_Data):
         
         event_ask['ask_event']= ask_event
         event_ask['consumption'] = consumption_ask
-        event_ask['ask_qty_before'] = ask_qty_before
+        event_ask['size_before'] = ask_qty_before
         event_ask['delta_t'] = delta_t
         
         event_ask = event_ask[event_ask.ask_event==True]
@@ -478,9 +478,16 @@ class Armada_TOB(Armada_Data):
         self.results_bid = pd.DataFrame()
         self.results_ask = pd.DataFrame()
         
-        self.results_bid = event_bid.groupby(['consumption','bid_qty_before']).agg({'delta_t':'sum', 'bid_event':'sum'}) 
-        self.results_ask = event_ask.groupby(['consumption','ask_qty_before']).agg({'delta_t':'sum', 'ask_event':'sum'}) 
-        #results_bid['intensity'] = bid_event/delta_t
+        self.results_bid = event_bid.groupby(['consumption','size_before']).agg({'delta_t':'sum', 'bid_event':'sum'}) 
+        self.results_ask = event_ask.groupby(['consumption','size_before']).agg({'delta_t':'sum', 'ask_event':'sum'}) 
+        self.results_bid.delta_t  = self.results_bid.delta_t.dt.total_seconds()
+        self.results_ask.delta_t  = self.results_ask.delta_t.dt.total_seconds()
+        
+        self.results_bid['intensity'] = self.results_bid.bid_event\
+            / self.results_bid.delta_t
+        self.results_ask['intensity'] = self.results_ask.ask_event \
+            / self.results_ask.delta_t
+        
         
         # if all true, we have all event cases
         all_event = (~df_unique.order_idx) | ask_event | bid_event
@@ -859,10 +866,23 @@ class Armada_TOB(Armada_Data):
     def print2file_df_intensity(self,pathout):
         file_name = pathout+'df_intensity_bid.csv'
         print('Saving file: ',file_name)
-        self.results_bid.to_csv(file_name) 
+        
+        intensity_bid = self.results_bid.copy()
+        intensity_ask = self.results_ask.copy()
+        
+        intensity_bid = intensity_bid.reset_index()
+        intensity_ask = intensity_ask.reset_index()
+        
+        intensity_bid = intensity_bid.rename(columns={"consumption": "order_type", "intensity": "Intensity", "delta_t": "var_DateTime", "bid_event": "Number"})
+        intensity_ask = intensity_ask.rename(columns={"consumption": "order_type", "intensity": "Intensity", "delta_t": "var_DateTime", "ask_event": "Number"})
+        
+        intensity_bid.order_type = np.where(intensity_bid.order_type == True, 'Consumption', 'Insertion')
+        intensity_ask.order_type = np.where(intensity_ask.order_type == True, 'Consumption', 'Insertion')
+        
+        intensity_bid.to_csv(file_name) 
         file_name2 = pathout+'df_intensity_ask.csv'
         print('Saving file: ',file_name2)
-        self.results_ask.to_csv(file_name2) 
+        intensity_ask.to_csv(file_name2) 
         
         
         
