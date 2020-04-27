@@ -443,21 +443,44 @@ class Armada_TOB(Armada_Data):
                        
         
         ## finding insertion (add) and consumption (less)
-        consumption = bid_depl_trade | bid_depl_cancel | bid_qty_less | \
-            ask_depl_trade | ask_depl_cancel | ask_qty_less | ask_outspread_less
-            
-        insertion = bid_qty_add | bid_inspread_add \
-                | ask_qty_add | ask_inspread_add
+        consumption_bid = bid_depl_trade | bid_depl_cancel | bid_qty_less 
+        consumption_ask = ask_depl_trade | ask_depl_cancel | ask_qty_less | ask_outspread_less
+       
+        #insertion = bid_qty_add | bid_inspread_add \
+        #        | ask_qty_add | ask_inspread_add
         
     
-        self.event['bid_event']= bid_event
-        self.event['ask_event'] = ask_event
-        self.event['consumption'] = consumption
-        self.event['insertion'] = insertion
-        self.event['bid_qty_before'] = bid_qty_before
-        self.event['ask_qty_before'] = ask_qty_before 
-        self.event['delta_t'] = delta_t
+        #self.event['ask_event'] = ask_event
+        #self.event['consumption'] = consumption
+        #self.event['insertion'] = insertion
+        #self.event['bid_qty_before'] = bid_qty_before
+        #self.event['ask_qty_before'] = ask_qty_before 
+        #self.event['delta_t'] = delta_t
+        event_bid = pd.DataFrame()
+        event_bid['bid_event']= bid_event
+        event_bid['consumption'] = consumption_bid
+        event_bid['bid_qty_before'] = bid_qty_before
+        event_bid['delta_t'] = delta_t
         
+        event_bid = event_bid[event_bid.bid_event==True]
+        
+        event_ask = pd.DataFrame()
+        
+        event_ask['ask_event']= ask_event
+        event_ask['consumption'] = consumption_ask
+        event_ask['ask_qty_before'] = ask_qty_before
+        event_ask['delta_t'] = delta_t
+        
+        event_ask = event_ask[event_ask.ask_event==True]
+        
+        
+        #data = result.groupby(['ISIN', 'BuyMemberID','Newspread', 'Bid_BBO_Qty_AES']).agg({'Limit':'sum', 'Market':'sum','Cancel':'sum', 'DiffTime':'sum','count':'sum'})    
+        self.results_bid = pd.DataFrame()
+        self.results_ask = pd.DataFrame()
+        
+        self.results_bid = event_bid.groupby(['consumption','bid_qty_before']).agg({'delta_t':'sum', 'bid_event':'sum'}) 
+        self.results_ask = event_ask.groupby(['consumption','ask_qty_before']).agg({'delta_t':'sum', 'ask_event':'sum'}) 
+        #results_bid['intensity'] = bid_event/delta_t
         
         # if all true, we have all event cases
         all_event = (~df_unique.order_idx) | ask_event | bid_event
@@ -833,16 +856,15 @@ class Armada_TOB(Armada_Data):
         data_to_print = self.get_time_weighted_tob()
         data_to_print.to_csv(file_name)
         
-    
-    def print2file_df_event(self,pathout):
-        file_name = pathout+'df_event.csv'
-        zip_name = pathout + 'df_event.zip'
+    def print2file_df_intensity(self,pathout):
+        file_name = pathout+'df_intensity_bid.csv'
         print('Saving file: ',file_name)
-        #date_filter = (data_to_print['DateTime'].to_timedelta() >start & data_to_print['DateTime'].to_timedelta()<end)
-        #data_to_print = data_to_print.loc[data_to_print['DateTime'].dt > start & data_to_print['DateTime'].dt < end]
-        #self.data_to_print.to_csv(file_name)
-        compression_opts = dict(method='zip', archive_name=file_name)
-        self.event.to_csv(zip_name, index=False, compression=compression_opts) 
+        self.results_bid.to_csv(file_name) 
+        file_name2 = pathout+'df_intensity_ask.csv'
+        print('Saving file: ',file_name2)
+        self.results_ask.to_csv(file_name2) 
+        
+        
         
 # %% Plot Functions
         

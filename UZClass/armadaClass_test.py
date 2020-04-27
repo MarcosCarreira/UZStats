@@ -37,7 +37,7 @@ def run_event_data(pathin, pathout, file_name, tick_value, start_time,\
     data = ad(pathin,file_name)
     print(data.get_processing_date())
     tob_obj = atob(data, tick_value)
-    tob_obj.print2file_df_event(pathout)
+    tob_obj.print2file_df_intensity(pathout)
 
 
 def runc_multi_days(pathin, pathout, tick_value, start_time, end_time, file_names = []):
