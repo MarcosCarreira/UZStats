@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import matplotlib.pyplot as plt 
+import Plotting as pltg
 
 # %% Armada Data Class
 
@@ -382,6 +384,9 @@ class Armada_TOB(Armada_Data):
     #def get_processing_date(self):
     #    return Armada_Data.get_processing_date
     
+    def get_tob_intensity_output(self):
+        return TOB_Intensity_Output(self.processing_date, self.results_bid, self.results_ask)
+    
     def get_data_for_tob_intensity(self):
         self.event = pd.DataFrame()
         # get data we need
@@ -487,6 +492,9 @@ class Armada_TOB(Armada_Data):
             / self.results_bid.delta_t
         self.results_ask['intensity'] = self.results_ask.ask_event \
             / self.results_ask.delta_t
+        
+        self.results_bid = self.results_bid.reset_index()
+        self.results_bid = self.results_bid.reset_index()
         
         
         # if all true, we have all event cases
@@ -948,6 +956,169 @@ class Armada_TOB(Armada_Data):
         print('saving html plot to ', file)
         fig.write_html(file)
 
+
+# %% Top-Of-Book Intensity Output Class, Allow multi days stats
+    
+class TOB_Intensity_Output:
+    
+    def __init__(self, processing_date, results_bid =pd.DataFrame(), results_ask= pd.DataFrame()):
+        self.results_bid = results_bid
+        self.results_ask = results_ask
+        self.processing_date = processing_date
+        self.results_bid['Date']=self.processing_date
+        self.results_ask['Date']=self.processing_date
+    
+    def append(self, TOB_Intensity_Output):
+        self.results_bid = self.results_bid.append(\
+            TOB_Intensity_Output.results_bid, ignore_index = True)
+        self.results_ask = self.results_ask.append(\
+            TOB_Intensity_Output.results_ask, ignore_index = True)
+            
+    def get_aggregated_bid_ask(self):
+        intensity_bid = self.results_bid.copy()
+        intensity_ask = self.results_ask.copy()
+        
+        intensity_bid = intensity_bid.rename(columns={'bid_event': "Number"})
+        intensity_ask = intensity_bid.rename(columns={'ask_event': "Number"})
+        intensity = intensity_bid.append(intensity_ask, ignore_index = True)
+        
+        intensity = intensity.rename(columns={"consumption": "order_type", "intensity": "Intensity", "delta_t": "var_DateTime"})
+        
+        intensity.order_type = np.where(intensity.order_type == True, 'Consumption', 'Insertion')
+        
+        #intensity_bid = intensity_bid.reset_index()
+        #intensity_ask = intensity_ask.reset_index()
+        #intensity_group = Intensity(intensity)
+        intensity_group = intensity.groupby(['size_before', 'order_type']).agg({'Number':'sum', 'var_DateTime':'sum'}) 
+        intensity_group = intensity_group.reset_index()
+        
+        intensity_group['intensity'] = intensity_group.Number\
+            / intensity_group.var_DateTime
+        intensity_group = intensity_group.rename(columns={"intensity": "Intensity"})
+        return Intensity(intensity_group)
+    
+# %% Class Intensity to Compute intensities
+        
+class Intensity:
+    
+    def __init__(self,df_intensity=pd.DataFrame(), q=1, Qmax0 = 30):
+        self.intensity = pd.DataFrame()
+        self.intensity = df_intensity
+        self.q = q
+        self.Qmax0 = Qmax0
+        ##### Compute intensities
+        self.intensity_values = self.__compute_intens_val_bis()
+        ##### Compute Q matrix
+        self.q_no_regen = self.__build_Q_no_regen()
+        ### Compute stationary probabilities 
+        self.proba = self.__proba_stat()
+    
+            
+    def __build_Q_no_regen(self):
+        " IntensVal structure is pd.DataFrame(np.zeros((Qmax0*Qmax0,4)),columns=['BidQtyBefore','AskQtyBefore','lambdaCancel','lambdaIns']) "
+        " q is the minimum order size "
+        " Qmax0 is the maximum order size level "
+        " RegenVect structure is np.zeros((2*Qmax0,Qmax0*Qmax0))"
+        ## Build transition matrix finite difference scheme
+        IntensVal = self.intensity_values.copy()
+        Qmax0 = self.Qmax0
+    
+        Matrix0 = np.zeros((Qmax0*Qmax0,Qmax0*Qmax0))
+        for qsame in range(Qmax0) : # QSame Loop // qsame = 1
+            for qopp in range(Qmax0) : # QOpp Loop // qopp = 1
+    
+                CumIntens = 0.
+                ## Cancellation order bid side : 
+                if (qsame > 0) : ## the limit is not totally consumed  // No regeneration
+                     CumIntens +=  IntensVal['lambdaCancel'][qsame*Qmax0+qopp]  
+                     Matrix0[qsame*Qmax0+qopp][(qsame-1)*Qmax0+qopp] += IntensVal['lambdaCancel'][qsame*Qmax0+qopp] 
+    
+                ## Cancellation order ask side :
+                if (qopp > 0) : ## the limit is not totally consumed // no regeneration
+                     CumIntens +=  IntensVal['lambdaCancel'][qopp*Qmax0+qsame]  
+                     Matrix0[qsame*Qmax0+qopp][qsame*Qmax0+qopp-1] += IntensVal['lambdaCancel'][qopp*Qmax0+qsame] 
+    
+                ## Insertion order bid side :
+                if (qsame < Qmax0-1) : ## when qsame = Qmax -1  no more order can be added to the bid limit
+                     CumIntens +=  IntensVal['lambdaIns'][qsame*Qmax0+qopp]  
+                     Matrix0[qsame*Qmax0+qopp][(qsame+1)*Qmax0+qopp] += IntensVal['lambdaIns'][qsame*Qmax0+qopp]            
+    
+                ## Insertion oder ask side
+                if (qopp < Qmax0-1) : ## when qopp = Qmax -1  no more order can be added to the ask limit
+                     CumIntens +=  IntensVal['lambdaIns'][qopp*Qmax0+qsame]  
+                     Matrix0[qsame*Qmax0+qopp][qsame*Qmax0+qopp+1] += IntensVal['lambdaIns'][qopp*Qmax0+qsame]  
+    
+                ## Nothing happen 
+                Matrix0[qsame*Qmax0+qopp][qsame*Qmax0+qopp] += - CumIntens  
+                
+        return Matrix0
+    
+    ## Building matrices ::
+    def __compute_intens_val_bis(self):
+        IntensVal_whole_market = self.intensity.copy()
+        q = self.q
+        Qmax0 = self.Qmax0
+        res_sub = IntensVal_whole_market[IntensVal_whole_market['size_before'] <= Qmax0]
+        
+        IntensVal = pd.DataFrame(np.zeros((Qmax0*Qmax0,4)), columns = ['BidQtyBefore', 'AskQtyBefore', 'lambdaCancel', 'lambdaIns'])
+        IntensVal['BidQtyBefore'] = np.repeat(np.arange(1,Qmax0+1)*q,Qmax0)
+        IntensVal['AskQtyBefore'] = np.tile(np.arange(1,Qmax0+1)*q,Qmax0)
+        IntensVal['lambdaCancel'] = np.repeat(res_sub[(res_sub['order_type'] == 'Consumption') ]['Intensity'].values,Qmax0)
+        IntensVal['lambdaIns'] = np.repeat(res_sub[(res_sub['order_type'] == 'Insertion') ]['Intensity'].values,Qmax0)
+        return IntensVal
+    
+    ## compute stationary probabilities
+    def __proba_stat(self):
+        Qmax0 = self.Qmax0
+        Tilde_Q = self.q_no_regen
+        size = Qmax0*Qmax0
+        Tilde_Q_inv = np.array(Tilde_Q[:-1,:-1]) 
+        for j in range(size-1):
+    
+            Tilde_Q_inv[:,j] -= Tilde_Q[-1,j]  
+        F_inv = -Tilde_Q[size-1,:-1]
+        ## Compute the stat proba
+        Proba2 = np.zeros((size))
+        Proba2[:-1] = np.linalg.solve(Tilde_Q_inv.transpose(),F_inv.transpose());Proba2[-1]  = 1-sum(Proba2)
+        return Proba2
+    
+    def plot_intensities(self,pathout, option_save =False):
+        IntensVal = self.intensity_values.copy()
+        #indexes_limit_1 = np.arange(0,Qmax0)*Qmax0
+        #order_type_1 = 'lambdaCancel'
+        #order_type_2 = 'lambdaIns'
+        
+        x = IntensVal.BidQtyBefore
+        y = IntensVal.lambdaCancel
+        y_2 = IntensVal.lambdaIns
+    
+        ###### Plot values
+        plt.plot(x,y, label ='Liquidity consumption', linewidth= 3.0)
+        plt.plot(x,y_2, label = 'Liquidity provision', linewidth= 3.0)
+        plt.title('Intensity for market provision and consumption')
+        plt.grid()
+        plt.legend(loc = 2, bbox_to_anchor = (.01,.92))
+        if option_save == True :
+            plt.savefig(pathout+"intensity_all"+".pdf", bbox_inches='tight')
+        plt.show()
+        
+    def plot_proba_stat(self,pathout, option_save =False):
+        proba = self.proba.copy()
+        Qmax0 = self.Qmax0
+        q = self.q
+        labels = [""]
+        path = pathout
+        ImageName ="\\Proba_stat_all";
+        xpos1 = np.repeat(q*np.arange(1,Qmax0+1),Qmax0)
+        ypos1 = np.tile(q*np.arange(1,Qmax0+1),Qmax0)
+        data_frame = pd.DataFrame(np.zeros((Qmax0*Qmax0,3)),columns=['x','y','Prob'])
+        data_frame['x'] = xpos1
+        data_frame['y'] = ypos1
+        data_frame['Prob'] = proba
+        res_bis = data_frame.groupby(['x']).agg({'Prob':'median'})
+        df = [[res_bis.index.values, res_bis.values.flatten()/res_bis.values.sum()]]
+        pltg.Plot_plot(df,labels,option_save,path,ImageName,xtitle = '', Nset_tick_x = False)
+        
 # %% Armada UZ Model Output Class
     
 class Armada_UZModel_output:
