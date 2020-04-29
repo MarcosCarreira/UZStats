@@ -19,7 +19,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import matplotlib.pyplot as plt 
-import Plotting as pltg
+#import Plotting as pltg
 
 # %% Armada Data Class
 
@@ -65,6 +65,11 @@ class Armada_Data():
     def df(self):
         return self.__df
 
+    def select_times(self,start_time = pd.to_timedelta('00:30:00'), \
+                     end_time = pd.to_timedelta('23:59:59')):
+        self.__filter_exchange_data_by_time([start_time,end_time])
+        self.__filter_exchange_data_prior_first_trade()
+        return self
     
     # %% Public Functions
     
@@ -137,10 +142,13 @@ class Armada_Data():
         #df_tmp = df_tmp.reset_index()
         self.__df = df_tmp  
     
-    def __filter_exchange_data_by_time(self):
-        # set start and end time
-        start_time = self.get_exchange_starting_time()
-        end_time = self.get_exchange_end_time()
+    def __filter_exchange_data_by_time(self, arg = None):
+        if arg == None:
+            start_time = self.get_exchange_starting_time()
+            end_time = self.get_exchange_end_time()
+        else:
+            start_time = self.processing_date + arg[0]
+            end_time = self.processing_date + arg[1]
         
         # truncating df
         df_tmp = self.__df.copy()

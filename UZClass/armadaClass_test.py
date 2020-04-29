@@ -16,7 +16,7 @@ from armadaClass import Armada_Data as ad
 from armadaClass import Armada_TOB as atob
 import numpy as np
 import matplotlib.pyplot as plt 
-import Plotting as pltg
+#import Plotting as pltg
 #from armadaClass import Armada_UZModel_output as auo
 
 
@@ -31,6 +31,14 @@ END_TIME = pd.to_timedelta('12:45:00')
 
 FILE1 = '20180105_6EH8.zip'
 FILE_BMF = 'DOLG1720170119.csv'
+
+def test_select_times(pathin, pathout, tick_value, start, end, file_name = []):
+    data = ad(pathin,file_name)
+    data.plot_html_ohlc(pathout,'5min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
+    data2 = data.select_times(start, end)
+    data2.plot_html_ohlc(pathout,'1min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
+    
+
 
 def run_event_data(pathin, pathout, file_name, tick_value, start_time,\
                   end_time, save_files=False):
@@ -223,7 +231,8 @@ def run_compare_tob(pathin, pathout, file_names = []):
     #print(df_bid_1_price.sum())
     
 # %% Run test
-run_intensity_one_days(PATHIN, PATHOUT, TS, FILE1)
+test_select_times(PATHIN, PATHOUT, TS, START_TIME, END_TIME,FILE1)
+#run_intensity_one_days(PATHIN, PATHOUT, TS, FILE1)
 #run_intensity_multi_days(PATHIN, PATHOUT, TS)
 #run_event_data(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 
