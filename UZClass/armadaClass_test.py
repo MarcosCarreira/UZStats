@@ -42,6 +42,19 @@ def run_event_data(pathin, pathout, file_name, tick_value, start_time,\
     tob_obj.print2file_df_intensity(pathout)
 
 
+
+def run_intensity_one_days(pathin, pathout, tick_value, file_name = []):
+    data = ad(pathin,file_name)
+    print(data.get_processing_date())
+    tob_obj = atob(data, tick_value)
+    output = tob_obj.get_tob_intensity_output()
+    bid_inten = output.get_bid_intensity()
+    ask_inten = output.get_ask_intensity()
+    both_inten = output.get_aggregated_bid_ask()
+    bid_inten.plot_intensities(pathout, 'bid')
+    ask_inten.plot_intensities(pathout, 'ask')
+    both_inten.plot_intensities(pathout, 'bid_plus_ask')
+
 def run_intensity_multi_days(pathin, pathout, tick_value, file_names = []):
     
     tick_value = TS
@@ -210,8 +223,8 @@ def run_compare_tob(pathin, pathout, file_names = []):
     #print(df_bid_1_price.sum())
     
 # %% Run test
-    
-run_intensity_multi_days(PATHIN, PATHOUT, TS)
+run_intensity_one_days(PATHIN, PATHOUT, TS, FILE1)
+#run_intensity_multi_days(PATHIN, PATHOUT, TS)
 #run_event_data(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 
 #run_BFM_tob(PATHIN, PATHOUT, FILE_BMF, TS, START_TIME, END_TIME)

@@ -494,7 +494,7 @@ class Armada_TOB(Armada_Data):
             / self.results_ask.delta_t
         
         self.results_bid = self.results_bid.reset_index()
-        self.results_bid = self.results_bid.reset_index()
+        self.results_ask = self.results_ask.reset_index()
         
         
         # if all true, we have all event cases
@@ -973,14 +973,26 @@ class TOB_Intensity_Output:
             TOB_Intensity_Output.results_bid, ignore_index = True)
         self.results_ask = self.results_ask.append(\
             TOB_Intensity_Output.results_ask, ignore_index = True)
-            
-    def get_aggregated_bid_ask(self):
-        intensity_bid = self.results_bid.copy()
-        intensity_ask = self.results_ask.copy()
+    
+    def __get_intensity(self,bid_ask):
         
-        intensity_bid = intensity_bid.rename(columns={'bid_event': "Number"})
-        intensity_ask = intensity_bid.rename(columns={'ask_event': "Number"})
-        intensity = intensity_bid.append(intensity_ask, ignore_index = True)
+        
+        if bid_ask == 'bid':
+            intensity_bid = self.results_bid.copy()
+            intensity_bid = intensity_bid.rename(columns={'bid_event': "Number"})
+            intensity = intensity_bid
+        
+        elif bid_ask == 'ask':
+            intensity_ask = self.results_ask.copy()
+            intensity_ask = intensity_ask.rename(columns={'ask_event': "Number"})
+            intensity = intensity_ask
+            
+        else:
+            intensity_bid = self.results_bid.copy()
+            intensity_ask = self.results_ask.copy()
+            intensity_bid = intensity_bid.rename(columns={'bid_event': "Number"})
+            intensity_ask = intensity_ask.rename(columns={'ask_event': "Number"})
+            intensity = intensity_bid.append(intensity_ask, ignore_index = True)
         
         intensity = intensity.rename(columns={"consumption": "order_type", "intensity": "Intensity", "delta_t": "var_DateTime"})
         
@@ -996,16 +1008,29 @@ class TOB_Intensity_Output:
             / intensity_group.var_DateTime
         intensity_group = intensity_group.rename(columns={"intensity": "Intensity"})
         return Intensity(intensity_group)
+            
+        
+    
+    def get_bid_intensity(self):
+        return self.__get_intensity('bid')
+    
+    def get_ask_intensity(self):
+        return self.__get_intensity('ask')
+    
+    def get_aggregated_bid_ask(self):
+        return self.__get_intensity('both')
+        
+
     
 # %% Class Intensity to Compute intensities
         
 class Intensity:
     
-    def __init__(self,df_intensity=pd.DataFrame(), q=1, Qmax0 = 30):
+    def __init__(self,df_intensity=pd.DataFrame()):
         self.intensity = pd.DataFrame()
         self.intensity = df_intensity
-        self.q = q
-        self.Qmax0 = Qmax0
+        self.q = 1
+        self.Qmax0 = 40 # HARDCODED #int(max(df_intensity.size_before))
         ##### Compute intensities
         self.intensity_values = self.__compute_intens_val_bis()
         ##### Compute Q matrix
@@ -1082,8 +1107,9 @@ class Intensity:
         Proba2[:-1] = np.linalg.solve(Tilde_Q_inv.transpose(),F_inv.transpose());Proba2[-1]  = 1-sum(Proba2)
         return Proba2
     
-    def plot_intensities(self,pathout, option_save =False):
+    def plot_intensities(self,pathout, file_name=''):
         IntensVal = self.intensity_values.copy()
+        option_save =True
         #indexes_limit_1 = np.arange(0,Qmax0)*Qmax0
         #order_type_1 = 'lambdaCancel'
         #order_type_2 = 'lambdaIns'
@@ -1099,16 +1125,17 @@ class Intensity:
         plt.grid()
         plt.legend(loc = 2, bbox_to_anchor = (.01,.92))
         if option_save == True :
-            plt.savefig(pathout+"intensity_all"+".pdf", bbox_inches='tight')
+            plt.savefig(pathout+"intensity_all_"+file_name+".pdf", bbox_inches='tight')
         plt.show()
         
-    def plot_proba_stat(self,pathout, option_save =False):
+    def plot_proba_stat(self,pathout, file_name=''):
         proba = self.proba.copy()
         Qmax0 = self.Qmax0
         q = self.q
+        option_save =True
         labels = [""]
         path = pathout
-        ImageName ="\\Proba_stat_all";
+        ImageName =["\\Proba_stat_all"+file_name]
         xpos1 = np.repeat(q*np.arange(1,Qmax0+1),Qmax0)
         ypos1 = np.tile(q*np.arange(1,Qmax0+1),Qmax0)
         data_frame = pd.DataFrame(np.zeros((Qmax0*Qmax0,3)),columns=['x','y','Prob'])
