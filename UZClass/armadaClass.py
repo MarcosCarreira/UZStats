@@ -19,7 +19,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import matplotlib.pyplot as plt 
-import Plotting as pltg
+import plotly.express as px
+#import Plotting as pltg
 
 # %% Armada Data Class
 
@@ -516,7 +517,7 @@ class Armada_TOB(Armada_Data):
         df_unique['all_event'] = all_event
 
         test = df_unique[0:100] # for debug'''
-        test_1 = self.event[0:100]
+        #test_1 = self.event[0:100]
         # bid consu,ption
         # remove level 2 order book lines due to 
         # bid qty before
@@ -1128,12 +1129,13 @@ class Intensity:
             plt.savefig(pathout+"intensity_all_"+file_name+".pdf", bbox_inches='tight')
         plt.show()
         
+        
     def plot_proba_stat(self,pathout, file_name=''):
         proba = self.proba.copy()
         Qmax0 = self.Qmax0
         q = self.q
         option_save =True
-        labels = [""]
+        
         path = pathout
         ImageName =["\\Proba_stat_all"+file_name]
         xpos1 = np.repeat(q*np.arange(1,Qmax0+1),Qmax0)
@@ -1144,7 +1146,12 @@ class Intensity:
         data_frame['Prob'] = proba
         res_bis = data_frame.groupby(['x']).agg({'Prob':'median'})
         df = [[res_bis.index.values, res_bis.values.flatten()/res_bis.values.sum()]]
-        pltg.Plot_plot(df,labels,option_save,path,ImageName,xtitle = '', Nset_tick_x = False)
+        fig = go.Figure(data=go.Scatter(x=res_bis.index.values, y=res_bis.values.flatten()/res_bis.values.sum()))
+        fig.update_layout(title_text="Probability Distribution of Intensities",
+                  title_font_size=30)
+        file = pathout+"proba_"+file_name+".html"
+        print('saving html plot to ', file)
+        fig.write_html(file)
         
 # %% Armada UZ Model Output Class
     

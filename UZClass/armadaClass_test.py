@@ -15,8 +15,7 @@ from armadaClass import ArmadaData_UZModel as uz
 from armadaClass import Armada_Data as ad
 from armadaClass import Armada_TOB as atob
 import numpy as np
-import matplotlib.pyplot as plt 
-import Plotting as pltg
+
 #from armadaClass import Armada_UZModel_output as auo
 
 
@@ -54,6 +53,9 @@ def run_intensity_one_days(pathin, pathout, tick_value, file_name = []):
     bid_inten.plot_intensities(pathout, 'bid')
     ask_inten.plot_intensities(pathout, 'ask')
     both_inten.plot_intensities(pathout, 'bid_plus_ask')
+    bid_inten.plot_proba_stat(pathout, 'bid')
+    #ask_inten.plot_proba_stat(pathout, 'ask')
+    #both_inten.plot_proba_stat(pathout, 'bid_plus_ask')
 
 def run_intensity_multi_days(pathin, pathout, tick_value, file_names = []):
     
