@@ -25,8 +25,8 @@ PATHIN = PATHPROJ+'/CLOB_data/'
 PATHOUT = PATHPROJ+'/UZClass/'
 
 TS = 0.5
-START_TIME = pd.to_timedelta('07:30:00')
-END_TIME = pd.to_timedelta('12:45:00')
+START_TIME = pd.Timedelta('7 hour')
+END_TIME = pd.Timedelta('8 hour')
 
 FILE1 = '20180105_6EH8.zip'
 FILE_BMF = 'DOLG1720170119.csv'
@@ -36,8 +36,6 @@ def test_select_times(pathin, pathout, tick_value, start, end, file_name = []):
     data.plot_html_ohlc(pathout,'5min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
     data2 = data.select_times(start, end)
     data2.plot_html_ohlc(pathout,'1min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
-    
-
 
 def run_event_data(pathin, pathout, file_name, tick_value, start_time,\
                   end_time, save_files=False):
@@ -51,22 +49,29 @@ def run_event_data(pathin, pathout, file_name, tick_value, start_time,\
 
 
 def run_intensity_one_days(pathin, pathout, tick_value, file_name = []):
+    start = pd.to_timedelta('07:30:00')
+    end = pd.to_timedelta('12:45:00')
+    
+    # full data set
     data = ad(pathin,file_name)
-    print(data.get_processing_date())
     tob_obj = atob(data, tick_value)
     output = tob_obj.get_tob_intensity_output()
     bid_inten = output.get_bid_intensity()
-    ask_inten = output.get_ask_intensity()
-    both_inten = output.get_aggregated_bid_ask()
-    bid_inten.plot_intensities(pathout, 'bid')
-    ask_inten.plot_intensities(pathout, 'ask')
-    both_inten.plot_intensities(pathout, 'bid_plus_ask')
-    bid_inten.plot_proba_stat(pathout, 'bid')
-    #ask_inten.plot_proba_stat(pathout, 'ask')
-    #both_inten.plot_proba_stat(pathout, 'bid_plus_ask')
-
-def run_intensity_multi_days(pathin, pathout, tick_value, file_names = []):
+    bid_inten.plot_intensities(pathout, file_name='bid_notfiltered')
     
+    # data set between start and end
+    data2 = data.select_times(start, end)
+    tob_obj2 = atob(data2, tick_value)
+    output2 = tob_obj2.get_tob_intensity_output()
+    bid_inten2 = output2.get_bid_intensity()
+    bid_inten2.plot_intensities(pathout, file_name='bid_filtered')
+    
+    # two plots together
+    bid_inten.plot_intensities(pathout, second_intens = bid_inten2, file_name='two_plots_bid_filtered')
+    
+    
+def run_intensity_multi_days(pathin, pathout, tick_value, start, end , file_names = []):
+
     tick_value = TS
     filepaths = [pathout]
     #create directories if do not exist
@@ -81,25 +86,30 @@ def run_intensity_multi_days(pathin, pathout, tick_value, file_names = []):
                 file_names.append(file)
     
     for f in file_names:
-        start = timeit.default_timer()
+        start_clock = timeit.default_timer()
         print('--START------')
         data = ad(pathin,f)
-        tob_obj = atob(data, tick_value)
+        data2 = data.select_times(start, end)
+        tob_obj = atob(data2, tick_value)
     
         #uz_obj = uz(data,tick_value,start_time,end_time)
         if file_names[0]==f:
             output = tob_obj.get_tob_intensity_output()
         else:
             output.append(tob_obj.get_tob_intensity_output())
-        stop = timeit.default_timer()
-        print('Time Spent: ', round(stop - start), ' seconds')
+        stop_clock = timeit.default_timer()
+        print('Time Spent: ', round(stop_clock - start_clock), ' seconds')
         print('--END-------')
         
     
         
-    intensity = output.get_aggregated_bid_ask()
-    intensity.plot_intensities(pathout, True)
-    intensity.plot_proba_stat(pathout, True)
+    bid_inten = output.get_bid_intensity()
+    ask_inten = output.get_ask_intensity()
+    both_inten = output.get_aggregated_bid_ask()
+    bid_inten.plot_intensities(pathout, 'bid')
+    ask_inten.plot_intensities(pathout, 'ask')
+    both_inten.plot_intensities(pathout, 'bid_plus_ask')
+    
     #output.print2file_df_uz_stats(pathout)
     #output.plot_html_uz_stats(pathout)
 
@@ -233,9 +243,9 @@ def run_compare_tob(pathin, pathout, file_names = []):
     #print(df_bid_1_price.sum())
     
 # %% Run test
-test_select_times(PATHIN, PATHOUT, TS, START_TIME, END_TIME,FILE1)
-#run_intensity_one_days(PATHIN, PATHOUT, TS, FILE1)
-#run_intensity_multi_days(PATHIN, PATHOUT, TS)
+#test_select_times(PATHIN, PATHOUT, TS, START_TIME, END_TIME,FILE1)
+run_intensity_one_days(PATHIN, PATHOUT, TS, FILE1)
+#run_intensity_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME)
 #run_event_data(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 
 #run_BFM_tob(PATHIN, PATHOUT, FILE_BMF, TS, START_TIME, END_TIME)

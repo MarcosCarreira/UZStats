@@ -20,8 +20,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import matplotlib.pyplot as plt 
 
-import plotly.express as px
-
 # %% Armada Data Class
 
 class Armada_Data():
@@ -1116,47 +1114,74 @@ class Intensity:
         Proba2[:-1] = np.linalg.solve(Tilde_Q_inv.transpose(),F_inv.transpose());Proba2[-1]  = 1-sum(Proba2)
         return Proba2
     
-    def plot_intensities(self,pathout, file_name=''):
-        IntensVal = self.intensity_values.copy()
-        option_save =True
-        #indexes_limit_1 = np.arange(0,Qmax0)*Qmax0
-        #order_type_1 = 'lambdaCancel'
-        #order_type_2 = 'lambdaIns'
+              
+    def plot_intensities(self,pathout,second_intens = None, file_name=''):
+        Qmax0 = self.Qmax0
+        q = self.q
+        xpos1 = np.repeat(q*np.arange(1,Qmax0+1),Qmax0)
+        ypos1 = np.tile(q*np.arange(1,Qmax0+1),Qmax0)
         
+        if second_intens is not None:
+            # intensity
+            IntensVal_2 = second_intens.intensity_values.copy()
+            x_ = IntensVal_2.BidQtyBefore
+            y_= IntensVal_2.lambdaCancel
+            y_2_ = IntensVal_2.lambdaIns
+            #proba
+            proba_ = second_intens.proba.copy()
+            data_frame_ = pd.DataFrame(np.zeros((Qmax0*Qmax0,3)),columns=['x','y','Prob'])
+            data_frame_['x'] = xpos1
+            data_frame_['y'] = ypos1
+            data_frame_['Prob'] = proba_
+            res_bis_ = data_frame_.groupby(['x']).agg({'Prob':'median'})
+        
+    
+        # instensity plot data preparation
+        IntensVal = self.intensity_values.copy()
         x = IntensVal.BidQtyBefore
         y = IntensVal.lambdaCancel
         y_2 = IntensVal.lambdaIns
-    
-        ###### Plot values
-        plt.plot(x,y, label ='Liquidity consumption', linewidth= 3.0)
-        plt.plot(x,y_2, label = 'Liquidity provision', linewidth= 3.0)
-        plt.title('Intensity for market provision and consumption')
-        plt.grid()
-        plt.legend(loc = 2, bbox_to_anchor = (.01,.92))
-        if option_save == True :
-            plt.savefig(pathout+"intensity_all_"+file_name+".pdf", bbox_inches='tight')
-        plt.show()
         
-        
-    def plot_proba_stat(self,pathout, file_name=''):
+        # Probability plot data prepatation
         proba = self.proba.copy()
-        Qmax0 = self.Qmax0
-        q = self.q
-        option_save =True
-        
-        path = pathout
-        ImageName =["\\Proba_stat_all"+file_name]
-        xpos1 = np.repeat(q*np.arange(1,Qmax0+1),Qmax0)
-        ypos1 = np.tile(q*np.arange(1,Qmax0+1),Qmax0)
         data_frame = pd.DataFrame(np.zeros((Qmax0*Qmax0,3)),columns=['x','y','Prob'])
         data_frame['x'] = xpos1
         data_frame['y'] = ypos1
         data_frame['Prob'] = proba
         res_bis = data_frame.groupby(['x']).agg({'Prob':'median'})
-        df = [[res_bis.index.values, res_bis.values.flatten()/res_bis.values.sum()]]
-        fig = go.Figure(data=go.Scatter(x=res_bis.index.values, y=res_bis.values.flatten()/res_bis.values.sum()))
-        fig.update_layout(title_text="Probability Distribution of Intensities",
-                  title_font_size=30)
+        
+        # Plot prepare
+        fig = make_subplots(rows=2, cols=1, row_width=[0.2, 0.4], 
+                            shared_xaxes=True, vertical_spacing=0.01)
+        
+        fig.add_trace(go.Scatter(x=res_bis.index.values, \
+                    y=res_bis.values.flatten()/res_bis.values.sum(), line=dict(color='black', width=1),name = 'Probability Distribution', mode='lines+markers'), row=2, col=1)
+        fig.add_trace(go.Scatter(x=x, y=y, line=dict(color='royalblue', width=1),name ='Liquidity Consumption' , mode='lines+markers'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=x, y=y_2,line=dict(color='red', width=1), name ='Liquidity Provision', mode='lines+markers'), row=1, col=1)
+        
+        fig.update_xaxes(title_text="", zeroline=True,row=1, col=1)
+        fig.update_xaxes(title_text="Quantity", zeroline=True, row=2, col=1)
+        fig.update_yaxes(title_text="Liquidity Intensities",rangemode="tozero",row=1, col=1, )
+        fig.update_yaxes(title_text="Intensity Probability Distribution",rangemode="tozero",row=2, col=1, )
+        
+        if second_intens is not None:
+            fig.add_trace(go.Scatter(x=res_bis_.index.values, \
+                    y=res_bis_.values.flatten()/res_bis_.values.sum(),line=dict(color='black', width=1, dash='dot'), name = 'Probability Distribution 2', mode='lines+markers'), row=2, col=1)
+            fig.add_trace(go.Scatter(x=x_, y=y_, line=dict(color='royalblue', width=1, dash = 'dot'),name ='Liquidity Consumption 2' , mode='lines+markers'), row=1, col=1)
+            fig.add_trace(go.Scatter(x=x_, y=y_2_, line=dict(color='red', width=1, dash='dot'),name ='Liquidity Provision 2', mode='lines+markers'), row=1, col=1)
+        
+        
+        fig.update_layout(\
+            title={
+        'text': "Liquidity Provision and Consumption with Probability Distribution",
+        'y':0.9,
+        'x':0.5,
+        'xanchor': 'center',
+        'yanchor': 'top'},legend=dict(y=0.5, font_size=10))
+        
+        #fig = go.Figure(data=go.Scatter(x=res_bis.index.values, y=res_bis.values.flatten()/res_bis.values.sum()))
+        #fig.update_layout(title_text="Probability Distribution of Intensities",
+        #          title_font_size=30)
         file = pathout+"proba_"+file_name+".html"
         print('saving html plot to ', file)
         fig.write_html(file)
