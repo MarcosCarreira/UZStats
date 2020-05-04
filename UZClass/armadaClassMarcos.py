@@ -1318,7 +1318,8 @@ class ArmadaData_UZModel():
         self.df_uz_stats['Date']=self.processing_date
         
     def __calc_trades(self):
-        self.df_trades = self.__get_trades_remove_blocktrades()
+        # self.df_trades = self.__get_trades_remove_blocktrades()
+        self.df_trades = self.__get_trades()
         self.volume = float(self.df_trades.trade_qty.sum())
         self.__collapse_time()
         self.n_trades = float(len(self.df_trades))
@@ -1343,7 +1344,12 @@ class ArmadaData_UZModel():
                    self.df_trades.trade_price.shift(1))
         diff_no0 = diff[diff!=0]
         self.__trades_min_increment = np.nanmin(diff_no0)
-        
+
+    def __get_trades(self):
+        '''function returns a trades matrix'''
+        df_trades = self.df[~self.df['OT']].copy()
+        return df_trades
+
     def __get_trades_remove_blocktrades(self):
         '''function returns a trades matrix with no trade_price above or 
         below the bid ask'''
