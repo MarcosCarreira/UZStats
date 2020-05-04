@@ -1322,7 +1322,8 @@ class ArmadaData_UZModel():
         self.df_trades = self.__get_trades()
         self.volume = float(self.df_trades.trade_qty.sum())
         self.__collapse_time()
-        self.n_trades = float(len(self.df_trades))
+        # self.n_trades = float(len(self.df_trades))
+        self.n_trades = float(len(self.df_trades_by_time))
         self.__collapse_price()
         self.__trades_min_increment()
         print('Mininum Non Zero Trade Price Increment: '\
