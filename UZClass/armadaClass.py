@@ -1411,6 +1411,8 @@ class Armada_UZModel_output:
 class ArmadaData_UZModel():
     df = pd.DataFrame()
     df_trades = pd.DataFrame()
+    df_trades_by_time = pd.DataFrame()
+    df_trades_by_price = pd.DataFrame()
     df_cont_alt_by_ticks = pd.DataFrame()
     df_trades_adduz = pd.DataFrame()
     df_uz_stats = pd.DataFrame()
@@ -1491,10 +1493,10 @@ class ArmadaData_UZModel():
         self.df_uz_stats['Date']=self.processing_date
         
     def __calc_trades(self):
-        self.df_trades = self.__get_trades_remove_blocktrades()
+        self.df_trades = self.__get_trades()
         self.volume = float(self.df_trades.trade_qty.sum())
         self.__collapse_time()
-        self.n_trades = float(len(self.df_trades))
+        self.n_trades = float(len(self.df_trades_by_time))
         self.__collapse_price()
         self.__trades_min_increment()
         print('Mininum Non Zero Trade Price Increment: '\
@@ -1513,9 +1515,14 @@ class ArmadaData_UZModel():
         
     def __trades_min_increment(self):
         diff = abs(self.df_trades.trade_price-\
-                   self.df_trade.trade_price.shift(1))
+                   self.df_trades.trade_price.shift(1))
         diff_no0 = diff[diff!=0]
         self.__trades_min_increment = np.nanmin(diff_no0)
+
+    def __get_trades(self):
+        '''function returns a trades matrix'''
+        df_trades = self.df[~self.df['OT']].copy()
+        return df_trades
         
     def __get_trades_remove_blocktrades(self):
         '''function returns a trades matrix with no trade_price above or 
@@ -1624,7 +1631,7 @@ class ArmadaData_UZModel():
         df_grouped_at_first = pd.concat([df_first_traded, df_grouped], axis=1)
         df_grouped_at_first = df_grouped_at_first[data_framecol]
         df_grouped_at_first.index.names = ['gindex']
-        self.df_trades = df_grouped_at_first
+        self.df_trades_by_time = df_grouped_at_first
         
         ''' def __collapse_time2(self):
         collapse_time(data_frame) takes a Data Frame of trades at various
@@ -1671,7 +1678,7 @@ class ArmadaData_UZModel():
         column_ot
         Outputs: Smaller (or equal) DataFrame with different consecutive prices
         and the values of 'Trade Qty' grouped with sum()'''
-        data_frame = self.df_trades
+        data_frame = self.df_trades_by_time
         data_framecol = data_frame.columns.tolist()
         data_framec = data_frame.copy()
         data_framecl = data_framec.columns.tolist()
@@ -1689,7 +1696,7 @@ class ArmadaData_UZModel():
         df_grouped_at_first = pd.concat([df_first_traded, df_grouped], axis=1)
         df_grouped_at_first = df_grouped_at_first[data_framecol]
         df_grouped_at_first.index.names = ['gindex']
-        self.df_trade = df_grouped_at_first
+        self.df_trades_by_price = df_grouped_at_first
 
     # %% Trades UZ fields
     
@@ -1700,7 +1707,7 @@ class ArmadaData_UZModel():
         collapse_price
         Outputs: Collapsed Data Frame with additional fields for the UZ model'''
         alpha = self.tick_value
-        data_frame = self.df_trades
+        data_frame = self.df_trades_by_price
         data_framec = data_frame.copy()
         data_framec['dPj'] = data_framec.trade_price.diff()
         data_framec['sign'] = np.sign(data_framec['dPj'])
