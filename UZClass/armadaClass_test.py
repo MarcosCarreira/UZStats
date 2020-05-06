@@ -154,10 +154,7 @@ def run_unc_zones_read(pathin, pathout, file_name, tick_value, start_time,\
     returns the uncertainty zones data frame'''
     data = ad(pathin,file_name)
     data.plot_html_ohlc(pathout,'5min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
-    #data.plot_html_ohlc(pathout,'1min', pd.to_timedelta('07:00:00'),pd.to_timedelta('10:00:00'))
-    #data.plot_html_ohlc(pathout, '1S', pd.to_timedelta('07:27:00'),pd.to_timedelta('07:33:00'))
     uz_obj = uz(data,tick_value,start_time,end_time)
-    #ohlc = uz_obj.ohlc(pathout)
     uz_obj.print2file_df_cont_alt_by_ticks(pathout)
     uz_obj.print2file_df_uz_stats(pathout)
     data.plot_html_1mintick(pathout,pd.to_timedelta('07:29:50'))
@@ -169,9 +166,10 @@ def run_tob(pathin, pathout, file_name, tick_value, start_time,\
     data = ad(pathin,file_name)
     print(data.get_processing_date())
     tob_obj = atob(data, tick_value)
-    #start = '07:29:50'
-    #end = '07:50:10'
-    tob_obj.plot_html_tob_1mintick(pathout,pd.to_timedelta('07:29:50'))
+    start = pd.to_timedelta('07:29:50')
+    end = pd.to_timedelta('07:50:10')
+    tob_obj.get_rolling_event(start, end)
+    tob_obj.plot_html_tob_1min_event(pathout,pd.to_timedelta('06:28:50'))
     #agg = tob_obj.get_net_number_aggression(pd.to_timedelta(start),pd.to_timedelta(end))
     #print('# of aggression between ',start, end,'is ',  agg)
     #tob_obj.plot_html_1sec_rolling_number_aggression(pd.to_timedelta(start), pd.to_timedelta(end), pathout)
@@ -244,13 +242,13 @@ def run_compare_tob(pathin, pathout, file_names = []):
     
 # %% Run test
 #test_select_times(PATHIN, PATHOUT, TS, START_TIME, END_TIME,FILE1)
-run_intensity_one_days(PATHIN, PATHOUT, TS, FILE1)
+#run_intensity_one_days(PATHIN, PATHOUT, TS, FILE1)
 #run_intensity_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME)
 #run_event_data(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 
 #run_BFM_tob(PATHIN, PATHOUT, FILE_BMF, TS, START_TIME, END_TIME)
 #run_compare_tob(PATHIN, PATHOUT)
-#run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_benchmark(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_unc_zones_read(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #runc_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME)
