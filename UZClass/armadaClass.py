@@ -899,13 +899,14 @@ class Armada_TOB(Armada_Data):
     
     
 # %% Order statistics
-   # def delta_t_weigh(self,field):
-   #     mask1 = self.__Armada_Data.get_order_indicator()
-   #     mask2 = self.ord_indic.spread_1_ticks > 0
-   #     df_masked['delta_t'] = \
-   #         self.__Armada_Data.df.DateTime[mask1 & mask2].diff().shift(-1)
-   #     return ((df_masked[field]*df_masked['delta_t']).sum())/\
-   #         (df_masked['delta_t'].sum())
+    def delta_t_weight_event(self,field):
+        mask1 = self.__Armada_Data.get_order_indicator()
+        mask2 = self.ord_indic.spread_1_ticks > 0
+        df_masked = self.ord_indic[mask1 & mask2]
+        df_masked['delta_t'] = \
+            self.__Armada_Data.df.DateTime[mask1 & mask2].diff().shift(-1)
+        return ((df_masked[field]*df_masked['delta_t']).sum())/\
+            (df_masked['delta_t'].sum())
 
     def get_time_weighted_tob(self):
         '''time_weighted_spread(data_frame) returns the time weighted spread
@@ -1003,41 +1004,63 @@ class Armada_TOB(Armada_Data):
         print('saving html plot to ', file)
         fig.write_html(file) 
 
-    def plot_html_tob_1min_event(self,path_out, start_xaxis = pd.to_timedelta('07:30:00')):
-        #layout = self.__plot_html_layout('Bid Price', 'Ask Price', 'Price Time Series')
+    def plot_html_tob_event(self,path_out, \
+                                 start_xaxis = pd.to_timedelta('07:00:00'),\
+                                 start_end_delta = pd.to_timedelta('01:00:00'),\
+                                 start_delta = pd.to_timedelta('01:00:00')):
+        
+        # time management
+        date = self.processing_date
+        start_data_delta = start_xaxis - start_delta
+        #start_end_delta = pd.to_timedelta('01:30:00')
+        end_xaxis = start_xaxis + start_end_delta
+        #tob data
         data = self.__tob.copy()
         data = data.set_index(self.__Armada_Data.df.DateTime)
-        
         traded_qty_signed = np.where(data.bid_price_traded, \
                                      -1*data.traded_qty, +1*data.traded_qty)
-        
-        
+        #ord data
         data_ord = self.ord_indic.copy()
         data_ord['traded_qty_signed']= traded_qty_signed
         data_ord = data_ord.set_index(self.__Armada_Data.df.DateTime)
+        #event data
+        data_event = self.get_rolling_event(start_data_delta, end_xaxis)
         
-        data_event = self.get_rolling_event(start_xaxis, \
-                                start_xaxis + pd.to_timedelta('02:15:00')) 
-        
-        start_xaxis = self.processing_date + start_xaxis
-        end_xaxis = start_xaxis + pd.to_timedelta('02:15:00')
-        
-        data = data.loc[start_xaxis:end_xaxis]
-        data_ord = data_ord.loc[start_xaxis:end_xaxis]
-        
-        bid_net_intensity = \
+        data_event['delta_t'] = \
+            data_event.index.to_series().diff().shift(-1)
+        data_event['bid_net_intensity'] = \
             data_event.bid_insertion - data_event.bid_consumption 
-        ask_net_intensity = \
+        data_event['ask_net_intensity'] = \
             data_event.ask_insertion - data_event.ask_consumption
-        net_intensity = ask_net_intensity + bid_net_intensity 
-
+        data_event['net_intensity'] = data_event.ask_net_intensity + \
+            data_event.bid_net_intensity 
         
+        data_event_tw = data_event.loc[(date + start_data_delta):(date+start_xaxis)]
+        
+        # time weighted average metrics
+        def delta_t_weigh(field):
+            return ((data_event_tw[field]*data_event_tw['delta_t']).sum())/\
+                (data_event_tw['delta_t'].sum())
+                
+        data_event['tw_bid_size']= delta_t_weigh('bid_size')
+        data_event['tw_ask_size']= delta_t_weigh('ask_size')
+        data_event['tw_spread']= delta_t_weigh('spread')/self.tick_value
+        data_event['tw_ask_net_intensity']= delta_t_weigh('ask_net_intensity')
+        data_event['tw_bid_net_intensity']= delta_t_weigh('bid_net_intensity')
+        data_event['tw_net_intensity']= delta_t_weigh('net_intensity')
+        
+        # data filtered for plot
+        data_event = data_event.loc[(date + start_xaxis):(date+end_xaxis)]
+        data = data.loc[(date + start_xaxis):(date+end_xaxis)]
+        data_ord = data_ord.loc[(date + start_xaxis):(date+end_xaxis)]
+        
+        # plotting
         fig = make_subplots(rows=5, cols=1, row_width=[0.1,0.4,0.2, 0.2, 0.4], 
                             shared_xaxes=True, vertical_spacing=0.01)
         fig.update_layout(title_text="Top of Book from " + \
-                         start_xaxis.strftime('%Y-%m-%d %H:%M:%S') + " to " \
-                        +end_xaxis.strftime('%Y-%m-%d %H:%M:%S'),\
-                        legend=dict(y=0.5, traceorder='reversed', font_size=10))
+                         (date+start_xaxis).strftime('%Y-%m-%d %H:%M:%S') + " to " \
+                        +(date+end_xaxis).strftime('%Y-%m-%d %H:%M:%S'),\
+                        legend=dict(y=0.5, font_size=8))
         fig.add_trace(go.Scattergl(x=data.index, y=data.bid_1_price,
                                    line=dict(color='#1f77b4'),# muted blue
                             name = 'Bid', line_shape='hv', opacity= 0.5), row=1, col=1)
@@ -1047,16 +1070,30 @@ class Armada_TOB(Armada_Data):
         fig.add_trace(go.Scattergl(x=data.index, y=data_ord.micro_price, 
                                    line=dict(color='#7f7f7f'),visible = 'legendonly',# grey
                             name = 'Micro price', line_shape='hv'), row=1, col=1)
+        ### 
         fig.add_trace(go.Scattergl(x=data_event.index, y= - data_event.bid_size,
                                    line=dict(color='#1f77b4'),
                             name = 'Bid qty', line_shape='hv', opacity= 0.5), row=2, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y= - data_event.tw_bid_size,
+                                   line=dict(color='midnightblue'),
+                            name = 'Time Weighted Bid Qty (1h)', line_shape='hv', opacity= 0.9), row=2, col=1)
+        
         fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.ask_size, 
                                    line=dict(color='#d62728'),
                             name = 'Ask qty', line_shape='hv', opacity= 0.5), row=2, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y= data_event.tw_ask_size,
+                                   line=dict(color='firebrick'),
+                            name = 'Time Weighted Ask Qty (1h)', line_shape='hv', opacity= 0.9), row=2, col=1)
+        
         ###
         fig.add_trace(go.Scattergl(x=data.index, y=data_ord.spread_ticks, 
                                    line=dict(color='midnightblue'),
                             name = 'Bid-ask spread in ticks', line_shape='hv',opacity= 0.5), row=3, col=1)
+        fig.add_trace(go.Scattergl(x=data.index, y=data_event.tw_spread, 
+                                   line=dict(color='black'),
+                            name = 'Time Weighted Spread (1h)', line_shape='hv',opacity= 0.5), row=3, col=1)
+        
+        ###
         fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.bid_consumption, 
                                    line=dict(color='#1f77b4'),
                             name = 'Bid Consumption', line_shape='hv', visible = 'legendonly'), row=4, col=1)
@@ -1069,20 +1106,37 @@ class Armada_TOB(Armada_Data):
         fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.ask_insertion, 
                                    line=dict(color='#d62728'),
                             name = 'Ask Insertion', line_shape='hv', visible = 'legendonly'), row=4, col=1)
-        fig.add_trace(go.Scattergl(x=data_event.index, y=bid_net_intensity, 
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.bid_net_intensity, 
                                    line=dict(color='#1f77b4'),
                             name = 'Bid Net Intensity', line_shape='hv',opacity= 0.5), row=4, col=1)
-        fig.add_trace(go.Scattergl(x=data_event.index, y=ask_net_intensity, 
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.ask_net_intensity, 
                                    line=dict(color='#d62728'),
                             name = 'Ask Net Intensity', line_shape='hv',opacity= 0.5), row=4, col=1)
-        fig.add_trace(go.Scattergl(x=data_event.index, y=net_intensity, 
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.net_intensity, 
                                    line=dict(color='#7f7f7f'),
                             name = 'Net Intensity', line_shape='hv'), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.tw_net_intensity, 
+                                   line=dict(color='black'),
+                            name = 'Time Weighted Net Intensity (1h)', line_shape='hv'), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.tw_ask_net_intensity, 
+                                   line=dict(color='red'),
+                            name = 'Time Weighted Ask Net Intensity (1h)', line_shape='hv', visible = 'legendonly'), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.tw_bid_net_intensity, 
+                                   line=dict(color='blue'),
+                            name = 'Time Weighted Bid Net Intensity (1h)', line_shape='hv',visible = 'legendonly'), row=4, col=1)
+        
         ###
         fig.add_trace(go.Scattergl(x=data.index, y=data_ord.traded_qty_signed, 
                                    line=dict(color='midnightblue'), 
                             name = 'Signed trade qty', mode='markers', opacity= 0.5), row=5, col=1)
         
+        fig.update_yaxes(title_text="bid, ask, micro price", row=1, col=1)
+        fig.update_yaxes(title_text="Top Order Book Quantities", row=2, col=1)
+        fig.update_yaxes(title_text="Bid-ask spread", row=3, col=1)
+        fig.update_yaxes(title_text="Intensities per second", row=4, col=1)
+        fig.update_yaxes(title_text="Signed Traded Quantities", row=5, col=1)
+        
+        #fig.update_layout(shapes=[dict(type= 'line',yref= 'paper', y0= 0, y1= tw_metrics.bid_size, xref= 'x', x0= 5, x1= 5)])
         #fig['data'][2].update(yaxis='y5')
         #fig['layout']['yaxis5'] = dict(overlaying='y2', anchor='x2', side='right', showgrid=False, title='Trades')
         file = path_out+self.file_name_long+"_event.html"

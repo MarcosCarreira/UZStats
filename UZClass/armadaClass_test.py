@@ -164,12 +164,14 @@ def run_tob(pathin, pathout, file_name, tick_value, start_time,\
     '''run_unc_zones(pathin, pathout, file_name, tick_value, end_of_time)
     returns the uncertainty zones data frame'''
     data = ad(pathin,file_name)
-    print(data.get_processing_date())
-    tob_obj = atob(data, tick_value)
-    start = pd.to_timedelta('07:29:50')
-    end = pd.to_timedelta('07:50:10')
+    start = pd.to_timedelta('05:20:50')
+    end = pd.to_timedelta('09:50:10')
+    
+    data2 = data.select_times(start, end)
+    
+    tob_obj = atob(data2, tick_value)
     tob_obj.get_rolling_event(start, end)
-    tob_obj.plot_html_tob_1min_event(pathout,pd.to_timedelta('06:28:50'))
+    tob_obj.plot_html_tob_event(pathout,pd.to_timedelta('07:00:00'))
     #agg = tob_obj.get_net_number_aggression(pd.to_timedelta(start),pd.to_timedelta(end))
     #print('# of aggression between ',start, end,'is ',  agg)
     #tob_obj.plot_html_1sec_rolling_number_aggression(pd.to_timedelta(start), pd.to_timedelta(end), pathout)
