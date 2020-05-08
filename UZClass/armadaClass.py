@@ -489,9 +489,10 @@ class Armada_TOB(Armada_Data):
         bid_qty_add = (bid_qty_diff >0) & (bid_price_diff ==0) & df_unique.order_idx
         
         bid_inspread_add = (bid_price_diff > 0) & df_unique.order_idx
+        bid_outspread_less = (bid_price_diff < 0) & df_unique.order_idx
         
         bid_event = bid_depl_trade | bid_depl_cancel \
-                       | bid_qty_less | bid_qty_add | bid_inspread_add
+                       | bid_qty_less | bid_qty_add | bid_inspread_add | bid_outspread_less
         # Ask 
         
         ask_depl_trade = (ask_price_diff < 0) & (~orders_idx_shift) 
@@ -899,14 +900,6 @@ class Armada_TOB(Armada_Data):
     
     
 # %% Order statistics
-    def delta_t_weight_event(self,field):
-        mask1 = self.__Armada_Data.get_order_indicator()
-        mask2 = self.ord_indic.spread_1_ticks > 0
-        df_masked = self.ord_indic[mask1 & mask2]
-        df_masked['delta_t'] = \
-            self.__Armada_Data.df.DateTime[mask1 & mask2].diff().shift(-1)
-        return ((df_masked[field]*df_masked['delta_t']).sum())/\
-            (df_masked['delta_t'].sum())
 
     def get_time_weighted_tob(self):
         '''time_weighted_spread(data_frame) returns the time weighted spread
