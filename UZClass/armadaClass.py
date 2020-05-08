@@ -1101,10 +1101,10 @@ class Armada_TOB(Armada_Data):
                                    line=dict(color='#d62728'),
                             name = 'Ask Consumption', line_shape='hv', visible = 'legendonly'), row=4, col=1)
         fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.bid_insertion, 
-                                   line=dict(color='#1f77b4'),
+                                   line=dict(color='green'),
                             name = 'Bid Insertion', line_shape='hv', visible = 'legendonly'), row=4, col=1)
         fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.ask_insertion, 
-                                   line=dict(color='#d62728'),
+                                   line=dict(color='orange'),
                             name = 'Ask Insertion', line_shape='hv', visible = 'legendonly'), row=4, col=1)
         fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.bid_net_intensity, 
                                    line=dict(color='#1f77b4'),

@@ -28,7 +28,7 @@ TS = 0.5
 START_TIME = pd.Timedelta('7 hour')
 END_TIME = pd.Timedelta('8 hour')
 
-FILE1 = '20180105_6EH8.zip'
+FILE1 = '20180112_6EH8.zip'
 FILE_BMF = 'DOLG1720170119.csv'
 
 def test_select_times(pathin, pathout, tick_value, start, end, file_name = []):
@@ -164,20 +164,14 @@ def run_tob(pathin, pathout, file_name, tick_value, start_time,\
     '''run_unc_zones(pathin, pathout, file_name, tick_value, end_of_time)
     returns the uncertainty zones data frame'''
     data = ad(pathin,file_name)
-    start = pd.to_timedelta('05:20:50')
-    end = pd.to_timedelta('09:50:10')
+    #start = pd.to_timedelta('05:20:50')
+    #end = pd.to_timedelta('09:50:10')
+    #data2 = data.select_times(start, end)
+    data.plot_html_ohlc(pathout,'1min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
     
-    data2 = data.select_times(start, end)
+    tob_obj = atob(data, tick_value)
+    tob_obj.plot_html_tob_event(pathout,pd.to_timedelta('02:30:00'), pd.to_timedelta('00:20:00'))
     
-    tob_obj = atob(data2, tick_value)
-    tob_obj.get_rolling_event(start, end)
-    tob_obj.plot_html_tob_event(pathout,pd.to_timedelta('07:00:00'))
-    #agg = tob_obj.get_net_number_aggression(pd.to_timedelta(start),pd.to_timedelta(end))
-    #print('# of aggression between ',start, end,'is ',  agg)
-    #tob_obj.plot_html_1sec_rolling_number_aggression(pd.to_timedelta(start), pd.to_timedelta(end), pathout)
-    #data.plot_html_1mintick(pathout,pd.to_timedelta('07:29:50'))
-    #tob_obj.print2file_df_tob(pathout, start_time, end_time)
-
 def run_benchmark(pathin, pathout, file_name, tick_value, start_time,\
                   end_time):
 
