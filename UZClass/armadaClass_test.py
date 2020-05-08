@@ -25,10 +25,10 @@ PATHIN = PATHPROJ+'/CLOB_data/'
 PATHOUT = PATHPROJ+'/UZClass/'
 
 TS = 0.5
-START_TIME = pd.Timedelta('7 hour')
-END_TIME = pd.Timedelta('8 hour')
+START_TIME = pd.to_timedelta('07:00:00')
+END_TIME = pd.to_timedelta('08:00:00')
 
-FILE1 = '20180112_6EH8.zip'
+FILE1 = '20180105_6EH8.zip'
 FILE_BMF = 'DOLG1720170119.csv'
 
 def test_select_times(pathin, pathout, tick_value, start, end, file_name = []):
@@ -36,6 +36,15 @@ def test_select_times(pathin, pathout, tick_value, start, end, file_name = []):
     data.plot_html_ohlc(pathout,'5min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
     data2 = data.select_times(start, end)
     data2.plot_html_ohlc(pathout,'1min', pd.to_timedelta('00:00:00'),pd.to_timedelta('23:59:00'))
+
+def test_transition_matrix(pathin, pathout, tick_value, file_name = []):
+    start = pd.to_timedelta('07:30:00')
+    end = pd.to_timedelta('07:30:30')
+    data = ad(pathin,file_name)
+    matrix_day = atob(data, tick_value).fill_transition_matrix()
+    data2 = data.select_times(start, end)
+    matrix_event = atob(data2, tick_value).fill_transition_matrix()
+    
 
 def run_event_data(pathin, pathout, file_name, tick_value, start_time,\
                   end_time, save_files=False):
@@ -237,6 +246,7 @@ def run_compare_tob(pathin, pathout, file_names = []):
     #print(df_bid_1_price.sum())
     
 # %% Run test
+test_transition_matrix(PATHIN, PATHOUT, TS, FILE1)
 #test_select_times(PATHIN, PATHOUT, TS, START_TIME, END_TIME,FILE1)
 #run_intensity_one_days(PATHIN, PATHOUT, TS, FILE1)
 #run_intensity_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME)
@@ -244,7 +254,7 @@ def run_compare_tob(pathin, pathout, file_names = []):
 
 #run_BFM_tob(PATHIN, PATHOUT, FILE_BMF, TS, START_TIME, END_TIME)
 #run_compare_tob(PATHIN, PATHOUT)
-run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
+#run_tob(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_benchmark(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #run_unc_zones_read(PATHIN, PATHOUT, FILE1, TS, START_TIME, END_TIME)
 #runc_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME)

@@ -360,6 +360,7 @@ class Armada_TOB(Armada_Data):
         self.__order_indicators()
         print('Order indicators completed')
         self.get_data_for_tob_intensity()
+        self.fill_transition_matrix()
 
     @property
     def file_name(self):
@@ -511,7 +512,7 @@ class Armada_TOB(Armada_Data):
                        
         
         ## finding insertion (add) and consumption (less)
-        consumption_bid = bid_depl_trade | bid_depl_cancel | bid_qty_less 
+        consumption_bid = bid_depl_trade | bid_depl_cancel | bid_qty_less | bid_outspread_less
         consumption_ask = ask_depl_trade | ask_depl_cancel | ask_qty_less | ask_outspread_less
        
         #insertion = bid_qty_add | bid_inspread_add \
@@ -575,30 +576,42 @@ class Armada_TOB(Armada_Data):
         # if all true, we have all event cases
         all_event = (~df_unique.order_idx) | ask_event | bid_event
         print(all_event.sum() / len(all_event))
-        ''' output for debudgging 
-        df_unique['bid_depl_trade'] =  bid_depl_trade
-        df_unique['bid_depl_cancel'] = bid_depl_cancel
-        df_unique['bid_qty_less'] = bid_qty_less
-        df_unique['bid_qty_add'] = bid_qty_add
-        df_unique['bid_inspread_add'] = bid_inspread_add
-        df_unique['ask_depl_trade'] = ask_depl_trade
-        df_unique['ask_depl_cancel'] =ask_depl_cancel
-        df_unique['ask_qty_less'] = ask_qty_less
-        df_unique['ask_qty_add'] = ask_qty_add
-        df_unique['ask_inspread_add'] = ask_inspread_add
-        df_unique['ask_outspread_less'] = ask_outspread_less
         
-        df_unique['all_event'] = all_event
-
-        test = df_unique[0:100] # for debug'''
-        #test_1 = self.event[0:100]
-        # bid consu,ption
-        # remove level 2 order book lines due to 
-        # bid qty before
-        # detla_t 
-        # count the number of event 
-        # column event (qty added, price change, )
-
+        self.event_detail = pd.DataFrame()
+        
+        self.event_detail['bid_depl_trade'] =  bid_depl_trade
+        self.event_detail['bid_depl_cancel'] = bid_depl_cancel
+        self.event_detail['bid_qty_less'] = bid_qty_less
+        self.event_detail['bid_qty_add'] = bid_qty_add
+        self.event_detail['bid_inspread_add'] = bid_inspread_add
+        self.event_detail['bid_outspread_less'] = bid_outspread_less
+        self.event_detail['BDT+AF'] = bid_depl_trade & ask_qty_add
+        self.event_detail['ask_depl_trade'] = ask_depl_trade
+        self.event_detail['ask_depl_cancel'] =ask_depl_cancel
+        self.event_detail['ask_qty_less'] = ask_qty_less
+        self.event_detail['ask_qty_add'] = ask_qty_add
+        self.event_detail['ask_inspread_add'] = ask_inspread_add
+        self.event_detail['ask_outspread_less'] = ask_outspread_less
+        self.event_detail['ADT+BF'] = ask_depl_trade & bid_qty_add
+    
+    def fill_transition_matrix(self, margins=False):
+        df = self.event_detail.copy()
+        trans_cols = ['bid_depl_trade', 'bid_depl_cancel','ask_depl_trade',\
+                'ask_depl_cancel', 'bid_qty_add', 'ask_qty_add', 'BDT+AF', 'ADT+BF'\
+                , 'bid_qty_less', 'ask_qty_less', 'bid_inspread_add', 'ask_inspread_add'\
+                , 'bid_outspread_less', 'ask_outspread_less']
+        depl_fill_df = df[trans_cols].copy()+0
+        depl_fill_df.columns = ['BDT   ', 'BDC   ', 'ADT   ', 'ADC   ',\
+                                    'BF    ', 'AF    ', 'BDT+AF', 'ADT+BF',\
+                                    'BQL   ','AQL   ', 'BIA   ','AIA   ' ,\
+                                    'BOL   ', 'AOL   ']
+        depl_fill_series = pd.Series(\
+            depl_fill_df.columns[np.where(depl_fill_df != 0)[1]])
+        trans_matrix = pd.crosstab(depl_fill_series, depl_fill_series.shift(),\
+            rownames=['t'], colnames=['t+1'], margins=margins)
+        return trans_matrix
+        
+        
     def get_rolling_event(self, start_time, end_time):
         date = self.processing_date
         start_lag =  date + start_time - pd.to_timedelta('00:00:01')
