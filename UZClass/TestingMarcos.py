@@ -508,28 +508,39 @@ def initall(pathin, pathout, file_name, tick_value, min_order_size,
 # %% Test init functions
 
 
-dforig = init1(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
-               END_TIME1, 'BMF', 0.001, False)
+# dforig = init1(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
+#                END_TIME1, 'BMF', 0.001, False)
 
-dftest = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
+dfDOL = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
                  END_TIME1, 'BMF', 0.001, False)
-dftest30 = dftest.head(30)
+dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSDOL, START_TIME1,
+                 END_TIME1, 'BMF', 0.001, False)
+
+# dftest30 = dftest.head(30)
 
 # %% Find Starts
 
-dftest[dftest['Event'] == 'Start']
+# dfDOL[dfDOL['Event'] == 'Start']
 
 # %% Transition matrix
 
 
-def transition_events(data_frame, values=None, aggfunc=None):
+def transition_events(data_frame, values=None, aggfunc=None, normalize=False):
     return pd.crosstab(index=data_frame['Event'].values,
                        columns=data_frame['Event'].shift(-1).values,
-                       values=values, aggfunc=aggfunc)
+                       values=values, aggfunc=aggfunc,
+                       margins=True, normalize=normalize)
 
 # %% Test transition matrix
 
-trans_count = transition_events(dftest)
+
+trans_count_DOL = transition_events(dfDOL)
+trans_freq_DOL = transition_events(dfDOL, normalize=True)
+trans_freq_WDO = transition_events(dfWDO, normalize=True)
+trans_freq_DOL.to_csv(PATHOUT+'trans_freq_DOL.csv')
+trans_freq_WDO.to_csv(PATHOUT+'trans_freq_WDO.csv')
+
+
 
 # %% Debug Class TOB
 
