@@ -454,7 +454,8 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
         (dfstates['bid_1_price_diff'] > 0) |
         (dfstates['ask_1_price_diff'] < 0)),
         (dfstates['bid_1_qty_diff'] < 0) |
-        (dfstates['ask_1_qty_diff'] < 0)
+        (dfstates['ask_1_qty_diff'] < 0) |
+        (~dfstates['NoTradeQ'])
         )
     # AskQ column (was the event on the Ask side?)
     # Trades that take out levels but leave an unfilled balance: Cons sign
@@ -482,10 +483,10 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
          'ask_1_qty', 'trade_qty', 'levels_traded', 'AskQ', 'ConsQ',
          'NoTradeQ', 'PriceQ', 'Event', 'dt', 'Spread_Ticks', 'Midprice',
          'Microprice', 'Imbalance', 'Imbal_Sign']
-    # cols_output2 =\
-    #     ['bid_traded', 'ask_traded', 'bid_1_qty_diff', 'bid_1_price_diff',
-    #      'ask_1_price_diff', 'ask_1_qty_diff']
-    dfstates = dfstates[cols_output1]
+    cols_output2 =\
+        ['bid_traded', 'ask_traded', 'bid_1_qty_diff', 'bid_1_price_diff',
+         'ask_1_price_diff', 'ask_1_qty_diff']
+    dfstates = dfstates[cols_output1 + cols_output2]
     return dfstates
 
 
@@ -507,9 +508,28 @@ def initall(pathin, pathout, file_name, tick_value, min_order_size,
 # %% Test init functions
 
 
+dforig = init1(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
+               END_TIME1, 'BMF', 0.001, False)
+
 dftest = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
-                 END_TIME1, 'BMF', 0.001, True)
+                 END_TIME1, 'BMF', 0.001, False)
 dftest30 = dftest.head(30)
+
+# %% Find Starts
+
+dftest[dftest['Event'] == 'Start']
+
+# %% Transition matrix
+
+
+def transition_events(data_frame, values=None, aggfunc=None):
+    return pd.crosstab(index=data_frame['Event'].values,
+                       columns=data_frame['Event'].shift(-1).values,
+                       values=values, aggfunc=aggfunc)
+
+# %% Test transition matrix
+
+trans_count = transition_events(dftest)
 
 # %% Debug Class TOB
 
