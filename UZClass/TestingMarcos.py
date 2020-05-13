@@ -57,11 +57,16 @@ PATHOUT = PATHPROJ+'/UZClass/'
 
 # %% CME Constants
 TS = 0.5
+MOSCME = 1
+MINDTCME = 0.001
 START_TIME = pd.to_timedelta('07:30:00')
 END_TIME = pd.to_timedelta('12:45:00')
 
 # %% BMF Constants
 TS1 = 0.5
+MOSDOL = 5
+MOSWDO = 1
+MINDT1 = 0.001
 START_TIME1 = pd.to_timedelta('09:00:00')
 END_TIME1 = pd.to_timedelta('18:15:00')
 
@@ -316,15 +321,354 @@ def run_tob(pathin, pathout, file_name, tick_value, start_time,
 # run_unc_zones_read(PATHIN, PATHOUT, FILE_BMF1, TS1, START_TIME1, END_TIME1,
 #                     'BMF')
 
+# %% [markdown]
+# Start function here
+
+# %% New init for Armada TOB - Part 1
+
+
+# Outputs a clean df with trades collapsed by price and Level1 changes only
+
+def init1(pathin, pathout, file_name, tick_value, min_order_size, start_time,
+          end_time, file_type='CME', min_dt=MINDTCME, save_files=False):
+    data = ad(pathin, file_name, file_type) # ad=ArmadaData
+    # Select times
+    datadf = data.select_times(pd.to_timedelta(start_time),
+                               pd.to_timedelta(end_time)).df
+    # Add order flags and count
+    datadf['OrderQ'] = datadf['trade_price'].isnull().copy()
+    datadf['OrderN'] = datadf['OrderQ'].copy().cumsum()
+    datadf['last_trade'] = datadf['trade_price'].copy().fillna(method='ffill')
+    # Group trades by time and price
+    datadfg = datadf.groupby(['OrderN', 'DateTime', 'OrderQ', 'last_trade'],
+                             sort=False).sum(min_count=1)
+    # Reset columns from groupby
+    datadfg = datadfg.reset_index()
+    datadfg['trade_price'] = np.where(datadfg['OrderQ'], np.nan,
+                                      datadfg['last_trade'].copy())
+    datadfg = datadfg.drop(columns=['OrderN', 'last_trade'])
+    # Levels 1 and 2 diff (flag changes in each of the first two levels)
+    def lvldiff(df):
+        dfc = df.copy()
+        dfdiff1 = dfc[['bid_1_qty', 'bid_1_price', 'ask_1_price',
+                       'ask_1_qty']].copy().diff().abs()
+        dfc['lvl1'] = dfdiff1.sum(axis=1) != 0
+        dfdiff2 = dfc[['bid_2_qty', 'bid_2_price', 'ask_2_price',
+                       'ask_2_qty']].copy().diff().abs()
+        dfc['lvl2'] = dfdiff2.sum(axis=1) != 0
+        return dfc
+    # Excluding Level 2 events
+    datadfg = lvldiff(datadfg)
+    datadfg = datadfg[~((~datadfg['lvl1']) & (datadfg['lvl2']))]
+    datadfg = datadfg.drop(['bid_2_qty', 'bid_2_ord', 'bid_2_price',
+                            'bid_1_ord', 'ask_1_ord', 'ask_2_price',
+                            'ask_2_ord', 'ask_2_qty', 'lvl2'], axis=1)
+    # Clear trades without book update or sweep not instantaneous - function
+    def clear_invalid_trades(df, dt=min_dt):
+        dfc = df.copy()
+        dfc['Prev_Trade'] = (~dfc['OrderQ']).shift()
+        dfc['Signif_dt'] = dfc['DateTime'].diff().dt.total_seconds() > dt
+        dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt'])).shift(
+            periods=-1, fill_value=False)
+        return dfc[~dfc['Check']].copy()\
+            .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
+    # Clear trades without book update or sweep not instantaneous
+    # Ideally a fixed point iteration, but let's run it 3 times for now
+    datadfg = clear_invalid_trades(datadfg)
+    datadfg = clear_invalid_trades(datadfg)
+    datadfg = clear_invalid_trades(datadfg)
+    datadfg['bid_traded'] = datadfg['bid_1_price'].copy().fillna(
+        method='ffill') >= datadfg['trade_price']
+    datadfg['ask_traded'] = datadfg['ask_1_price'].copy().fillna(
+        method='ffill') <= datadfg['trade_price']
+    datadfg['dt'] = datadfg['DateTime'].diff().dt.total_seconds()
+    if save_files:
+        datadfg.to_csv(pathout+file_name[:-4]+'_df.csv')
+    return datadfg
+
+# %% New init for Armada TOB - Part 2
+
+
+# Outputs df with compressed trade information on the subsequent OB status
+
+def init2(data_frame, pathout, file_name, tick_value, min_order_size,
+          start_time, end_time, file_type='CME', min_dt=MINDTCME,
+          save_files=False):
+    # Define key for groupby
+    datadf = data_frame.copy()
+    datadf['OrderN'] = datadf['OrderQ'].copy().cumsum()
+    datadf = datadf[datadf['OrderN'] > 0].copy()
+    datadf['OrderN'] = datadf['OrderN']*(2*datadf['OrderQ']-1)
+    # Group trades (sum qty, count of price levels traded)
+    datadfg = datadf.groupby(['DateTime', 'OrderN'], sort=False)
+    dfagg = datadfg.agg({'OrderQ': all, 'bid_1_qty': sum, 'bid_1_price': sum,
+                         'trade_price': 'count', 'trade_qty': sum,
+                         'ask_1_price': sum, 'ask_1_qty': sum, 'lvl1': any,
+                         'bid_traded': any, 'ask_traded': any, 'dt': sum})
+    dfagg = dfagg.reset_index()
+    dfagg = dfagg.rename(columns={'trade_price': 'levels_traded',
+                                  'lvl1': 'NoTradeQ'})
+    # Some recheck for invalid trades might be needed here
+    def find_invalid_trades_again(df, dt):
+        dfc = df.copy()
+        dfc['Prev_Trade'] = (dfc['OrderN'].shift()) < 0
+        dfc['Signif_dt'] = dfc['dt'] > dt
+        dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt']))
+        return dfc[dfc['Check']].copy()\
+            .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
+    # Push trades on next order book state
+    dfagg['OrderId'] = np.abs(dfagg['OrderN'])+(1-np.sign(dfagg['OrderN']))/2
+    dfstates = dfagg.groupby(['DateTime', 'OrderId']).sum()
+    dfstates = dfstates.reset_index()
+    dfstates = dfstates.drop(['OrderN', 'OrderQ'], axis=1)
+    # Normalize amount by the minimum order size (MOS)
+    dfstates['bid_1_qty'] = dfstates['bid_1_qty']/min_order_size
+    dfstates['ask_1_qty'] = dfstates['ask_1_qty']/min_order_size
+    dfstates['trade_qty'] = dfstates['trade_qty']/min_order_size
+    # Spread, Midprice , Microprice and Imbalance
+    dfstates['Spread_Ticks'] = (dfstates['ask_1_price'] -
+                                dfstates['bid_1_price']) / tick_value
+    dfstates['Midprice'] = (dfstates['ask_1_price'] + dfstates['bid_1_price']
+                            )/2
+    dfstates['Microprice'] = (dfstates['ask_1_price'] * dfstates['bid_1_qty']
+                              + dfstates['bid_1_price'] *
+                              dfstates['ask_1_qty']) / \
+        (dfstates['bid_1_qty'] + dfstates['ask_1_qty'])
+    dfstates['Imbalance'] = dfstates['bid_1_qty'] / (dfstates['bid_1_qty'] +
+                                                     dfstates['ask_1_qty']) -\
+        1/2
+    dfstates['Imbal_Sign'] = pd.cut(dfstates['Imbalance'],
+                                    [-0.5, -0.2, +0.2, +0.5],
+                                    labels=[-1, 0, 1])
+    # Changes in top of book (diff)
+    dfstates['bid_1_qty_diff'] = dfstates['bid_1_qty'].diff()
+    dfstates['bid_1_price_diff'] = dfstates['bid_1_price'].diff()
+    dfstates['ask_1_price_diff'] = dfstates['ask_1_price'].diff()
+    dfstates['ask_1_qty_diff'] = dfstates['ask_1_qty'].diff()
+    # PriceQ column (was there a price change?)
+    dfstates['PriceQ'] = (dfstates['bid_1_price_diff'] != 0) |\
+        (dfstates['ask_1_price_diff'] != 0)
+    # ConsQ column (was there a comsumption of liquidity?)
+    # Trades that take out levels but leave an unfilled balance: False
+    dfstates['ConsQ'] = np.where(dfstates['PriceQ'], ~(
+        (dfstates['bid_1_price_diff'] > 0) |
+        (dfstates['ask_1_price_diff'] < 0)),
+        (dfstates['bid_1_qty_diff'] < 0) |
+        (dfstates['ask_1_qty_diff'] < 0)
+        )
+    # AskQ column (was the event on the Ask side?)
+    # Trades that take out levels but leave an unfilled balance: Cons sign
+    dfstates['AskQ'] = np.where(dfstates['NoTradeQ'], (
+        (dfstates['ask_1_price_diff'] != 0) |
+        (dfstates['ask_1_qty_diff'] != 0)),
+        dfstates['ask_traded']
+        )
+    dfstates.at[0, 'PriceQ'] = False
+    dfstates.at[0, 'ConsQ'] = False
+    dfstates.at[0, 'AskQ'] = False
+    # Classify state
+    dfstates['event_code'] =\
+        dfstates['AskQ'] * 8 + dfstates['ConsQ'] * 4 +\
+        dfstates['NoTradeQ'] * 2 + dfstates['PriceQ'] * 1
+    event_dict = {
+        0: 'Start', 1: 'MLb', 2: 'Lb', 3: 'Pb+', 4: 'Mb', 5: 'PbM-', 6: 'Cb',
+        7: 'PbC-', 8: 'Start', 9: 'MLa', 10: 'La', 11: 'Pa-', 12: 'Ma',
+        13: 'PaM+', 14: 'Ca', 15: 'PaC+'}
+    dfstates['Event'] = dfstates['event_code'].map(event_dict)
+    if save_files:
+        dfstates.to_csv(pathout+file_name[:-4]+'_df_states.csv')
+    cols_output1 =\
+        ['DateTime', 'OrderId', 'bid_1_qty', 'bid_1_price', 'ask_1_price',
+         'ask_1_qty', 'trade_qty', 'levels_traded', 'AskQ', 'ConsQ',
+         'NoTradeQ', 'PriceQ', 'Event', 'dt', 'Spread_Ticks', 'Midprice',
+         'Microprice', 'Imbalance', 'Imbal_Sign']
+    # cols_output2 =\
+    #     ['bid_traded', 'ask_traded', 'bid_1_qty_diff', 'bid_1_price_diff',
+    #      'ask_1_price_diff', 'ask_1_qty_diff']
+    dfstates = dfstates[cols_output1]
+    return dfstates
+
+
+# %% Run all inits
+
+
+def initall(pathin, pathout, file_name, tick_value, min_order_size,
+            start_time, end_time, file_type='CME', min_dt=MINDTCME,
+            save_files=False):
+    dfinit1 = init1(pathin, pathout, file_name, tick_value, min_order_size,
+                    start_time, end_time, file_type, min_dt, save_files)
+    dfinit2 = init2(dfinit1, pathout, file_name, tick_value, min_order_size,
+                    start_time, end_time, file_type, min_dt, save_files)
+    return dfinit2
+
+# %% [markdown]
+# End function here
+
+# %% Test init functions
+
+
+dftest = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
+                 END_TIME1, 'BMF', 0.001, True)
+dftest30 = dftest.head(30)
+
 # %% Debug Class TOB
 
 
-DOL = ad(PATHIN, FILE_BMF1, 'BMF')
-DOLdf = DOL.select_times(pd.to_timedelta('09:00:00'),
-                         pd.to_timedelta('18:15:00')).df
+# DOL = ad(PATHIN, FILE_BMF1, 'BMF')
+# DOLdf = DOL.select_times(pd.to_timedelta('09:00:00'),
+#                          pd.to_timedelta('18:15:00')).df
 
-# %% [markdown]
-# Start function here
+# %% Copy df to play
+
+
+# df2 = DOLdf.copy()
+
+# %% Add Order flags and count
+
+
+# df2['OrderQ'] = df2['trade_price'].isnull().copy()
+# df2['OrderN'] = df2['OrderQ'].copy().cumsum()
+# df2['last_trade'] = df2['trade_price'].copy().fillna(method='ffill')
+
+# %% Group trades
+
+
+# df2g = df2.groupby(['OrderN', 'DateTime', 'OrderQ', 'last_trade'],
+#                    sort=False).sum(min_count=1)
+
+# %% Reset columns from groupby
+
+
+# df2g = df2g.reset_index()
+# df2g['trade_price'] = np.where(df2g['OrderQ'], np.nan,
+#                                df2g['last_trade'].copy())
+# df2g = df2g.drop(columns=['OrderN', 'last_trade'])
+
+# %% Print counts
+
+
+# print(['Orders: ', df2g['OrderQ'].sum(), 'Trades: ',
+#        len(df2g)-df2g['OrderQ'].sum()])
+
+# %% Levels 1 and 2 diff
+
+
+# def lvldiff(df):
+#     dfc = df.copy()
+#     dfdiff1 = dfc[['bid_1_qty', 'bid_1_price', 'ask_1_price',
+#                    'ask_1_qty']].copy().diff().abs()
+#     dfc['lvl1'] = dfdiff1.sum(axis=1) != 0
+#     dfdiff2 = dfc[['bid_2_qty', 'bid_2_price', 'ask_2_price',
+#                    'ask_2_qty']].copy().diff().abs()
+#     dfc['lvl2'] = dfdiff2.sum(axis=1) != 0
+#     return dfc
+
+# %% Exclude Level 2 events
+
+
+# df2gdiff = lvldiff(df2g)
+# df2glvl1 = df2gdiff[~((~df2gdiff['lvl1']) & (df2gdiff['lvl2']))]
+# df2glvl1 = df2glvl1.drop(['bid_2_qty', 'bid_2_ord', 'bid_2_price',
+#                           'bid_1_ord', 'ask_1_ord',
+#                           'ask_2_price', 'ask_2_ord', 'ask_2_qty',
+#                           'lvl2'], axis=1)
+
+# %% Check trades without book update or sweep not instantaneous
+
+
+# def find_invalid_trades(df, dt=0.001):
+#     dfc = df.copy()
+#     dfc['Prev_Trade'] = (~dfc['OrderQ']).shift()
+#     dfc['Signif_dt'] = dfc['DateTime'].diff().dt.total_seconds() > dt
+#     dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt'])).shift(
+#         periods=-1, fill_value=False)
+#     return dfc[dfc['Check']].copy()\
+#         .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
+
+
+# %% Clear trades without book update or sweep not instantaneous - function
+
+
+# def clear_invalid_trades(df, dt=0.001):
+#     dfc = df.copy()
+#     dfc['Prev_Trade'] = (~dfc['OrderQ']).shift()
+#     dfc['Signif_dt'] = dfc['DateTime'].diff().dt.total_seconds() > dt
+#     dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt'])).shift(
+#         periods=-1, fill_value=False)
+#     return dfc[~dfc['Check']].copy()\
+#         .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
+
+# %% Clear trades without book update or sweep not instantaneous
+
+
+# df2glvl1clean = clear_invalid_trades(df2glvl1)
+# df2glvl1clean = clear_invalid_trades(df2glvl1clean)
+
+
+# %% subdf - recheck trades without book update or sweep not instantaneous
+
+# dfsub = find_invalid_trades(df2glvl1clean)
+
+# subdftrd = df2glvl1.loc[284416:284456].copy()
+
+# %% Define side of trade - calculate columns
+
+# df2glvl1clean['bid_traded'] = df2glvl1clean['bid_1_price'].copy().fillna(
+#     method='ffill') >= df2glvl1clean['trade_price']
+# df2glvl1clean['ask_traded'] = df2glvl1clean['ask_1_price'].copy().fillna(
+#     method='ffill') <= df2glvl1clean['trade_price']
+# df2glvl1clean['dt'] = df2glvl1clean['DateTime'].diff().dt.total_seconds()
+
+# %% Define key for groupby
+
+
+# df2glvl1clean['OrderN'] = df2glvl1clean['OrderQ'].copy().cumsum()
+# df2glvl1clean = df2glvl1clean[df2glvl1clean['OrderN'] >0].copy()
+# df2glvl1clean['OrderN'] = df2glvl1clean['OrderN']*\
+#     (2*df2glvl1clean['OrderQ']-1)
+
+# %% Group trades again
+
+
+# df2glvl1cleang = df2glvl1clean.groupby(['DateTime', 'OrderN'], sort=False)
+# df3 = df2glvl1cleang.agg({'OrderQ': all,
+#                           'bid_1_qty': sum,
+#                           'bid_1_price': sum,
+#                           'trade_price': 'count',
+#                           'trade_qty': sum,
+#                           'ask_1_price': sum,
+#                           'ask_1_qty': sum,
+#                           'lvl1': any,
+#                           'bid_traded': any,
+#                           'ask_traded': any,
+#                           'dt': sum})
+# df3 = df3.reset_index()
+# df3 = df3.rename(columns={'trade_price': 'levels_traded', 'lvl1': 'NoTradeQ'})
+
+# %% Recheck trades
+
+# def find_invalid_trades_again(df, dt=0.001):
+#     dfc = df.copy()
+#     dfc['Prev_Trade'] = (dfc['OrderN'].shift()) < 0
+#     dfc['Signif_dt'] = dfc['dt'] > dt
+#     dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt']))
+#     return dfc[dfc['Check']].copy()\
+#         .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
+
+# %% Show problems
+
+# dfsub2 = find_invalid_trades_again(df3)
+
+# %% Push trades on next order book state
+
+# df3['OrderId'] = np.abs(df3['OrderN']) + (1-np.sign(df3['OrderN']))/2
+# df4 = df3.groupby(['DateTime', 'OrderId']).sum()
+# df4 = df4.reset_index()
+# df4 = df4.drop(['OrderN', 'OrderQ'], axis=1)
+
+# %% Short excerpt
+
+# df4sub = df4.head(50)
 
 # %% Initializa df
 # df = DOLdf.copy()
@@ -356,194 +700,3 @@ DOLdf = DOL.select_times(pd.to_timedelta('09:00:00'),
 # %% Read collapsed df
 # dfc = pd.read_csv(PATHOUT+'dfc.csv')
 
-# %% Copy df to play
-
-
-df2 = DOLdf.copy()
-
-# %% Add Order flags and count
-
-
-df2['OrderQ'] = df2['trade_price'].isnull().copy()
-df2['OrderN'] = df2['OrderQ'].copy().cumsum()
-df2['last_trade'] = df2['trade_price'].copy().fillna(method='ffill')
-
-# %% Group trades
-
-
-df2g = df2.groupby(['OrderN', 'DateTime', 'OrderQ', 'last_trade'],
-                   sort=False).sum(min_count=1)
-
-# %% Reset columns from groupby
-
-
-df2g = df2g.reset_index()
-df2g['trade_price'] = np.where(df2g['OrderQ'], np.nan,
-                               df2g['last_trade'].copy())
-df2g = df2g.drop(columns=['OrderN', 'last_trade'])
-
-# %% Print counts
-
-
-print(['Orders: ', df2g['OrderQ'].sum(), 'Trades: ',
-       len(df2g)-df2g['OrderQ'].sum()])
-
-# %% Levels 1 and 2 diff
-
-
-def lvldiff(df):
-    dfc = df.copy()
-    dfdiff1 = dfc[['bid_1_qty', 'bid_1_price', 'ask_1_price',
-                   'ask_1_qty']].copy().diff().abs()
-    dfc['lvl1'] = dfdiff1.sum(axis=1) != 0
-    dfdiff2 = dfc[['bid_2_qty', 'bid_2_price', 'ask_2_price',
-                   'ask_2_qty']].copy().diff().abs()
-    dfc['lvl2'] = dfdiff2.sum(axis=1) != 0
-    return dfc
-
-# %% Exclude Level 2 events
-
-
-df2gdiff = lvldiff(df2g)
-df2glvl1 = df2gdiff[~((~df2gdiff['lvl1']) & (df2gdiff['lvl2']))]
-df2glvl1 = df2glvl1.drop(['bid_2_qty', 'bid_2_ord', 'bid_2_price',
-                          'bid_1_ord', 'ask_1_ord',
-                          'ask_2_price', 'ask_2_ord', 'ask_2_qty',
-                          'lvl2'], axis=1)
-
-# %% Check trades without book update or sweep not instantaneous
-
-
-def find_invalid_trades(df, dt=0.001):
-    dfc = df.copy()
-    dfc['Prev_Trade'] = (~dfc['OrderQ']).shift()
-    dfc['Signif_dt'] = dfc['DateTime'].diff().dt.total_seconds() > dt
-    dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt'])).shift(
-        periods=-1, fill_value=False)
-    return dfc[dfc['Check']].copy()\
-        .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
-
-
-# %% Clear trades without book update or sweep not instantaneous - function
-
-
-def clear_invalid_trades(df, dt=0.001):
-    dfc = df.copy()
-    dfc['Prev_Trade'] = (~dfc['OrderQ']).shift()
-    dfc['Signif_dt'] = dfc['DateTime'].diff().dt.total_seconds() > dt
-    dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt'])).shift(
-        periods=-1, fill_value=False)
-    return dfc[~dfc['Check']].copy()\
-        .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
-
-# %% Clear trades without book update or sweep not instantaneous
-
-
-df2glvl1clean = clear_invalid_trades(df2glvl1)
-df2glvl1clean = clear_invalid_trades(df2glvl1clean)
-
-
-# %% subdf - recheck trades without book update or sweep not instantaneous
-
-dfsub = find_invalid_trades(df2glvl1clean)
-
-# subdftrd = df2glvl1.loc[284416:284456].copy()
-
-# %% Define side of trade - calculate columns
-
-df2glvl1clean['bid_traded'] = df2glvl1clean['bid_1_price'].copy().fillna(
-    method='ffill') >= df2glvl1clean['trade_price']
-df2glvl1clean['ask_traded'] = df2glvl1clean['ask_1_price'].copy().fillna(
-    method='ffill') <= df2glvl1clean['trade_price']
-df2glvl1clean['dt'] = df2glvl1clean['DateTime'].diff().dt.total_seconds()
-
-# %% Define key for groupby
-
-
-df2glvl1clean['OrderN'] = df2glvl1clean['OrderQ'].copy().cumsum()
-df2glvl1clean = df2glvl1clean[df2glvl1clean['OrderN'] >0].copy()
-df2glvl1clean['OrderN'] = df2glvl1clean['OrderN']*\
-    (2*df2glvl1clean['OrderQ']-1)
-
-# %% Group trades again
-
-
-df2glvl1cleang = df2glvl1clean.groupby(['DateTime', 'OrderN'], sort=False)
-df3 = df2glvl1cleang.agg({'OrderQ': all,
-                          'bid_1_qty': sum,
-                          'bid_1_price': sum,
-                          'trade_price': 'count',
-                          'trade_qty': sum,
-                          'ask_1_price': sum,
-                          'ask_1_qty': sum,
-                          'lvl1': any,
-                          'bid_traded': any,
-                          'ask_traded': any,
-                          'dt': sum})
-df3 = df3.reset_index()
-df3 = df3.rename(columns={'trade_price': 'levels_traded', 'lvl1': 'NoTradeQ'})
-
-# %% Recheck trades
-
-def find_invalid_trades_again(df, dt=0.001):
-    dfc = df.copy()
-    dfc['Prev_Trade'] = (dfc['OrderN'].shift()) < 0
-    dfc['Signif_dt'] = dfc['dt'] > dt
-    dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt']))
-    return dfc[dfc['Check']].copy()\
-        .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
-
-# %% Show problems
-
-dfsub2 = find_invalid_trades_again(df3)
-
-# %% Push trades on next order book state
-
-df3['OrderId'] = np.abs(df3['OrderN']) + (1-np.sign(df3['OrderN']))//2
-df4 = df3.groupby(['DateTime', 'OrderId']).sum()
-df4 = df4.reset_index()
-df4 = df4.drop(['OrderN', 'OrderQ'], axis=1)
-
-# %% Short excerpt
-
-df4sub = df4.head(50)
-
-# %% Define side of event - function
-
-# df2glvl1['bid_1_qty_diff'] = df2glvl1['bid_1_qty'].copy().diff()
-# df2glvl1['bid_1_price_diff'] = df2glvl1['bid_1_price'].copy().diff()
-# df2glvl1['ask_1_price_diff'] = df2glvl1['ask_1_price'].copy().diff()
-# df2glvl1['ask_1_qty_diff'] = df2glvl1['ask_1_qty'].copy().diff()
-
-
-
-# %% Print counts comparison
-# print(['Orders df2g: ', df2g['OrderQ'].sum(),
-#        'Orders dfc: ',len(dfc)-dfc['TradeQ'].sum()])
-# print(['Trades df2g: ', len(df2g)-df2g['OrderQ'].sum(),
-#        'Trades dfc: ',dfc['TradeQ'].sum()])
-# print(['bid_1_qty df2g: ', df2g['bid_1_qty'].sum(),
-#        'bid_1_qty dfc: ',dfc['bid_1_qty'].sum()])
-# print(['trade_qty df2g: ', df2g['trade_qty'].sum(),
-#        'trade_qty dfc: ',dfc['trade_qty'].sum()])
-
-# %% Filter trades
-
-# dfct = dfc[dfc['TradeQ']]
-# df2gt = df2g[~df2g['OrderQ']]
-# dfsub = df2[(df2['DateTime'] > pd.to_datetime('2017-01-19 09:00:45'))].copy()
-# dfsub = dfsub[(dfsub['DateTime'] < pd.to_datetime('2017-01-19 09:00:46'))]\
-#                .copy()
-
-# %% [markdown]
-# End function here
-
-# %% Debug Class TOB
-# DOLTOB = atob(DOL.select_times(pd.to_timedelta('09:00:00'),
-#                                pd.to_timedelta('18:15:00')), TS1)
-#print(DOLTOB.tob.tail(10))
-
-# %%
-#DOLTOB.tob.tail(10)
-
-# %%
