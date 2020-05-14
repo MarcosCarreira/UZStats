@@ -472,8 +472,8 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
         dfstates['AskQ'] * 8 + dfstates['ConsQ'] * 4 +\
         dfstates['NoTradeQ'] * 2 + dfstates['PriceQ'] * 1
     event_dict = {
-        0: 'Start', 1: 'MLb', 2: 'Lb', 3: 'Pb+', 4: 'Mb', 5: 'PbM-', 6: 'Cb',
-        7: 'PbC-', 8: 'Start', 9: 'MLa', 10: 'La', 11: 'Pa-', 12: 'Ma',
+        0: 'Start', 1: 'PLb', 2: 'Lb', 3: 'Pb+', 4: 'Mb', 5: 'PbM-', 6: 'Cb',
+        7: 'PbC-', 8: 'Start', 9: 'PLa', 10: 'La', 11: 'Pa-', 12: 'Ma',
         13: 'PaM+', 14: 'Ca', 15: 'PaC+'}
     dfstates['Event_detail'] = dfstates['event_code'].map(event_dict)
     event_dict_CLM = {
@@ -522,9 +522,9 @@ def initall(pathin, pathout, file_name, tick_value, min_order_size,
 #                END_TIME1, 'BMF', 0.001, False)
 
 dfDOL = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
-                 END_TIME1, 'BMF', 0.001, False)
+                END_TIME1, 'BMF', 0.001, False)
 dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSDOL, START_TIME1,
-                 END_TIME1, 'BMF', 0.001, False)
+                END_TIME1, 'BMF', 0.001, False)
 
 # dftest30 = dftest.head(30)
 
@@ -564,26 +564,50 @@ trans_CLM_count_WDO.to_csv(PATHOUT+'trans_CLM_count_ev_WDO.csv')
 # trans_CLM_freq_DOL.to_csv(PATHOUT+'trans_CLM_freq_ev_DOL.csv')
 # trans_CLM_freq_WDO.to_csv(PATHOUT+'trans_CLM_freq_ev_WDO.csv')
 
+trans_detail_count_DOL = transition_events(dfDOL, event='Event_detail')
+trans_detail_count_WDO = transition_events(dfWDO, event='Event_detail')
+trans_detail_count_DOL.to_csv(PATHOUT+'trans_detail_count_ev_DOL.csv')
+trans_detail_count_WDO.to_csv(PATHOUT+'trans_detail_count_ev_WDO.csv')
+
 # %% Transition matrix - Pivot
 
 
 def pivot_events(data_frame, event='Event_CLM',
-                 values='dt',
+                 piv_values='dt',
                  aggfunc=np.mean):
     # Options for event: 'Event', 'Event_CLM', 'Event_detail'
-    # Options for values: 'dt', 'Imbalance', 'trade_qty', 'Spread_Ticks'
+    # Options for values: 'dt'
     dfc = data_frame.copy()
-    dfc['Previous Event'] = dfc[event].shift(+1).values
-    return pd.pivot_table(dfc, values=values, index=['Previous Event'],
+    dfc['Previous_Event'] = dfc[event].shift(+1).values
+    return pd.pivot_table(dfc, values=piv_values, index=['Previous_Event'],
                           columns=event, aggfunc=aggfunc, margins=True)
+
+def pivot_prev_events(data_frame, event='Event_CLM',
+                 piv_values='Imbalance',
+                 aggfunc=np.mean):
+    # Options for event: 'Event', 'Event_CLM', 'Event_detail'
+    # Options for values: 'Imbalance', 'trade_qty', 'Spread_Ticks'
+    dfc = data_frame.copy()
+    dfc['Previous_Event'] = dfc[event].shift(+1).values
+    dfc['Previuos_Values'] = dfc[piv_values].shift(+1).values
+    return pd.pivot_table(dfc, values='Previuos_Values',
+                          index=['Previous_Event'], columns=event,
+                          aggfunc=aggfunc, margins=True)
 
 # %% Test Pivot
 
 
-pivot_dt_DOL = pivot_events(dfDOL, event='Event_CLM', values='dt')
-pivot_imb_DOL = pivot_events(dfDOL, event='Event_CLM', values='Imbalance')
-pivot_dt_WDO = pivot_events(dfWDO, event='Event_CLM', values='dt')
-pivot_imb_WDO = pivot_events(dfWDO, event='Event_CLM', values='Imbalance')
+pivot_dt_DOL = pivot_events(dfDOL, event='Event_CLM')
+pivot_imb_DOL = pivot_prev_events(dfDOL, event='Event_CLM')
+pivot_dt_DOL.to_csv(PATHOUT+'pivot_dt_DOL.csv')
+pivot_imb_DOL.to_csv(PATHOUT+'pivot_imb_DOL.csv')
+
+
+pivot_dt_WDO = pivot_events(dfWDO, event='Event_CLM')
+pivot_imb_WDO = pivot_prev_events(dfWDO, event='Event_CLM')
+pivot_dt_WDO.to_csv(PATHOUT+'pivot_dt_WDO.csv')
+pivot_imb_WDO.to_csv(PATHOUT+'pivot_imb_WDO.csv')
+
 
 
 # %% Debug Class TOB
