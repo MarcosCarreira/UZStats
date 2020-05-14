@@ -80,161 +80,161 @@ FILE1 = '20180105_6EH8.zip'
 # %% run_event_data
 
 
-def run_event_data(pathin, pathout, file_name, tick_value, start_time,
-                   end_time, file_type='CME', save_files=False):
-    """Generate intensities.
+# def run_event_data(pathin, pathout, file_name, tick_value, start_time,
+#                    end_time, file_type='CME', save_files=False):
+#     """Generate intensities.
 
-    run_event_data(pathin, pathout, file_name, tick_value, start_time,
-                   end_time)
-    returns the intensties (input for Othmane's code)
-    """
-    data = ad(pathin, file_name, file_type)
-    print(data.get_processing_date())
-    tob_obj = atob(data, tick_value)
-    tob_obj.print2file_df_intensity(pathout)
+#     run_event_data(pathin, pathout, file_name, tick_value, start_time,
+#                    end_time)
+#     returns the intensties (input for Othmane's code)
+#     """
+#     data = ad(pathin, file_name, file_type)
+#     print(data.get_processing_date())
+#     tob_obj = atob(data, tick_value)
+#     tob_obj.print2file_df_intensity(pathout)
 
 # %% run_intensity_one_days
 
 
-def run_intensity_one_days(pathin, pathout, tick_value, file_name=[],
-                           file_type='CME'):
-    """Generate intensities for one day.
+# def run_intensity_one_days(pathin, pathout, tick_value, file_name=[],
+#                            file_type='CME'):
+#     """Generate intensities for one day.
 
-    run_intensity_one_days(pathin, pathout, tick_value, file_name,
-                           start_time, end_time)
-    returns the intensties for one day (input for Othmane's code)
-    """
-    data = ad(pathin, file_name, file_type)
-    print(data.get_processing_date())
-    tob_obj = atob(data, tick_value)
-    output = tob_obj.get_tob_intensity_output()
-    bid_inten = output.get_bid_intensity()
-    ask_inten = output.get_ask_intensity()
-    both_inten = output.get_aggregated_bid_ask()
-    bid_inten.plot_intensities(pathout, 'bid')
-    ask_inten.plot_intensities(pathout, 'ask')
-    both_inten.plot_intensities(pathout, 'bid_plus_ask')
+#     run_intensity_one_days(pathin, pathout, tick_value, file_name,
+#                            start_time, end_time)
+#     returns the intensties for one day (input for Othmane's code)
+#     """
+#     data = ad(pathin, file_name, file_type)
+#     print(data.get_processing_date())
+#     tob_obj = atob(data, tick_value)
+#     output = tob_obj.get_tob_intensity_output()
+#     bid_inten = output.get_bid_intensity()
+#     ask_inten = output.get_ask_intensity()
+#     both_inten = output.get_aggregated_bid_ask()
+#     bid_inten.plot_intensities(pathout, 'bid')
+#     ask_inten.plot_intensities(pathout, 'ask')
+#     both_inten.plot_intensities(pathout, 'bid_plus_ask')
 
 # %% run_intensity_multi_days
 
 
-def run_intensity_multi_days(pathin, pathout, tick_value,
-                             file_names=[], file_type='CME'):
-    """Run the intensity function for multiple days.
+# def run_intensity_multi_days(pathin, pathout, tick_value,
+#                              file_names=[], file_type='CME'):
+#     """Run the intensity function for multiple days.
 
-    run_intensity_multi_days(pathin, pathout, tick_value,
-                             file_names=[], file_type='CME')
-    returns the intensties (input for Othmane's code) for multiple days
-    """
-    tick_value = TS
-    filepaths = [pathout]
-    # create directories if do not exist
-    for path in filepaths:
-        if not os.path.exists(path):
-            os.makedirs(path)
-    # either explicitly set file_names or get file_names from data path
-    if len(file_names) == 0:
-        for file in os.listdir(pathin):
-            if file.endswith("csv") or file.endswith(".zip"):
-                file_names.append(file)
-    for f_name in file_names:
-        start = timeit.default_timer()
-        print('--START------')
-        data = ad(pathin, f_name, file_type)
-        tob_obj = atob(data, tick_value)
-        if file_names[0] == f_name:
-            output = tob_obj.get_tob_intensity_output()
-        else:
-            output.append(tob_obj.get_tob_intensity_output())
-        stop = timeit.default_timer()
-        print('Time Spent: ', round(stop - start), ' seconds')
-        print('--END-------')
-    intensity = output.get_aggregated_bid_ask()
-    intensity.plot_intensities(pathout, True)
-    intensity.plot_proba_stat(pathout, True)
+#     run_intensity_multi_days(pathin, pathout, tick_value,
+#                              file_names=[], file_type='CME')
+#     returns the intensties (input for Othmane's code) for multiple days
+#     """
+#     tick_value = TS
+#     filepaths = [pathout]
+#     # create directories if do not exist
+#     for path in filepaths:
+#         if not os.path.exists(path):
+#             os.makedirs(path)
+#     # either explicitly set file_names or get file_names from data path
+#     if len(file_names) == 0:
+#         for file in os.listdir(pathin):
+#             if file.endswith("csv") or file.endswith(".zip"):
+#                 file_names.append(file)
+#     for f_name in file_names:
+#         start = timeit.default_timer()
+#         print('--START------')
+#         data = ad(pathin, f_name, file_type)
+#         tob_obj = atob(data, tick_value)
+#         if file_names[0] == f_name:
+#             output = tob_obj.get_tob_intensity_output()
+#         else:
+#             output.append(tob_obj.get_tob_intensity_output())
+#         stop = timeit.default_timer()
+#         print('Time Spent: ', round(stop - start), ' seconds')
+#         print('--END-------')
+#     intensity = output.get_aggregated_bid_ask()
+#     intensity.plot_intensities(pathout, True)
+#     intensity.plot_proba_stat(pathout, True)
 
 
 # %% runc_multi_days
 
 
-def runc_multi_days(pathin, pathout, tick_value, start_time, end_time,
-                    file_names=[], file_type='CME'):
-    """Run uz_stats for multiple days.
+# def runc_multi_days(pathin, pathout, tick_value, start_time, end_time,
+#                     file_names=[], file_type='CME'):
+#     """Run uz_stats for multiple days.
 
-    runc_multi_days(pathin, pathout, tick_value, start_time, end_time,
-                    file_names=[], file_type='CME')
-    returns the UZ stats for multiple days
-    """
-    tick_value = TS
-    filepaths = [pathout]
-    # create directories if do not exist
-    for path in filepaths:
-        if not os.path.exists(path):
-            os.makedirs(path)
-    # either explicitly set file_names or get file_names from data path
-    if len(file_names) == 0:
-        for file in os.listdir(pathin):
-            if file.endswith("csv") or file.endswith(".zip"):
-                file_names.append(file)
-    for f_name in file_names:
-        start = timeit.default_timer()
-        print('--START------')
-        data = ad(pathin, f_name, file_type)
-        uz_obj = uz(data, tick_value, start_time, end_time)
-        if file_names[0] == f_name:
-            output = uz_obj.get_Armada_UZModel_output()
-        else:
-            output.append(uz_obj.get_Armada_UZModel_output())
-        stop = timeit.default_timer()
-        print('Time Spent: ', round(stop - start), ' seconds')
-        print('--END-------')
-    output.print2file_df_cont_alt_by_ticks(pathout)
-    output.print2file_df_uz_stats(pathout)
-    output.plot_html_uz_stats(pathout)
+#     runc_multi_days(pathin, pathout, tick_value, start_time, end_time,
+#                     file_names=[], file_type='CME')
+#     returns the UZ stats for multiple days
+#     """
+#     tick_value = TS
+#     filepaths = [pathout]
+#     # create directories if do not exist
+#     for path in filepaths:
+#         if not os.path.exists(path):
+#             os.makedirs(path)
+#     # either explicitly set file_names or get file_names from data path
+#     if len(file_names) == 0:
+#         for file in os.listdir(pathin):
+#             if file.endswith("csv") or file.endswith(".zip"):
+#                 file_names.append(file)
+#     for f_name in file_names:
+#         start = timeit.default_timer()
+#         print('--START------')
+#         data = ad(pathin, f_name, file_type)
+#         uz_obj = uz(data, tick_value, start_time, end_time)
+#         if file_names[0] == f_name:
+#             output = uz_obj.get_Armada_UZModel_output()
+#         else:
+#             output.append(uz_obj.get_Armada_UZModel_output())
+#         stop = timeit.default_timer()
+#         print('Time Spent: ', round(stop - start), ' seconds')
+#         print('--END-------')
+#     output.print2file_df_cont_alt_by_ticks(pathout)
+#     output.print2file_df_uz_stats(pathout)
+#     output.plot_html_uz_stats(pathout)
 
 
 # %% run_unc_zones_read
 
 
-def run_unc_zones_read(pathin, pathout, file_name, tick_value, start_time,
-                       end_time, file_type='CME', save_files=False):
-    """Plot uz data.
+# def run_unc_zones_read(pathin, pathout, file_name, tick_value, start_time,
+#                        end_time, file_type='CME', save_files=False):
+#     """Plot uz data.
 
-    run_unc_zones(pathin, pathout, file_name, tick_value, end_of_time)
-    returns the uncertainty zones data frame
-    """
-    data = ad(pathin, file_name, file_type)
-    data.plot_html_ohlc(pathout, '5min', pd.to_timedelta('00:00:00'),
-                        pd.to_timedelta('23:59:00'))
-    # data.plot_html_ohlc(pathout,'1min', pd.to_timedelta('07:00:00'),
-    #                     pd.to_timedelta('10:00:00'))
-    # data.plot_html_ohlc(pathout, '1S', pd.to_timedelta('07:27:00'),
-    #                     pd.to_timedelta('07:33:00'))
-    uz_obj = uz(data, tick_value, start_time, end_time)
-    # ohlc = uz_obj.ohlc(pathout)
-    uz_obj.print2file_df_cont_alt_by_ticks(pathout)
-    uz_obj.print2file_df_uz_stats(pathout)
-    # this should be start_time - 10s:
-    data.plot_html_1mintick(pathout, pd.to_timedelta('07:29:50'))
+#     run_unc_zones(pathin, pathout, file_name, tick_value, end_of_time)
+#     returns the uncertainty zones data frame
+#     """
+#     data = ad(pathin, file_name, file_type)
+#     data.plot_html_ohlc(pathout, '5min', pd.to_timedelta('00:00:00'),
+#                         pd.to_timedelta('23:59:00'))
+#     # data.plot_html_ohlc(pathout,'1min', pd.to_timedelta('07:00:00'),
+#     #                     pd.to_timedelta('10:00:00'))
+#     # data.plot_html_ohlc(pathout, '1S', pd.to_timedelta('07:27:00'),
+#     #                     pd.to_timedelta('07:33:00'))
+#     uz_obj = uz(data, tick_value, start_time, end_time)
+#     # ohlc = uz_obj.ohlc(pathout)
+#     uz_obj.print2file_df_cont_alt_by_ticks(pathout)
+#     uz_obj.print2file_df_uz_stats(pathout)
+#     # this should be start_time - 10s:
+#     data.plot_html_1mintick(pathout, pd.to_timedelta('07:29:50'))
 
 
 # %% run_tob
 
 
-def run_tob(pathin, pathout, file_name, tick_value, start_time,
-            end_time, file_type='CME', save_files=False):
-    """Create the tob object (enhanced Top of Order Book).
+# def run_tob(pathin, pathout, file_name, tick_value, start_time,
+#             end_time, file_type='CME', save_files=False):
+#     """Create the tob object (enhanced Top of Order Book).
 
-    run_tob(pathin, pathout, file_name, tick_value, start_time,
-            end_time, file_type='CME', save_files=False)
-    returns the enhanced Top of The Order Book
-    """
-    data = ad(pathin, file_name, file_type)
-    print(data.get_processing_date())
-    data.plot_html_ohlc(pathout, '1min', pd.to_timedelta('00:00:00'),
-                        pd.to_timedelta('23:59:00'))
-    tob_obj = atob(data, tick_value)
-    tob_obj.print2file_df_tob(pathout, start_time, end_time)
+#     run_tob(pathin, pathout, file_name, tick_value, start_time,
+#             end_time, file_type='CME', save_files=False)
+#     returns the enhanced Top of The Order Book
+#     """
+#     data = ad(pathin, file_name, file_type)
+#     print(data.get_processing_date())
+#     data.plot_html_ohlc(pathout, '1min', pd.to_timedelta('00:00:00'),
+#                         pd.to_timedelta('23:59:00'))
+#     tob_obj = atob(data, tick_value)
+#     tob_obj.print2file_df_tob(pathout, start_time, end_time)
 
 
 # %% Run benchmark
@@ -475,18 +475,28 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
         0: 'Start', 1: 'MLb', 2: 'Lb', 3: 'Pb+', 4: 'Mb', 5: 'PbM-', 6: 'Cb',
         7: 'PbC-', 8: 'Start', 9: 'MLa', 10: 'La', 11: 'Pa-', 12: 'Ma',
         13: 'PaM+', 14: 'Ca', 15: 'PaC+'}
-    dfstates['Event'] = dfstates['event_code'].map(event_dict)
+    dfstates['Event_detail'] = dfstates['event_code'].map(event_dict)
+    event_dict_CLM = {
+        0: 'La', 1: 'Lb', 2: 'Lb', 3: 'Lb', 4: 'Mb', 5: 'Mb', 6: 'Cb',
+        7: 'Cb', 8: 'Lb', 9: 'La', 10: 'La', 11: 'La', 12: 'Ma',
+        13: 'Ma', 14: 'Ca', 15: 'Ca'}
+    dfstates['Event_CLM'] = dfstates['event_code'].map(event_dict_CLM)
+    dfstates['event_code_short'] =\
+        dfstates['AskQ'] * 2 + dfstates['ConsQ'] * 1
+    event_dict_short = {0: 'Ib', 1: 'Cb', 2: 'Ia', 3: 'Ca'}
+    dfstates['Event'] = dfstates['event_code_short'].map(event_dict_short)
     if save_files:
         dfstates.to_csv(pathout+file_name[:-4]+'_df_states.csv')
     cols_output1 =\
         ['DateTime', 'OrderId', 'bid_1_qty', 'bid_1_price', 'ask_1_price',
          'ask_1_qty', 'trade_qty', 'levels_traded', 'AskQ', 'ConsQ',
-         'NoTradeQ', 'PriceQ', 'Event', 'dt', 'Spread_Ticks', 'Midprice',
-         'Microprice', 'Imbalance', 'Imbal_Sign']
-    cols_output2 =\
-        ['bid_traded', 'ask_traded', 'bid_1_qty_diff', 'bid_1_price_diff',
-         'ask_1_price_diff', 'ask_1_qty_diff']
-    dfstates = dfstates[cols_output1 + cols_output2]
+         'NoTradeQ', 'PriceQ', 'Event', 'Event_CLM', 'Event_detail', 'dt',
+         'Spread_Ticks', 'Midprice', 'Microprice', 'Imbalance', 'Imbal_Sign']
+    # cols_output2 =\
+    #     ['bid_traded', 'ask_traded', 'bid_1_qty_diff', 'bid_1_price_diff',
+    #      'ask_1_price_diff', 'ask_1_qty_diff']
+    # dfstates = dfstates[cols_output1 + cols_output2]
+    dfstates = dfstates[cols_output1]
     return dfstates
 
 
@@ -525,21 +535,55 @@ dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSDOL, START_TIME1,
 # %% Transition matrix
 
 
-def transition_events(data_frame, values=None, aggfunc=None, normalize=False):
-    return pd.crosstab(index=data_frame['Event'].values,
-                       columns=data_frame['Event'].shift(-1).values,
-                       values=values, aggfunc=aggfunc,
+def transition_events(data_frame, event='Event', normalize=False):
+    # Options for event: 'Event', 'Event_CLM' and 'Event_detail'
+    return pd.crosstab(index=data_frame[event].values,
+                       columns=data_frame[event].shift(-1).values,
                        margins=True, normalize=normalize)
 
 # %% Test transition matrix
 
 
 trans_count_DOL = transition_events(dfDOL)
-trans_freq_DOL = transition_events(dfDOL, normalize=True)
-trans_freq_WDO = transition_events(dfWDO, normalize=True)
-trans_freq_DOL.to_csv(PATHOUT+'trans_freq_DOL.csv')
-trans_freq_WDO.to_csv(PATHOUT+'trans_freq_WDO.csv')
+trans_count_WDO = transition_events(dfWDO)
+trans_count_DOL.to_csv(PATHOUT+'trans_count_ev_DOL.csv')
+trans_count_WDO.to_csv(PATHOUT+'trans_count_ev_WDO.csv')
+# trans_freq_DOL = transition_events(dfDOL, normalize=True)
+# trans_freq_WDO = transition_events(dfWDO, normalize=True)
+# trans_freq_DOL.to_csv(PATHOUT+'trans_freq_ev_DOL.csv')
+# trans_freq_WDO.to_csv(PATHOUT+'trans_freq_ev_WDO.csv')
 
+trans_CLM_count_DOL = transition_events(dfDOL, event='Event_CLM')
+trans_CLM_count_WDO = transition_events(dfWDO, event='Event_CLM')
+trans_CLM_count_DOL.to_csv(PATHOUT+'trans_CLM_count_ev_DOL.csv')
+trans_CLM_count_WDO.to_csv(PATHOUT+'trans_CLM_count_ev_WDO.csv')
+# trans_CLM_freq_DOL = transition_events(dfDOL, event='Event_CLM',
+#                                        normalize=True)
+# trans_CLM_freq_WDO = transition_events(dfWDO, event='Event_CLM',
+#                                        normalize=True)
+# trans_CLM_freq_DOL.to_csv(PATHOUT+'trans_CLM_freq_ev_DOL.csv')
+# trans_CLM_freq_WDO.to_csv(PATHOUT+'trans_CLM_freq_ev_WDO.csv')
+
+# %% Transition matrix - Pivot
+
+
+def pivot_events(data_frame, event='Event_CLM',
+                 values='dt',
+                 aggfunc=np.mean):
+    # Options for event: 'Event', 'Event_CLM', 'Event_detail'
+    # Options for values: 'dt', 'Imbalance', 'trade_qty', 'Spread_Ticks'
+    dfc = data_frame.copy()
+    dfc['Previous Event'] = dfc[event].shift(+1).values
+    return pd.pivot_table(dfc, values=values, index=['Previous Event'],
+                          columns=event, aggfunc=aggfunc, margins=True)
+
+# %% Test Pivot
+
+
+pivot_dt_DOL = pivot_events(dfDOL, event='Event_CLM', values='dt')
+pivot_imb_DOL = pivot_events(dfDOL, event='Event_CLM', values='Imbalance')
+pivot_dt_WDO = pivot_events(dfWDO, event='Event_CLM', values='dt')
+pivot_imb_WDO = pivot_events(dfWDO, event='Event_CLM', values='Imbalance')
 
 
 # %% Debug Class TOB
