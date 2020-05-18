@@ -624,11 +624,12 @@ def plot_duration(data_frame, title='', window=100, invert=False):
         .set_index('DateTime')
     roll_series = subdf.rolling(window).mean()
     if invert:
-        (1/roll_series).plot(title=title + ' 1/Duration - Window of ' +
-                             str(window) + ' events', legend=False)
+        (-np.log(roll_series)).plot(title=title +
+                                    '  -Log(Duration) - Window of'
+                                    +str(window) + ' events', legend=False)
     else:
-        (roll_series).plot(title=title + ' Duration - Window of ' +
-                             str(window) + ' events', legend=False)
+        (roll_series).plot(title=title + '  Duration - Window of ' +
+                           str(window) + ' events', legend=False)
 
 # %% Plot durations - examples
 
@@ -643,6 +644,7 @@ plot_duration(dfWDO, title='WDO 10000', window=10000)
 plot_duration(dfCME1, title='CME 2018-01-05', window=100)
 plot_duration(dfCME1, title='CME 2018-01-05', window=1000)
 plot_duration(dfCME1, title='CME 2018-01-05', window=10000)
+plot_duration(dfCME1, title='CME 2018-01-05', window=1000, invert=True)
 
 plot_duration(subdfCME1, title='CME 2018-01-05', window=100)
 plot_duration(subdfCME1, title='CME 2018-01-05', window=1000)
