@@ -58,9 +58,9 @@ PATHOUT = PATHPROJ+'/UZClass/'
 # %% CME Constants
 TS = 0.5
 MOSCME = 1
-MINDTCME = 0.001
-START_TIME = pd.to_timedelta('07:30:00')
-END_TIME = pd.to_timedelta('12:45:00')
+MINDTCME = 0.000000001
+START_TIME = pd.to_timedelta('00:00:00')
+END_TIME = pd.to_timedelta('23:59:59')
 
 # %% BMF Constants
 TS1 = 0.5
@@ -76,6 +76,7 @@ FILE_BMF2 = 'WDOG1720170119.csv'
 
 # %% CME file names
 FILE1 = '20180105_6EH8.zip'
+FILE2 = '20180104_6EH8.zip'
 
 # %% run_event_data
 
@@ -353,13 +354,14 @@ def init1(pathin, pathout, file_name, tick_value, min_order_size, start_time,
         dfdiff1 = dfc[['bid_1_qty', 'bid_1_price', 'ask_1_price',
                        'ask_1_qty']].copy().diff().abs()
         dfc['lvl1'] = dfdiff1.sum(axis=1) != 0
-        dfdiff2 = dfc[['bid_2_qty', 'bid_2_price', 'ask_2_price',
-                       'ask_2_qty']].copy().diff().abs()
-        dfc['lvl2'] = dfdiff2.sum(axis=1) != 0
+        dfprevtrade= ((~(dfc['OrderQ'].copy())).shift(fill_value=True))
+        dfc['lvl2'] = (~dfc['OrderQ']) |\
+            (dfc['OrderQ'] & dfprevtrade) |\
+            (dfc['OrderQ'] & dfc['lvl1'])
         return dfc
     # Excluding Level 2 events
     datadfg = lvldiff(datadfg)
-    datadfg = datadfg[~((~datadfg['lvl1']) & (datadfg['lvl2']))]
+    datadfg = datadfg[datadfg['lvl2']]
     datadfg = datadfg.drop(['bid_2_qty', 'bid_2_ord', 'bid_2_price',
                             'bid_1_ord', 'ask_1_ord', 'ask_2_price',
                             'ask_2_ord', 'ask_2_qty', 'lvl2'], axis=1)
@@ -526,13 +528,16 @@ def initall(pathin, pathout, file_name, tick_value, min_order_size,
 # %% Test init functions
 
 
-# dforig = init1(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
-#                END_TIME1, 'BMF', 0.001, False)
-
 dfDOL = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
-                END_TIME1, 'BMF', 0.001, False)
+                END_TIME1, 'BMF', MINDT1, False)
 dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSDOL, START_TIME1,
-                END_TIME1, 'BMF', 0.001, False)
+                END_TIME1, 'BMF', MINDT1, False)
+
+
+dfCME1 = initall(PATHIN, PATHOUT, FILE1, TS, MOSCME, START_TIME, END_TIME,
+                 'CME', MINDTCME, False)
+dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
+                  'CME', MINDTCME, False)
 
 # dftest30 = dftest.head(30)
 
@@ -540,7 +545,30 @@ dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSDOL, START_TIME1,
 
 # dfDOL[dfDOL['Event'] == 'Start']
 
-# %% Plot reversion frequency
+# %% Plot events' frequency - function
+
+
+def plot_events_perc(data_frame, title='', window=100, perc_format=True):
+    if perc_format:
+        const = 100
+    else:
+        const = 1
+    df_dummies = pd.get_dummies(data_frame.set_index('DateTime')['Event_CLM'])
+    (df_dummies.rolling(window).mean()*const)\
+        .plot(title=title + ' Frequency of events - Window of ' +str(window)
+              + ' events')
+    plt.legend(loc='center right', bbox_to_anchor=(1.2, 0.5))
+
+# %% Plot events' frequency - examples
+
+
+plot_events_perc(dfDOL, title='DOL 2017-01-19', window=10000)
+plot_events_perc(dfWDO, title='WDO 2017-01-19', window=10000)
+
+plot_events_perc(dfCME1, title='CME 2018-01-05', window=10000)
+plot_events_perc(dfCME2, title='CME 2018-01-04', window=10000)
+
+# %% Plot reversion frequency - function
 
 
 def plot_reversion_perc(data_frame, title='', window=100, perc_format=True):
@@ -550,20 +578,74 @@ def plot_reversion_perc(data_frame, title='', window=100, perc_format=True):
         const = 100
     else:
         const = 1
-    (subdf.rolling(window).mean()*const).plot(title=title, legend=False)
+    (subdf.rolling(window).mean()*const).plot(title=title + \
+                                              ' Reversion % - Window of ' +
+                                              str(window) + ' events',
+                                              legend=False)
 
-# %% Plot reversion frequency
-
-plot_reversion_perc(dfDOL, title='DOL 100', window=100)
-plot_reversion_perc(dfDOL, title='DOL 1000', window=1000)
-plot_reversion_perc(dfDOL, title='DOL 10000', window=10000)
-plot_reversion_perc(dfWDO, title='WDO 100', window=100)
-plot_reversion_perc(dfWDO, title='WDO 1000', window=1000)
-plot_reversion_perc(dfWDO, title='WDO 10000', window=10000)
+# %% Plot reversion frequency - examples
 
 
-plot_reversion_perc(dfDOL, title='DOL 10000', window=10000)
-plot_reversion_perc(dfWDO, title='WDO 10000', window=10000)
+plot_reversion_perc(dfDOL, title='DOL 2017-01-19', window=100)
+plot_reversion_perc(dfDOL, title='DOL 2017-01-19', window=1000)
+plot_reversion_perc(dfDOL, title='DOL 2017-01-19', window=10000)
+plot_reversion_perc(dfWDO, title='WDO 2017-01-19', window=100)
+plot_reversion_perc(dfWDO, title='WDO 2017-01-19', window=1000)
+plot_reversion_perc(dfWDO, title='WDO 2017-01-19', window=10000)
+
+
+plot_reversion_perc(dfCME1, title='CME 2018-01-05', window=100)
+plot_reversion_perc(dfCME1, title='CME 2018-01-05', window=1000)
+plot_reversion_perc(dfCME1, title='CME 2018-01-05', window=10000)
+
+subdfCME1 = dfCME1[(dfCME1['DateTime'] >=
+                   pd.to_datetime('2018-01-05 07:15:00'))\
+                   & (dfCME1['DateTime'] <=
+                   pd.to_datetime('2018-01-05 07:45:00'))].copy()
+    
+subdf2CME1 = dfCME1[(dfCME1['DateTime'] >=
+                   pd.to_datetime('2018-01-05 12:15:00'))\
+                   & (dfCME1['DateTime'] <=
+                   pd.to_datetime('2018-01-05 12:45:00'))].copy()
+
+plot_reversion_perc(subdfCME1, title='CME 2018-01-05', window=100)
+plot_reversion_perc(subdfCME1, title='CME 2018-01-05', window=1000)
+
+plot_events_perc(subdfCME1, title='CME 2018-01-05', window=100)
+plot_events_perc(subdfCME1, title='CME 2018-01-05', window=1000)
+
+plot_events_perc(subdf2CME1, title='CME 2018-01-05', window=1000)
+
+# %% Plot durations - function
+
+
+def plot_duration(data_frame, title='', window=100, invert=False):
+    subdf = data_frame[['DateTime', 'dt']].copy()\
+        .set_index('DateTime')
+    roll_series = subdf.rolling(window).mean()
+    if invert:
+        (1/roll_series).plot(title=title + ' 1/Duration - Window of ' +
+                             str(window) + ' events', legend=False)
+    else:
+        (roll_series).plot(title=title + ' Duration - Window of ' +
+                             str(window) + ' events', legend=False)
+
+# %% Plot durations - examples
+
+plot_duration(dfDOL, title='DOL 100', window=100)
+plot_duration(dfDOL, title='DOL 1000', window=1000)
+plot_duration(dfDOL, title='DOL 10000', window=10000)
+plot_duration(dfWDO, title='WDO 100', window=100)
+plot_duration(dfWDO, title='WDO 1000', window=1000)
+plot_duration(dfWDO, title='WDO 10000', window=10000)
+
+
+plot_duration(dfCME1, title='CME 2018-01-05', window=100)
+plot_duration(dfCME1, title='CME 2018-01-05', window=1000)
+plot_duration(dfCME1, title='CME 2018-01-05', window=10000)
+
+plot_duration(subdfCME1, title='CME 2018-01-05', window=100)
+plot_duration(subdfCME1, title='CME 2018-01-05', window=1000)
 
 # %% Transition matrix
 
