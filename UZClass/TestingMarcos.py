@@ -481,17 +481,25 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
         7: 'Cb', 8: 'Lb', 9: 'La', 10: 'La', 11: 'La', 12: 'Ma',
         13: 'Ma', 14: 'Ca', 15: 'Ca'}
     dfstates['Event_CLM'] = dfstates['event_code'].map(event_dict_CLM)
-    dfstates['event_code_short'] =\
-        dfstates['AskQ'] * 2 + dfstates['ConsQ'] * 1
-    event_dict_short = {0: 'Ib', 1: 'Cb', 2: 'Ia', 3: 'Ca'}
-    dfstates['Event'] = dfstates['event_code_short'].map(event_dict_short)
+    dfstates['Event_CLM_Prev'] = dfstates['Event_CLM'].copy().shift()\
+        .fillna('La')
+    event_dict_consec = {
+        'Ca': False, 'Cb': True, 'La': True, 'Lb': False, 'Ma': False,
+        'Mb': True}
+    dfstates['Transition'] = dfstates['Event_CLM'].map(event_dict_consec)\
+        ^ dfstates['Event_CLM_Prev'].map(event_dict_consec)
+    # dfstates['event_code_short'] =\
+    #     dfstates['AskQ'] * 2 + dfstates['ConsQ'] * 1
+    # event_dict_short = {0: 'Ib', 1: 'Cb', 2: 'Ia', 3: 'Ca'}
+    # dfstates['Event'] = dfstates['event_code_short'].map(event_dict_short)
     if save_files:
         dfstates.to_csv(pathout+file_name[:-4]+'_df_states.csv')
     cols_output1 =\
         ['DateTime', 'OrderId', 'bid_1_qty', 'bid_1_price', 'ask_1_price',
          'ask_1_qty', 'trade_qty', 'levels_traded', 'AskQ', 'ConsQ',
-         'NoTradeQ', 'PriceQ', 'Event', 'Event_CLM', 'Event_detail', 'dt',
-         'Spread_Ticks', 'Midprice', 'Microprice', 'Imbalance', 'Imbal_Sign']
+         'NoTradeQ', 'PriceQ', 'Event_detail', 'Event_CLM', 'Transition',
+         'dt', 'Spread_Ticks', 'Midprice', 'Microprice', 'Imbalance',
+         'Imbal_Sign']
     # cols_output2 =\
     #     ['bid_traded', 'ask_traded', 'bid_1_qty_diff', 'bid_1_price_diff',
     #      'ask_1_price_diff', 'ask_1_qty_diff']
@@ -532,11 +540,36 @@ dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSDOL, START_TIME1,
 
 # dfDOL[dfDOL['Event'] == 'Start']
 
+# %% Plot reversion frequency
+
+
+def plot_reversion_perc(data_frame, title='', window=100, perc_format=True):
+    subdf = data_frame[['DateTime', 'Transition']].copy()\
+        .set_index('DateTime')
+    if perc_format:
+        const = 100
+    else:
+        const = 1
+    (subdf.rolling(window).mean()*const).plot(title=title, legend=False)
+
+# %% Plot reversion frequency
+
+plot_reversion_perc(dfDOL, title='DOL 100', window=100)
+plot_reversion_perc(dfDOL, title='DOL 1000', window=1000)
+plot_reversion_perc(dfDOL, title='DOL 10000', window=10000)
+plot_reversion_perc(dfWDO, title='WDO 100', window=100)
+plot_reversion_perc(dfWDO, title='WDO 1000', window=1000)
+plot_reversion_perc(dfWDO, title='WDO 10000', window=10000)
+
+
+plot_reversion_perc(dfDOL, title='DOL 10000', window=10000)
+plot_reversion_perc(dfWDO, title='WDO 10000', window=10000)
+
 # %% Transition matrix
 
 
-def transition_events(data_frame, event='Event', normalize=False):
-    # Options for event: 'Event', 'Event_CLM' and 'Event_detail'
+def transition_events(data_frame, event='Event_CLM', normalize=False):
+    # Options for event: 'Event_CLM' (default) and 'Event_detail'
     return pd.crosstab(index=data_frame[event].values,
                        columns=data_frame[event].shift(-1).values,
                        margins=True, normalize=normalize)
@@ -544,30 +577,15 @@ def transition_events(data_frame, event='Event', normalize=False):
 # %% Test transition matrix
 
 
-trans_count_DOL = transition_events(dfDOL)
-trans_count_WDO = transition_events(dfWDO)
-trans_count_DOL.to_csv(PATHOUT+'trans_count_ev_DOL.csv')
-trans_count_WDO.to_csv(PATHOUT+'trans_count_ev_WDO.csv')
-# trans_freq_DOL = transition_events(dfDOL, normalize=True)
-# trans_freq_WDO = transition_events(dfWDO, normalize=True)
-# trans_freq_DOL.to_csv(PATHOUT+'trans_freq_ev_DOL.csv')
-# trans_freq_WDO.to_csv(PATHOUT+'trans_freq_ev_WDO.csv')
-
 trans_CLM_count_DOL = transition_events(dfDOL, event='Event_CLM')
 trans_CLM_count_WDO = transition_events(dfWDO, event='Event_CLM')
-trans_CLM_count_DOL.to_csv(PATHOUT+'trans_CLM_count_ev_DOL.csv')
-trans_CLM_count_WDO.to_csv(PATHOUT+'trans_CLM_count_ev_WDO.csv')
-# trans_CLM_freq_DOL = transition_events(dfDOL, event='Event_CLM',
-#                                        normalize=True)
-# trans_CLM_freq_WDO = transition_events(dfWDO, event='Event_CLM',
-#                                        normalize=True)
-# trans_CLM_freq_DOL.to_csv(PATHOUT+'trans_CLM_freq_ev_DOL.csv')
-# trans_CLM_freq_WDO.to_csv(PATHOUT+'trans_CLM_freq_ev_WDO.csv')
+# trans_CLM_count_DOL.to_csv(PATHOUT+'trans_CLM_count_ev_DOL.csv')
+# trans_CLM_count_WDO.to_csv(PATHOUT+'trans_CLM_count_ev_WDO.csv')
 
 trans_detail_count_DOL = transition_events(dfDOL, event='Event_detail')
 trans_detail_count_WDO = transition_events(dfWDO, event='Event_detail')
-trans_detail_count_DOL.to_csv(PATHOUT+'trans_detail_count_ev_DOL.csv')
-trans_detail_count_WDO.to_csv(PATHOUT+'trans_detail_count_ev_WDO.csv')
+# trans_detail_count_DOL.to_csv(PATHOUT+'trans_detail_count_ev_DOL.csv')
+# trans_detail_count_WDO.to_csv(PATHOUT+'trans_detail_count_ev_WDO.csv')
 
 # %% Transition matrix - Pivot
 
@@ -599,16 +617,14 @@ def pivot_prev_events(data_frame, event='Event_CLM',
 
 pivot_dt_DOL = pivot_events(dfDOL, event='Event_CLM')
 pivot_imb_DOL = pivot_prev_events(dfDOL, event='Event_CLM')
-pivot_dt_DOL.to_csv(PATHOUT+'pivot_dt_DOL.csv')
-pivot_imb_DOL.to_csv(PATHOUT+'pivot_imb_DOL.csv')
+# pivot_dt_DOL.to_csv(PATHOUT+'pivot_dt_DOL.csv')
+# pivot_imb_DOL.to_csv(PATHOUT+'pivot_imb_DOL.csv')
 
 
 pivot_dt_WDO = pivot_events(dfWDO, event='Event_CLM')
 pivot_imb_WDO = pivot_prev_events(dfWDO, event='Event_CLM')
-pivot_dt_WDO.to_csv(PATHOUT+'pivot_dt_WDO.csv')
-pivot_imb_WDO.to_csv(PATHOUT+'pivot_imb_WDO.csv')
-
-
+# pivot_dt_WDO.to_csv(PATHOUT+'pivot_dt_WDO.csv')
+# pivot_imb_WDO.to_csv(PATHOUT+'pivot_imb_WDO.csv')
 
 # %% Debug Class TOB
 
@@ -742,7 +758,8 @@ pivot_imb_WDO.to_csv(PATHOUT+'pivot_imb_WDO.csv')
 #                           'ask_traded': any,
 #                           'dt': sum})
 # df3 = df3.reset_index()
-# df3 = df3.rename(columns={'trade_price': 'levels_traded', 'lvl1': 'NoTradeQ'})
+# df3 = df3.rename(columns={'trade_price': 'levels_traded',
+#     'lvl1': 'NoTradeQ'})
 
 # %% Recheck trades
 
