@@ -388,14 +388,14 @@ def plot_events_perc(data_frame, title='', window=EVENT_WINDOW,
 
 
 plot_events_perc(dfDOL, title='DOL 2017-01-19', window=10000,
-                 save_fig=False)
+                 save_fig=True)
 plot_events_perc(dfWDO, title='WDO 2017-01-19', window=10000,
-                 save_fig=False)
+                 save_fig=True)
 
 plot_events_perc(dfCME1, title='CME 2018-01-05', window=10000,
-                 save_fig=False)
+                 save_fig=True)
 plot_events_perc(dfCME2, title='CME 2018-01-04', window=10000,
-                 save_fig=False)
+                 save_fig=True)
 
 # %% Plot reversion frequency - function
 
@@ -421,20 +421,20 @@ def plot_reversion_perc(data_frame, title='', window=EVENT_WINDOW,
 
 
 plot_reversion_perc(dfDOL, title='DOL 2017-01-19', window=1000,
-                    save_fig=False)
+                    save_fig=True)
 plot_reversion_perc(dfDOL, title='DOL 2017-01-19', window=10000,
                     save_fig=True)
 plot_reversion_perc(dfWDO, title='WDO 2017-01-19', window=1000,
-                    save_fig=False)
+                    save_fig=True)
 plot_reversion_perc(dfWDO, title='WDO 2017-01-19', window=10000,
                     save_fig=True)
 
 plot_reversion_perc(dfCME1, title='CME 2018-01-05', window=1000,
-                    save_fig=False)
+                    save_fig=True)
 plot_reversion_perc(dfCME1, title='CME 2018-01-05', window=10000,
                     save_fig=True)
 plot_reversion_perc(dfCME2, title='CME 2018-01-04', window=1000,
-                    save_fig=False)
+                    save_fig=True)
 plot_reversion_perc(dfCME2, title='CME 2018-01-04', window=10000,
                     save_fig=True)
 
@@ -446,11 +446,15 @@ subdfCME1 = dfCME1[(dfCME1['DateTime'] >=
                    & (dfCME1['DateTime'] <=
                    pd.to_datetime('2018-01-05 07:45:00'))].copy()
 
-plot_reversion_perc(subdfCME1, title='CME 2018-01-05 event', window=100)
-plot_reversion_perc(subdfCME1, title='CME 2018-01-05 event', window=1000)
+plot_reversion_perc(subdfCME1, title='CME 2018-01-05 event', window=100,
+                    save_fig=True)
+plot_reversion_perc(subdfCME1, title='CME 2018-01-05 event', window=1000,
+                    save_fig=True)
 
-plot_events_perc(subdfCME1, title='CME 2018-01-05 event', window=100)
-plot_events_perc(subdfCME1, title='CME 2018-01-05 event', window=1000)
+plot_events_perc(subdfCME1, title='CME 2018-01-05 event', window=100,
+                 save_fig=True)
+plot_events_perc(subdfCME1, title='CME 2018-01-05 event', window=1000,
+                 save_fig=True)
 
 
 # %% Plot durations - function
@@ -465,30 +469,32 @@ def plot_duration(data_frame, title='', window=EVENT_WINDOW, invert=False,
         plot_title = title + ' | -Log(Duration) - Window of ' + str(window)\
             + ' events'
         plot_file = title + '_Log(Duration)_' + str(window)
-        (-np.log(roll_series)).plot(title=plot_title, legend=False)
+        (-np.log(roll_series)).plot(title=plot_title, figsize=(15, 10),
+                                    legend=False)
     else:
         plot_title = title + ' | Duration - Window of ' + str(window)\
             + ' events'
         plot_file = title + '_Duration_' + str(window)
-        (roll_series).plot(title=plot_title, legend=False)
+        (roll_series).plot(title=plot_title, figsize=(15, 10), legend=False)
     if save_fig:
         plt.savefig(PATHOUT+plot_file, dpi=200, format='png')
 
 # %% Plot durations - examples
 
 
-plot_duration(dfDOL, title='DOL 1000', window=1000)
-plot_duration(dfDOL, title='DOL 10000', window=10000)
-plot_duration(dfWDO, title='WDO 1000', window=1000)
-plot_duration(dfWDO, title='WDO 10000', window=10000)
+plot_duration(dfDOL, title='DOL 1000', window=1000, save_fig=True)
+plot_duration(dfDOL, title='DOL 10000', window=10000, save_fig=True)
+plot_duration(dfWDO, title='WDO 1000', window=1000, save_fig=True)
+plot_duration(dfWDO, title='WDO 10000', window=10000, save_fig=True)
 
 
-plot_duration(dfCME1, title='CME 2018-01-05', window=1000)
-plot_duration(dfCME1, title='CME 2018-01-05', window=10000)
-plot_duration(dfCME1, title='CME 2018-01-05', window=1000, invert=True)
+plot_duration(dfCME1, title='CME 2018-01-05', window=1000, save_fig=True)
+plot_duration(dfCME1, title='CME 2018-01-05', window=10000, save_fig=True)
+plot_duration(dfCME1, title='CME 2018-01-05', window=1000, invert=True,
+              save_fig=True)
 
-plot_duration(subdfCME1, title='CME 2018-01-05', window=100)
-plot_duration(subdfCME1, title='CME 2018-01-05', window=1000)
+plot_duration(subdfCME1, title='CME 2018-01-05', window=100, save_fig=True)
+plot_duration(subdfCME1, title='CME 2018-01-05', window=1000, save_fig=True)
 
 # %% Transition matrix
 
