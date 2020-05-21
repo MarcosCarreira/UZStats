@@ -81,6 +81,10 @@ FILE_BMF2 = 'WDOG1720170119.csv'
 FILE1 = '20180105_6EH8.zip'
 FILE2 = '20180104_6EH8.zip'
 
+# %% Save files when running the examples
+SAVECME = True
+SAVEBMF = True
+
 # %% [markdown]
 # Start function here
 
@@ -107,6 +111,20 @@ def init1(pathin, pathout, file_name, tick_value, min_order_size, start_time,
     datadfg['trade_price'] = np.where(datadfg['OrderQ'], np.nan,
                                       datadfg['last_trade'].copy())
     datadfg = datadfg.drop(columns=['OrderN', 'last_trade'])
+    # Clear trades without book update or sweep not instantaneous - function
+    def clear_invalid_trades(df, dt=min_dt):
+        dfc = df.copy()
+        dfc['Prev_Trade'] = (~dfc['OrderQ']).shift()
+        dfc['Signif_dt'] = dfc['DateTime'].diff().dt.total_seconds() > dt
+        dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt'])).shift(
+            periods=-1, fill_value=False)
+        return dfc[~dfc['Check']].copy()\
+            .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
+    # Clear trades without book update or sweep not instantaneous
+    # Ideally a fixed point iteration, but let's run it 3 times for now
+    datadfg = clear_invalid_trades(datadfg)
+    datadfg = clear_invalid_trades(datadfg)
+    datadfg = clear_invalid_trades(datadfg)
     # Levels 1 and 2 diff (flag changes in each of the first two levels)
     def lvldiff(df):
         dfc = df.copy()
@@ -124,20 +142,6 @@ def init1(pathin, pathout, file_name, tick_value, min_order_size, start_time,
     datadfg = datadfg.drop(['bid_2_qty', 'bid_2_ord', 'bid_2_price',
                             'bid_1_ord', 'ask_1_ord', 'ask_2_price',
                             'ask_2_ord', 'ask_2_qty', 'lvl2'], axis=1)
-    # Clear trades without book update or sweep not instantaneous - function
-    def clear_invalid_trades(df, dt=min_dt):
-        dfc = df.copy()
-        dfc['Prev_Trade'] = (~dfc['OrderQ']).shift()
-        dfc['Signif_dt'] = dfc['DateTime'].diff().dt.total_seconds() > dt
-        dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt'])).shift(
-            periods=-1, fill_value=False)
-        return dfc[~dfc['Check']].copy()\
-            .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
-    # Clear trades without book update or sweep not instantaneous
-    # Ideally a fixed point iteration, but let's run it 3 times for now
-    datadfg = clear_invalid_trades(datadfg)
-    datadfg = clear_invalid_trades(datadfg)
-    datadfg = clear_invalid_trades(datadfg)
     datadfg['bid_traded'] = datadfg['bid_1_price'].copy().fillna(
         method='ffill') >= datadfg['trade_price']
     datadfg['ask_traded'] = datadfg['ask_1_price'].copy().fillna(
@@ -193,7 +197,7 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
                          'bid_traded': any, 'ask_traded': any, 'dt': sum})
     dfagg = dfagg.reset_index()
     dfagg = dfagg.rename(columns={'trade_price': 'levels_traded',
-                                  'lvl1': 'NoTradeQ'})
+                                  'lvl1': 'Level1Q'})
     # Some recheck for invalid trades might be needed here
     # The complement of the function below should be run fixed-point style
     # def find_invalid_trades_again(df, dt):
@@ -213,7 +217,7 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
     dfstates = dfagg2.agg({'DateTime': 'first', 'bid_1_qty': sum,
                            'bid_1_price': sum, 'levels_traded': sum,
                            'trade_qty': sum, 'ask_1_price': sum,
-                           'ask_1_qty': sum, 'NoTradeQ': any,
+                           'ask_1_qty': sum, 'Level1Q': any, 'OrderQ': any,
                            'bid_traded': any, 'ask_traded': any, 'dt': sum})
     dfstates = dfstates.reset_index()
     # dfstates = dfstates.drop(['OrderN', 'OrderQ'], axis=1)
@@ -251,11 +255,11 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
         (dfstates['ask_1_price_diff'] < 0)),
         (dfstates['bid_1_qty_diff'] < 0) |
         (dfstates['ask_1_qty_diff'] < 0) |
-        (~dfstates['NoTradeQ'])
+        (~dfstates['Level1Q'])
         )
     # AskQ column (was the event on the Ask side?)
     # Trades that take out levels but leave an unfilled balance: Cons sign
-    dfstates['AskQ'] = np.where(dfstates['NoTradeQ'], (
+    dfstates['AskQ'] = np.where(dfstates['Level1Q'], (
         (dfstates['ask_1_price_diff'] != 0) |
         (dfstates['ask_1_qty_diff'] != 0)),
         dfstates['ask_traded']
@@ -266,7 +270,7 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
     # Classify state
     dfstates['event_code'] =\
         dfstates['AskQ'] * 8 + dfstates['ConsQ'] * 4 +\
-        dfstates['NoTradeQ'] * 2 + dfstates['PriceQ'] * 1
+        dfstates['Level1Q'] * 2 + dfstates['PriceQ'] * 1
     event_dict = {
         0: 'Start', 1: 'PLb', 2: 'Lb', 3: 'Pb+', 4: 'Mb', 5: 'PbM-', 6: 'Cb',
         7: 'PbC-', 8: 'Start', 9: 'PLa', 10: 'La', 11: 'Pa-', 12: 'Ma',
@@ -294,8 +298,8 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
         dfstates.to_csv(pathout+file_name[:-4]+'_df_states.csv')
     cols_output1 =\
         ['DateTime', 'OrderId', 'bid_1_qty', 'bid_1_price', 'ask_1_price',
-         'ask_1_qty', 'trade_qty', 'levels_traded', 'AskQ', 'ConsQ',
-         'NoTradeQ', 'PriceQ', 'Event_detail', 'Event_CLM', 'Transition',
+         'ask_1_qty', 'trade_qty', 'levels_traded', 'OrderQ', 'AskQ', 'ConsQ',
+         'Level1Q', 'PriceQ', 'Event_detail', 'Event_CLM', 'Transition',
          'dt', 'Spread_Ticks', 'Midprice', 'Microprice', 'Imbalance',
          'Imbal_Sign']
     # cols_output2 =\
@@ -324,18 +328,17 @@ def initall(pathin, pathout, file_name, tick_value, min_order_size,
 # %% Test init functions
 
 
-# dfDOLo = init1(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
-#                 END_TIME1, 'BMF', MINDT1, False)
+
 dfDOL = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
-                END_TIME1, 'BMF', MINDT1, False)
+                END_TIME1, 'BMF', MINDT1, SAVEBMF)
 dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSWDO, START_TIME1,
-                END_TIME1, 'BMF', MINDT1, False)
+                END_TIME1, 'BMF', MINDT1, SAVEBMF)
 
 
 dfCME1 = initall(PATHIN, PATHOUT, FILE1, TS, MOSCME, START_TIME, END_TIME,
-                  'CME', MINDTCME, False)
+                  'CME', MINDTCME, SAVECME)
 dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
-                  'CME', MINDTCME, False)
+                  'CME', MINDTCME, SAVECME)
 
 # dftest30 = dftest.head(30)
 
@@ -350,6 +353,11 @@ def ob_stats(data_frame, quant_max=0.98):
     data_framec = data_frame.copy()
     qmax = np.max(data_framec[['bid_1_qty', 'ask_1_qty']].quantile(quant_max))
     print(data_framec[['bid_1_qty', 'ask_1_qty', 'Imbalance']].describe())
+    data_framec_tr = data_framec[data_framec['trade_qty'] > 0].copy()
+    print('Trades - mean')
+    print(data_framec_tr[['trade_qty', 'levels_traded']].mean())
+    print('Trades - median')
+    print(data_framec_tr[['trade_qty', 'levels_traded']].median())
     sns.jointplot('bid_1_qty', 'ask_1_qty', data=data_framec, kind='hex',
                   xlim=(0, qmax), ylim=(0, qmax))
     plt.show()
@@ -382,20 +390,20 @@ def plot_events_perc(data_frame, title='', window=EVENT_WINDOW,
         .plot(title=plot_title, figsize=(15, 10))
     plt.legend(loc='center right', bbox_to_anchor=(1.1, 0.5))
     if save_fig:
-        plt.savefig(PATHOUT+plot_file, dpi=200, format='png')
+        plt.savefig(PATHOUT+plot_file+'.png', dpi=200, format='png')
 
 # %% Plot events' frequency - examples
 
 
 plot_events_perc(dfDOL, title='DOL 2017-01-19', window=10000,
-                 save_fig=True)
+                 save_fig=SAVEBMF)
 plot_events_perc(dfWDO, title='WDO 2017-01-19', window=10000,
-                 save_fig=True)
+                 save_fig=SAVEBMF)
 
 plot_events_perc(dfCME1, title='CME 2018-01-05', window=10000,
-                 save_fig=True)
+                 save_fig=SAVECME)
 plot_events_perc(dfCME2, title='CME 2018-01-04', window=10000,
-                 save_fig=True)
+                 save_fig=SAVECME)
 
 # %% Plot reversion frequency - function
 
@@ -414,29 +422,28 @@ def plot_reversion_perc(data_frame, title='', window=EVENT_WINDOW,
     (subdf.rolling(window).mean()*const).plot(
         title=plot_title, figsize=(15, 10), legend=False)
     if save_fig:
-        plt.savefig(PATHOUT+plot_file, dpi=200, format='png')
+        plt.savefig(PATHOUT+plot_file+'.png', dpi=200, format='png')
 
 # %% Plot reversion frequency - examples
 
 
-
 plot_reversion_perc(dfDOL, title='DOL 2017-01-19', window=1000,
-                    save_fig=True)
+                    save_fig=SAVEBMF)
 plot_reversion_perc(dfDOL, title='DOL 2017-01-19', window=10000,
-                    save_fig=True)
+                    save_fig=SAVEBMF)
 plot_reversion_perc(dfWDO, title='WDO 2017-01-19', window=1000,
-                    save_fig=True)
+                    save_fig=SAVEBMF)
 plot_reversion_perc(dfWDO, title='WDO 2017-01-19', window=10000,
-                    save_fig=True)
+                    save_fig=SAVEBMF)
 
 plot_reversion_perc(dfCME1, title='CME 2018-01-05', window=1000,
-                    save_fig=True)
+                    save_fig=SAVECME)
 plot_reversion_perc(dfCME1, title='CME 2018-01-05', window=10000,
-                    save_fig=True)
+                    save_fig=SAVECME)
 plot_reversion_perc(dfCME2, title='CME 2018-01-04', window=1000,
-                    save_fig=True)
+                    save_fig=SAVECME)
 plot_reversion_perc(dfCME2, title='CME 2018-01-04', window=10000,
-                    save_fig=True)
+                    save_fig=SAVECME)
 
 # %% Plot reversion frequency - examples - zoom in event
 
@@ -477,24 +484,28 @@ def plot_duration(data_frame, title='', window=EVENT_WINDOW, invert=False,
         plot_file = title + '_Duration_' + str(window)
         (roll_series).plot(title=plot_title, figsize=(15, 10), legend=False)
     if save_fig:
-        plt.savefig(PATHOUT+plot_file, dpi=200, format='png')
+        plt.savefig(PATHOUT+plot_file+'.png', dpi=200, format='png')
 
 # %% Plot durations - examples
 
 
-plot_duration(dfDOL, title='DOL 1000', window=1000, save_fig=True)
-plot_duration(dfDOL, title='DOL 10000', window=10000, save_fig=True)
-plot_duration(dfWDO, title='WDO 1000', window=1000, save_fig=True)
-plot_duration(dfWDO, title='WDO 10000', window=10000, save_fig=True)
+plot_duration(dfDOL, title='DOL 1000', window=1000, save_fig=SAVEBMF)
+plot_duration(dfDOL, title='DOL 10000', window=10000, save_fig=SAVEBMF)
+plot_duration(dfWDO, title='WDO 1000', window=1000, save_fig=SAVEBMF)
+plot_duration(dfWDO, title='WDO 10000', window=10000, save_fig=SAVEBMF)
 
 
-plot_duration(dfCME1, title='CME 2018-01-05', window=1000, save_fig=True)
-plot_duration(dfCME1, title='CME 2018-01-05', window=10000, save_fig=True)
+plot_duration(dfCME1, title='CME 2018-01-05', window=1000,
+              save_fig=SAVECME)
+plot_duration(dfCME1, title='CME 2018-01-05', window=10000,
+              save_fig=SAVECME)
 plot_duration(dfCME1, title='CME 2018-01-05', window=1000, invert=True,
-              save_fig=True)
+              save_fig=SAVECME)
 
-plot_duration(subdfCME1, title='CME 2018-01-05', window=100, save_fig=True)
-plot_duration(subdfCME1, title='CME 2018-01-05', window=1000, save_fig=True)
+plot_duration(subdfCME1, title='CME 2018-01-05', window=100,
+              save_fig=SAVECME)
+plot_duration(subdfCME1, title='CME 2018-01-05', window=1000,
+              save_fig=SAVECME)
 
 # %% Transition matrix
 
@@ -510,13 +521,15 @@ def transition_events(data_frame, event='Event_CLM', normalize=False):
 
 trans_CLM_count_DOL = transition_events(dfDOL, event='Event_CLM')
 trans_CLM_count_WDO = transition_events(dfWDO, event='Event_CLM')
-trans_CLM_count_DOL.to_csv(PATHOUT+'trans_CLM_count_ev_DOL.csv')
-trans_CLM_count_WDO.to_csv(PATHOUT+'trans_CLM_count_ev_WDO.csv')
+if SAVEBMF:
+    trans_CLM_count_DOL.to_csv(PATHOUT+'trans_CLM_count_ev_DOL.csv')
+    trans_CLM_count_WDO.to_csv(PATHOUT+'trans_CLM_count_ev_WDO.csv')
 
 trans_detail_count_DOL = transition_events(dfDOL, event='Event_detail')
 trans_detail_count_WDO = transition_events(dfWDO, event='Event_detail')
-trans_detail_count_DOL.to_csv(PATHOUT+'trans_detail_count_ev_DOL.csv')
-trans_detail_count_WDO.to_csv(PATHOUT+'trans_detail_count_ev_WDO.csv')
+if SAVECME:
+    trans_detail_count_DOL.to_csv(PATHOUT+'trans_detail_count_ev_DOL.csv')
+    trans_detail_count_WDO.to_csv(PATHOUT+'trans_detail_count_ev_WDO.csv')
 
 # %% Transition matrix - Pivot
 
@@ -546,16 +559,25 @@ def pivot_prev_events(data_frame, event='Event_CLM', piv_values='Imbalance',
 # %% Test Pivot
 
 
-pivot_dt_DOL = pivot_events(dfDOL, event='Event_CLM')
-pivot_imb_DOL = pivot_prev_events(dfDOL, event='Event_CLM')
-pivot_dt_DOL.to_csv(PATHOUT+'pivot_dt_DOL.csv')
-pivot_imb_DOL.to_csv(PATHOUT+'pivot_imb_DOL.csv')
+pivot_dt_detail_DOL = pivot_events(dfDOL, event='Event_detail')
+pivot_imb_detail_DOL = pivot_prev_events(dfDOL, event='Event_detail')
+pivot_dt_detail_DOL.to_csv(PATHOUT+'pivot_dt_detail_DOL.csv')
+pivot_imb_detail_DOL.to_csv(PATHOUT+'pivot_imb_detail_DOL.csv')
 
+pivot_dt_CLM_DOL = pivot_events(dfDOL, event='Event_CLM')
+pivot_imb_CLM_DOL = pivot_prev_events(dfDOL, event='Event_CLM')
+pivot_dt_CLM_DOL.to_csv(PATHOUT+'pivot_dt_CLM_DOL.csv')
+pivot_imb_CLM_DOL.to_csv(PATHOUT+'pivot_imb_CLM_DOL.csv')
 
-pivot_dt_WDO = pivot_events(dfWDO, event='Event_CLM')
-pivot_imb_WDO = pivot_prev_events(dfWDO, event='Event_CLM')
-pivot_dt_WDO.to_csv(PATHOUT+'pivot_dt_WDO.csv')
-pivot_imb_WDO.to_csv(PATHOUT+'pivot_imb_WDO.csv')
+pivot_dt_detail_WDO = pivot_events(dfWDO, event='Event_detail')
+pivot_imb_detail_WDO = pivot_prev_events(dfWDO, event='Event_detail')
+pivot_dt_detail_WDO.to_csv(PATHOUT+'pivot_dt_detail_WDO.csv')
+pivot_imb_detail_WDO.to_csv(PATHOUT+'pivot_imb_detail_WDO.csv')
+
+pivot_dt_CLM_WDO = pivot_events(dfWDO, event='Event_CLM')
+pivot_imb_CLM_WDO = pivot_prev_events(dfWDO, event='Event_CLM')
+pivot_dt_CLM_WDO.to_csv(PATHOUT+'pivot_dt_CLM_WDO.csv')
+pivot_imb_CLM_WDO.to_csv(PATHOUT+'pivot_imb_CLM_WDO.csv')
 
 # %% From now on previous code do not uncomment
 
