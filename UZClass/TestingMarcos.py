@@ -151,31 +151,6 @@ def init1(pathin, pathout, file_name, tick_value, min_order_size, start_time,
         datadfg.to_csv(pathout+file_name[:-4]+'_df.csv')
     return datadfg
 
-# %% Debug init2
-
-
-# datadfDOL = dfDOLo.copy().loc[:2100]
-# datadfDOL['OrderN'] = datadfDOL['OrderQ'].copy().cumsum()
-# datadfDOL = datadfDOL[datadfDOL['OrderN'] > 0].copy()
-# datadfDOL['OrderN'] = datadfDOL['OrderN']*(-2*datadfDOL['OrderQ']+1)
-# datadfgDOL = datadfDOL.groupby(['DateTime', 'OrderN'], sort=False)
-# dfaggDOL = datadfgDOL.agg({'OrderQ': all, 'bid_1_qty': sum, 'bid_1_price': sum,
-#                            'trade_price': 'count', 'trade_qty': sum,
-#                            'ask_1_price': sum, 'ask_1_qty': sum, 'lvl1': any,
-#                            'bid_traded': any, 'ask_traded': any, 'dt': sum})
-# dfaggDOL = dfaggDOL.reset_index()
-# dfaggDOL = dfaggDOL.rename(columns={'trade_price': 'levels_traded',
-#                                     'lvl1': 'NoTradeQ'})
-# dfaggDOL['OrderId'] = np.abs(dfaggDOL['OrderN']) + \
-#     (1 + np.sign(dfaggDOL['OrderN']))/2
-# dfagg2DOL = dfaggDOL.groupby(['OrderId'])
-# dfstatesDOL = dfagg2DOL.agg({'DateTime': 'first', 'bid_1_qty': sum,
-#                              'bid_1_price': sum, 'levels_traded': sum,
-#                              'trade_qty': sum, 'ask_1_price': sum,
-#                              'ask_1_qty': sum, 'NoTradeQ': any,
-#                              'bid_traded': any, 'ask_traded': any, 'dt': sum})
-# dfstatesDOL = dfstatesDOL.reset_index()
-
 # %% New init for Armada TOB - Part 2
 
 
@@ -336,15 +311,162 @@ dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSWDO, START_TIME1,
 
 
 dfCME1 = initall(PATHIN, PATHOUT, FILE1, TS, MOSCME, START_TIME, END_TIME,
-                  'CME', MINDTCME, SAVECME)
+                 'CME', MINDTCME, SAVECME)
 dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
-                  'CME', MINDTCME, SAVECME)
+                 'CME', MINDTCME, SAVECME)
 
 # dftest30 = dftest.head(30)
 
 # %% Find Starts
 
+
 # dfDOL[dfDOL['Event'] == 'Start']
+
+# %% Intensities - pivots function
+
+
+def pivots_intensities(data_frame, max_q=20, title=''):
+    data_framec = data_frame.copy()
+    data_framec['nextEvent'] = data_framec['Event_detail'].shift(-1).copy()
+    data_framec_bid_count = pd.pivot_table(
+        data_framec, values='nextEvent', index=['bid_1_qty'],
+        columns='Event_detail', aggfunc='count', margins=False).fillna(0)
+    data_framec_ask_count = pd.pivot_table(
+        data_framec, values='nextEvent', index=['ask_1_qty'],
+        columns='Event_detail', aggfunc='count', margins=False).fillna(0)
+    data_framec_bid_dt = pd.pivot_table(
+        data_framec, values='dt', index=['bid_1_qty'],
+        columns='Event_detail', aggfunc=np.sum, margins=False).fillna(0)
+    data_framec_ask_dt = pd.pivot_table(
+        data_framec, values='dt', index=['ask_1_qty'],
+        columns='Event_detail', aggfunc=np.sum, margins=False).fillna(0)
+
+    def cols_intens(data_frame):
+        data_framec = data_frame.copy()
+        data_framec['ProvA'] = data_framec['La'] + data_framec['Pa-']
+        data_framec['ProvB'] = data_framec['Lb'] + data_framec['Pb+']
+        data_framec['DeplA'] = data_framec['PaC+'] + data_framec['PaM+']
+        data_framec['DeplB'] = data_framec['PbC-'] + data_framec['PbM-']
+        data_framec['ConsA'] = data_framec['Ma'] + data_framec['Ca'] +\
+            data_framec['DeplA']
+        data_framec['ConsB'] = data_framec['Mb'] + data_framec['Cb'] +\
+            data_framec['DeplB']
+        data_framec['CancA'] = data_framec['PaC+'] + data_framec['Ca']
+        data_framec['CancB'] = data_framec['PbC-'] + data_framec['Cb']
+        data_framec['TradA'] = data_framec['Ma'] + data_framec['PaM+']
+        data_framec['TradB'] = data_framec['Mb'] + data_framec['PbM-']
+        data_framec['Provision'] = data_framec['ProvA'] +\
+            data_framec['ProvB']
+        data_framec['Consumption'] = data_framec['ConsA'] +\
+            data_framec['ConsB']
+        data_framec['Cancel'] = data_framec['CancA'] +\
+            data_framec['CancB']
+        data_framec['Trade'] = data_framec['TradA'] +\
+            data_framec['TradB']
+        return data_framec
+
+    data_framec_bid_count = cols_intens(data_framec_bid_count)
+    data_framec_ask_count = cols_intens(data_framec_ask_count)
+    data_framec_bid_dt = cols_intens(data_framec_bid_dt)
+    data_framec_ask_dt = cols_intens(data_framec_ask_dt)
+
+    def average_bid_ask(data_frame_bid, data_frame_ask):
+        cols_df = ['ProvA', 'ProvB', 'ConsA', 'ConsB', 'DeplA', 'DeplB',
+                   'CancA', 'CancB', 'TradA', 'TradB', 'Provision',
+                   'Consumption', 'Cancel', 'Trade']
+        cols_bid = {'ProvA': 'Prov-', 'ProvB': 'Prov+', 'ConsA': 'Cons-',
+                    'ConsB': 'Cons+', 'DeplA': 'Depl-', 'DeplB': 'Depl+',
+                    'CancA': 'Canc-', 'CancB': 'Canc+', 'TradA': 'Trad-',
+                    'TradB': 'Trad+'}
+        cols_ask = {'ProvA': 'Prov+', 'ProvB': 'Prov-', 'ConsA': 'Cons+',
+                    'ConsB': 'Cons-', 'DeplA': 'Depl+', 'DeplB': 'Depl-',
+                    'CancA': 'Canc+', 'CancB': 'Canc-', 'TradA': 'Trad+',
+                    'TradB': 'Trad-'}
+        data_frame_bidc = data_frame_bid[cols_df].copy().rename(
+            columns=cols_bid)
+        data_frame_askc = data_frame_ask[cols_df].copy().rename(
+            columns=cols_ask)
+        data_frame_avg = (data_frame_bidc.add(data_frame_askc))/2
+        return data_frame_avg
+
+    data_framec_count = average_bid_ask(data_framec_bid_count,
+                                        data_framec_ask_count)
+    data_framec_dt = average_bid_ask(data_framec_bid_dt,
+                                     data_framec_ask_dt)
+    data_framec_intens = data_framec_count / data_framec_dt
+    data_framec_dur = data_framec_dt / data_framec_count
+
+    def plot_intensity(data_frame, cols, title_plot):
+        sub_df_plot = data_frame[cols].copy().iloc[:max_q]
+        sub_df_plot.plot(title=title + title_plot, figsize=(15, 10))
+
+    # cols_CP = ['Consumption', 'Provision']
+    # title_CP_count = ' - Events and sizes of the queue - count'
+    # plot_intensity(data_framec_count, cols=cols_CP,
+    #                title_plot=title_CP_count)
+    # title_CP_int = ' - Events and sizes of the queue - intensity'
+    # plot_intensity(data_framec_intens, cols=cols_CP,
+    #                title_plot=title_CP_int)
+    # title_CP_dur = ' - Events and sizes of the queue - durations'
+    # plot_intensity(data_framec_dur, cols=cols_CP,
+    #                title_plot=title_CP_dur)
+
+    cols_CLM = ['Cancel', 'Provision', 'Trade']
+    title_CLM_count = ' - Events and sizes of the queue - count'
+    plot_intensity(data_framec_count, cols=cols_CLM,
+                   title_plot=title_CLM_count)
+    title_CLM_int = ' - Events and sizes of the queue - intensity'
+    plot_intensity(data_framec_intens, cols=cols_CLM,
+                   title_plot=title_CLM_int)
+    title_CLM_dur = ' - Events and sizes of the queue - durations'
+    plot_intensity(data_framec_dur, cols=cols_CLM,
+                   title_plot=title_CLM_dur)
+
+    # cols_CPall = ['Cons+', 'Prov+', 'Cons-', 'Prov-']
+    # title_CPall_count = ' - Events and sizes of the queue - count by side'
+    # plot_intensity(data_framec_count, cols=cols_CPall,
+    #                title_plot=title_CPall_count)
+    # title_CPall_int = ' - Events and sizes of the queue - intensity by side'
+    # plot_intensity(data_framec_intens, cols=cols_CPall,
+    #                title_plot=title_CPall_int)
+    # title_CPall_dur = ' - Events and sizes of the queue - durations by side'
+    # plot_intensity(data_framec_dur, cols=cols_CPall,
+    #                title_plot=title_CPall_dur)
+
+    cols_CLMall = ['Canc+', 'Prov+', 'Trad+', 'Canc-', 'Prov-', 'Trad-']
+    title_CLMall_count = ' - Events and sizes of the queue - count - CLM'
+    plot_intensity(data_framec_count, cols=cols_CLMall,
+                   title_plot=title_CLMall_count)
+    title_CLMall_int = ' - Events and sizes of the queue - intensity - CLM'
+    plot_intensity(data_framec_intens, cols=cols_CLMall,
+                   title_plot=title_CLMall_int)
+    title_CLMall_dur = ' - Events and sizes of the queue - durations - CLM'
+    plot_intensity(data_framec_dur, cols=cols_CLMall,
+                   title_plot=title_CLMall_dur)
+
+# %% Intensity examples
+
+
+pivots_intensities(dfDOL, 25, 'DOL 2017-01-19')
+
+pivots_intensities(dfWDO, 60, 'WDO 2017-01-19')
+
+pivots_intensities(dfCME1, 25, 'CME 2018-01-05')
+
+pivots_intensities(dfCME2, 25, 'CME 2018-01-04')
+
+# %% Imbalance prediction
+
+# dfDOL2 = dfDOL.copy()
+# dfDOL2['nextdMP'] = dfDOL2['Microprice'].diff().shift(-1).copy()
+# dfDOL2['nextEvent'] = dfDOL2['Event_detail'].shift(-1).copy()
+
+# dfpredDOL = pd.pivot_table(dfDOL2, values='nextdMP', index=['bid_1_qty'],
+#                            columns='Event_detail', aggfunc=np.mean,
+#                            margins=True)
+
+# sns.relplot(x='bid_1_qty', y='nextdMP', col='Imbal_Sign', row='Event_detail',
+#             data=dfDOL2)
 
 # %% Statistics of Qty - function
 
