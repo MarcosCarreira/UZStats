@@ -39,6 +39,11 @@ from armadaClassMarcos import Armada_Data as ad
 
 # import armadauzdf as mcsc
 
+# %% Tick Imports
+
+from tick.hawkes import HawkesConditionalLaw
+from tick.plot import plot_hawkes_kernel_norms
+
 # %% Pandas Options
 # pd.set_option('mode.chained_assignment', None)
 pd.options.display.max_columns = 30
@@ -225,20 +230,17 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
         (dfstates['ask_1_price_diff'] != 0)
     # ConsQ column (was there a comsumption of liquidity?)
     # Trades that take out levels but leave an unfilled balance: False
-    dfstates['ConsQ'] = np.where(dfstates['PriceQ'], ~(
-        (dfstates['bid_1_price_diff'] > 0) |
-        (dfstates['ask_1_price_diff'] < 0)),
-        (dfstates['bid_1_qty_diff'] < 0) |
-        (dfstates['ask_1_qty_diff'] < 0) |
-        (~dfstates['Level1Q'])
-        )
+    dfstates['ConsQ'] = np.where(
+        dfstates['PriceQ'], ~((dfstates['bid_1_price_diff'] > 0) |
+                              (dfstates['ask_1_price_diff'] < 0)),
+        (dfstates['bid_1_qty_diff'] < 0) | (dfstates['ask_1_qty_diff'] < 0) |
+        (~dfstates['Level1Q']))
     # AskQ column (was the event on the Ask side?)
     # Trades that take out levels but leave an unfilled balance: Cons sign
-    dfstates['AskQ'] = np.where(dfstates['Level1Q'], (
-        (dfstates['ask_1_price_diff'] != 0) |
-        (dfstates['ask_1_qty_diff'] != 0)),
-        dfstates['ask_traded']
-        )
+    dfstates['AskQ'] = np.where(
+        dfstates['Level1Q'], ((dfstates['ask_1_price_diff'] != 0) |
+                              (dfstates['ask_1_qty_diff'] != 0)),
+        dfstates['ask_traded'])
     dfstates.at[0, 'PriceQ'] = False
     dfstates.at[0, 'ConsQ'] = False
     dfstates.at[0, 'AskQ'] = False
@@ -253,18 +255,24 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
     dfstates['Event_detail'] = dfstates['event_code'].map(event_dict)
     dfstates['Event_detail_Prev'] = dfstates['Event_detail'].copy().shift()\
         .fillna('La')
-    event_dict_CLM = {
-        0: 'La', 1: 'Lb', 2: 'Lb', 3: 'Lb', 4: 'Mb', 5: 'Mb', 6: 'Cb',
-        7: 'Cb', 8: 'Lb', 9: 'La', 10: 'La', 11: 'La', 12: 'Ma',
-        13: 'Ma', 14: 'Ca', 15: 'Ca'}
-    dfstates['Event_CLM'] = dfstates['event_code'].map(event_dict_CLM)
-    dfstates['Event_CLM_Prev'] = dfstates['Event_CLM'].copy().shift()\
-        .fillna('La')
+    event_dict_12 = {
+        0: 'L_B', 1: 'Dm_B', 2: 'L_B', 3: 'I_B', 4: 'M_B', 5: 'Dm_B',
+        6: 'C_B', 7: 'Dc_B', 8: 'L_A', 9: 'Dm_A', 10: 'L_A', 11: 'I_A',
+        12: 'M_A', 13: 'Dm_A', 14: 'C_A', 15: 'Dc_A'}
+    dfstates['Event_12'] = dfstates['event_code'].map(event_dict_12)
+    # event_dict_CLM = {
+    #     0: 'La', 1: 'Lb', 2: 'Lb', 3: 'Lb', 4: 'Mb', 5: 'Mb', 6: 'Cb',
+    #     7: 'Cb', 8: 'Lb', 9: 'La', 10: 'La', 11: 'La', 12: 'Ma',
+    #     13: 'Ma', 14: 'Ca', 15: 'Ca'}
+    # dfstates['Event_CLM'] = dfstates['event_code'].map(event_dict_CLM)
+    # dfstates['Event_CLM_Prev'] = dfstates['Event_CLM'].copy().shift()\
+    #     .fillna('La')
     event_dict_consec = {
         'Ca': False, 'Cb': True, 'La': True, 'Lb': False, 'Ma': False,
-        'Mb': True}
-    dfstates['Transition'] = dfstates['Event_CLM'].map(event_dict_consec)\
-        ^ dfstates['Event_CLM_Prev'].map(event_dict_consec)
+        'Mb': True, 'PLa': False, 'PLb': True, 'Pa-': True, 'PaC+': False,
+        'PaM+': False, 'Pb+': False, 'PbC-': True, 'PbM-': True}
+    dfstates['Reversion'] = dfstates['Event_detail'].map(event_dict_consec)\
+        ^ dfstates['Event_detail_Prev'].map(event_dict_consec)
     # dfstates['event_code_short'] =\
     #     dfstates['AskQ'] * 2 + dfstates['ConsQ'] * 1
     # event_dict_short = {0: 'Ib', 1: 'Cb', 2: 'Ia', 3: 'Ca'}
@@ -273,14 +281,10 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
         dfstates.to_csv(pathout+file_name[:-4]+'_df_states.csv')
     cols_output1 =\
         ['DateTime', 'OrderId', 'bid_1_qty', 'bid_1_price', 'ask_1_price',
-         'ask_1_qty', 'trade_qty', 'levels_traded', 'OrderQ', 'AskQ', 'ConsQ',
-         'Level1Q', 'PriceQ', 'Event_detail', 'Event_CLM', 'Transition',
-         'dt', 'Spread_Ticks', 'Midprice', 'Microprice', 'Imbalance',
-         'Imbal_Sign']
-    # cols_output2 =\
-    #     ['bid_traded', 'ask_traded', 'bid_1_qty_diff', 'bid_1_price_diff',
-    #      'ask_1_price_diff', 'ask_1_qty_diff']
-    # dfstates = dfstates[cols_output1 + cols_output2]
+         'ask_1_qty', 'trade_qty', 'levels_traded', 'AskQ', 'ConsQ',
+         'Level1Q', 'PriceQ', 'Event_detail', 'Event_detail_Prev', 'Event_12',
+         'Reversion', 'dt', 'Spread_Ticks', 'Midprice', 'Microprice',
+         'Imbalance', 'Imbal_Sign']
     dfstates = dfstates[cols_output1]
     return dfstates
 
@@ -303,19 +307,15 @@ def initall(pathin, pathout, file_name, tick_value, min_order_size,
 # %% Test init functions
 
 
-
 dfDOL = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
                 END_TIME1, 'BMF', MINDT1, SAVEBMF)
 dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSWDO, START_TIME1,
                 END_TIME1, 'BMF', MINDT1, SAVEBMF)
 
-
-dfCME1 = initall(PATHIN, PATHOUT, FILE1, TS, MOSCME, START_TIME, END_TIME,
-                 'CME', MINDTCME, SAVECME)
-dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
-                 'CME', MINDTCME, SAVECME)
-
-# dftest30 = dftest.head(30)
+# dfCME1 = initall(PATHIN, PATHOUT, FILE1, TS, MOSCME, START_TIME, END_TIME,
+#                  'CME', MINDTCME, SAVECME)
+# dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
+#                  'CME', MINDTCME, SAVECME)
 
 # %% Find Starts
 
@@ -325,24 +325,13 @@ dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
 # %% Intensities - pivots function
 
 
-def pivots_intensities(data_frame, max_q=20, title=''):
+def pivots_intensities(data_frame, max_q=20, plot_q=True, title=''):
     data_framec = data_frame.copy()
-    data_framec['nextEvent'] = data_framec['Event_detail'].shift(-1).copy()
-    data_framec_bid_count = pd.pivot_table(
-        data_framec, values='nextEvent', index=['bid_1_qty'],
-        columns='Event_detail', aggfunc='count', margins=False).fillna(0)
-    data_framec_ask_count = pd.pivot_table(
-        data_framec, values='nextEvent', index=['ask_1_qty'],
-        columns='Event_detail', aggfunc='count', margins=False).fillna(0)
-    data_framec_bid_dt = pd.pivot_table(
-        data_framec, values='dt', index=['bid_1_qty'],
-        columns='Event_detail', aggfunc=np.sum, margins=False).fillna(0)
-    data_framec_ask_dt = pd.pivot_table(
-        data_framec, values='dt', index=['ask_1_qty'],
-        columns='Event_detail', aggfunc=np.sum, margins=False).fillna(0)
+    data_frame_reinf = data_framec[~data_framec['Reversion']].copy()
+    data_frame_rever = data_framec[data_framec['Reversion']].copy()
 
-    def cols_intens(data_frame):
-        data_framec = data_frame.copy()
+    def cols_intens(sub_data_frame):
+        data_framec = sub_data_frame.copy()
         data_framec['ProvA'] = data_framec['La'] + data_framec['Pa-']
         data_framec['ProvB'] = data_framec['Lb'] + data_framec['Pb+']
         data_framec['DeplA'] = data_framec['PaC+'] + data_framec['PaM+']
@@ -365,10 +354,28 @@ def pivots_intensities(data_frame, max_q=20, title=''):
             data_framec['TradB']
         return data_framec
 
-    data_framec_bid_count = cols_intens(data_framec_bid_count)
-    data_framec_ask_count = cols_intens(data_framec_ask_count)
-    data_framec_bid_dt = cols_intens(data_framec_bid_dt)
-    data_framec_ask_dt = cols_intens(data_framec_ask_dt)
+    def create_pivots(sub_data_frame):
+        sub_df_bid_count = cols_intens(pd.pivot_table(
+            sub_data_frame, values='Reversion', index=['bid_1_qty'],
+            columns='Event_detail', aggfunc='count', margins=False).fillna(0))
+        sub_df_ask_count = cols_intens(pd.pivot_table(
+            sub_data_frame, values='Reversion', index=['ask_1_qty'],
+            columns='Event_detail', aggfunc='count', margins=False).fillna(0))
+        sub_df_bid_dt = cols_intens(pd.pivot_table(
+            sub_data_frame, values='dt', index=['bid_1_qty'],
+            columns='Event_detail', aggfunc=np.sum, margins=False).fillna(0))
+        sub_df_ask_dt = cols_intens(pd.pivot_table(
+            sub_data_frame, values='dt', index=['ask_1_qty'],
+            columns='Event_detail', aggfunc=np.sum, margins=False).fillna(0))
+        return [sub_df_bid_count, sub_df_ask_count, sub_df_bid_dt,
+                sub_df_ask_dt]
+
+    df_all_bid_count, df_all_ask_count, df_all_bid_dt, df_all_ask_dt =\
+        create_pivots(data_framec)
+    df_rein_bid_count, df_rein_ask_count, df_rein_bid_dt, df_rein_ask_dt =\
+        create_pivots(data_frame_reinf)
+    df_reve_bid_count, df_reve_ask_count, df_reve_bid_dt, df_reve_ask_dt =\
+        create_pivots(data_frame_rever)
 
     def average_bid_ask(data_frame_bid, data_frame_ask):
         cols_df = ['ProvA', 'ProvB', 'ConsA', 'ConsB', 'DeplA', 'DeplB',
@@ -389,71 +396,265 @@ def pivots_intensities(data_frame, max_q=20, title=''):
         data_frame_avg = (data_frame_bidc.add(data_frame_askc))/2
         return data_frame_avg
 
-    data_framec_count = average_bid_ask(data_framec_bid_count,
-                                        data_framec_ask_count)
-    data_framec_dt = average_bid_ask(data_framec_bid_dt,
-                                     data_framec_ask_dt)
-    data_framec_intens = data_framec_count / data_framec_dt
-    data_framec_dur = data_framec_dt / data_framec_count
+    df_all_count = average_bid_ask(df_all_bid_count, df_all_ask_count)
+    df_all_dt = average_bid_ask(df_all_bid_dt, df_all_ask_dt)
+    df_all_intens = df_all_count / df_all_dt
+    df_all_dur = df_all_dt / df_all_count
+
+    df_rein_count = average_bid_ask(df_rein_bid_count, df_rein_ask_count)
+    df_rein_dt = average_bid_ask(df_rein_bid_dt, df_rein_ask_dt)
+    df_rein_intens = df_rein_count / df_rein_dt
+    df_rein_dur = df_rein_dt / df_rein_count
+
+    df_reve_count = average_bid_ask(df_reve_bid_count, df_reve_ask_count)
+    df_reve_dt = average_bid_ask(df_reve_bid_dt, df_reve_ask_dt)
+    df_reve_intens = df_reve_count / df_reve_dt
+    df_reve_dur = df_reve_dt / df_reve_count
 
     def plot_intensity(data_frame, cols, title_plot):
         sub_df_plot = data_frame[cols].copy().iloc[:max_q]
         sub_df_plot.plot(title=title + title_plot, figsize=(15, 10))
 
-    # cols_CP = ['Consumption', 'Provision']
-    # title_CP_count = ' - Events and sizes of the queue - count'
-    # plot_intensity(data_framec_count, cols=cols_CP,
-    #                title_plot=title_CP_count)
-    # title_CP_int = ' - Events and sizes of the queue - intensity'
-    # plot_intensity(data_framec_intens, cols=cols_CP,
-    #                title_plot=title_CP_int)
-    # title_CP_dur = ' - Events and sizes of the queue - durations'
-    # plot_intensity(data_framec_dur, cols=cols_CP,
-    #                title_plot=title_CP_dur)
+    if plot_q:
 
-    cols_CLM = ['Cancel', 'Provision', 'Trade']
-    title_CLM_count = ' - Events and sizes of the queue - count'
-    plot_intensity(data_framec_count, cols=cols_CLM,
-                   title_plot=title_CLM_count)
-    title_CLM_int = ' - Events and sizes of the queue - intensity'
-    plot_intensity(data_framec_intens, cols=cols_CLM,
-                   title_plot=title_CLM_int)
-    title_CLM_dur = ' - Events and sizes of the queue - durations'
-    plot_intensity(data_framec_dur, cols=cols_CLM,
-                   title_plot=title_CLM_dur)
+        # cols_cp = ['Consumption', 'Provision']
+        cols_agg = ['Cancel', 'Provision', 'Trade']
+        cols_all = ['Canc+', 'Prov+', 'Trad+', 'Canc-', 'Prov-', 'Trad-']
 
-    # cols_CPall = ['Cons+', 'Prov+', 'Cons-', 'Prov-']
-    # title_CPall_count = ' - Events and sizes of the queue - count by side'
-    # plot_intensity(data_framec_count, cols=cols_CPall,
-    #                title_plot=title_CPall_count)
-    # title_CPall_int = ' - Events and sizes of the queue - intensity by side'
-    # plot_intensity(data_framec_intens, cols=cols_CPall,
-    #                title_plot=title_CPall_int)
-    # title_CPall_dur = ' - Events and sizes of the queue - durations by side'
-    # plot_intensity(data_framec_dur, cols=cols_CPall,
-    #                title_plot=title_CPall_dur)
+        title_count = ' - Events by queue size - count'
+        # plot_intensity(df_all_count, cols=cols_cp, title_plot=title_count)
+        plot_intensity(df_all_count, cols=cols_agg, title_plot=title_count)
+        # plot_intensity(df_all_count, cols=cols_all, title_plot=title_count)
+        title_intens = ' - Events by queue size - intensity'
+        # plot_intensity(df_all_intens, cols=cols_cp, title_plot=title_intens)
+        plot_intensity(df_all_intens, cols=cols_agg, title_plot=title_intens)
+        # plot_intensity(df_all_intens, cols=cols_all, title_plot=title_intens)
+        title_dur = ' - Events by queue size - durations'
+        # plot_intensity(df_all_dur, cols=cols_cp, title_plot=title_dur)
+        plot_intensity(df_all_dur, cols=cols_agg, title_plot=title_dur)
+        # plot_intensity(df_all_dur, cols=cols_all, title_plot=title_dur)
 
-    cols_CLMall = ['Canc+', 'Prov+', 'Trad+', 'Canc-', 'Prov-', 'Trad-']
-    title_CLMall_count = ' - Events and sizes of the queue - count - CLM'
-    plot_intensity(data_framec_count, cols=cols_CLMall,
-                   title_plot=title_CLMall_count)
-    title_CLMall_int = ' - Events and sizes of the queue - intensity - CLM'
-    plot_intensity(data_framec_intens, cols=cols_CLMall,
-                   title_plot=title_CLMall_int)
-    title_CLMall_dur = ' - Events and sizes of the queue - durations - CLM'
-    plot_intensity(data_framec_dur, cols=cols_CLMall,
-                   title_plot=title_CLMall_dur)
+        title_count_rein = ' - Events by queue size - count - Reinforce'
+        # plot_intensity(df_rein_count, cols=cols_cp,
+        #                title_plot=title_count_rein)
+        plot_intensity(df_rein_count, cols=cols_agg,
+                       title_plot=title_count_rein)
+        plot_intensity(df_rein_count, cols=cols_all,
+                       title_plot=title_count_rein)
+        title_intens_rein = ' - Events by queue size - intensity - Reinforce'
+        # plot_intensity(df_rein_intens, cols=cols_cp,
+        #                title_plot=title_intens_rein)
+        plot_intensity(df_rein_intens, cols=cols_agg,
+                       title_plot=title_intens_rein)
+        plot_intensity(df_rein_intens, cols=cols_all,
+                       title_plot=title_intens_rein)
+        title_dur_rein = ' - Events by queue size - durations - Reinforce'
+        # plot_intensity(df_rein_dur, cols=cols_cp,
+        #                title_plot=title_dur_rein)
+        plot_intensity(df_rein_dur, cols=cols_agg,
+                       title_plot=title_dur_rein)
+        plot_intensity(df_rein_dur, cols=cols_all,
+                       title_plot=title_dur_rein)
+
+        title_count_reve = ' - Events by queue size - count - Revert'
+        # plot_intensity(df_rein_count, cols=cols_cp,
+        #                title_plot=title_count_reve)
+        plot_intensity(df_reve_count, cols=cols_agg,
+                       title_plot=title_count_reve)
+        plot_intensity(df_reve_count, cols=cols_all,
+                       title_plot=title_count_reve)
+        title_intens_reve = ' - Events by queue size - intensity - Revert'
+        # plot_intensity(df_reve_intens, cols=cols_cp,
+        #                title_plot=title_intens_reve)
+        plot_intensity(df_reve_intens, cols=cols_agg,
+                       title_plot=title_intens_reve)
+        plot_intensity(df_reve_intens, cols=cols_all,
+                       title_plot=title_intens_reve)
+        title_dur_reve = ' - Events by queue size - durations - Revert'
+        # plot_intensity(df_reve_dur, cols=cols_cp,
+        #                title_plot=title_dur_reve)
+        plot_intensity(df_reve_dur, cols=cols_agg,
+                       title_plot=title_dur_reve)
+        plot_intensity(df_reve_dur, cols=cols_all,
+                       title_plot=title_dur_reve)
 
 # %% Intensity examples
 
 
-pivots_intensities(dfDOL, 25, 'DOL 2017-01-19')
+pivots_intensities(dfDOL, 25, True, 'DOL 2017-01-19')
 
-pivots_intensities(dfWDO, 60, 'WDO 2017-01-19')
+pivots_intensities(dfWDO, 60, True, 'WDO 2017-01-19')
 
-pivots_intensities(dfCME1, 25, 'CME 2018-01-05')
+# pivots_intensities(dfCME1, 25, 'CME 2018-01-05')
 
-pivots_intensities(dfCME2, 25, 'CME 2018-01-04')
+# pivots_intensities(dfCME2, 25, 'CME 2018-01-04')
+
+# %% Functions for tick application
+
+EV_12_LBLS = ['L_B', 'C_A', 'M_A', 'I_B', 'Dc_A', 'Dm_A',
+              'L_A', 'C_B', 'M_B', 'I_A', 'Dc_B', 'Dm_B']
+
+def get_seconds(data_frame):
+    times = data_frame['DateTime'].copy()
+    start = times.iloc[0]
+    return (times - start).dt.total_seconds().values
+
+def get_timestamps_from_dummies(data_frame, col):
+    data_framec = data_frame.copy()
+    data_framec = data_framec[data_framec[col] == 1].copy()
+    return data_framec.index.values
+
+def get_event_timestamps(data_frame, cols):
+    data_framec = data_frame.copy()
+    data_framec['Timestamp'] = get_seconds(data_framec)
+    df_dummies = pd.get_dummies(data_framec.set_index('Timestamp')[cols])
+    labels = df_dummies.columns.values
+    list_values = [get_timestamps_from_dummies(df_dummies, col)
+                   for col in labels]
+    return [list_values, labels]
+
+def get_event_12_timestamps(data_frame):
+    data_framec = data_frame.copy()
+    data_framec['Timestamp'] = get_seconds(data_framec)
+    df_dummies = pd.get_dummies(data_framec.set_index('Timestamp')['Event_12'])
+    df_dummies = df_dummies[EV_12_LBLS]
+    labels = df_dummies.columns.values
+    list_values = [get_timestamps_from_dummies(df_dummies, col)
+                   for col in labels]
+    return [list_values, labels]
+
+def get_hawkes(data_frame, cols, plot=False):
+    timestamps, labels = get_event_timestamps(data_frame, cols)
+    kernel_discretization = np.hstack((0, np.logspace(-5, 0, 50)))
+    hawkes_learner = HawkesConditionalLaw(
+        claw_method="log", delta_lag=0.1, min_lag=5e-4, max_lag=500,
+        quad_method="log", n_quad=10, min_support=1e-4, max_support=1,
+        n_threads=-1)
+    hawkes_learner.fit(timestamps)
+    if plot:
+        plot_hawkes_kernel_norms(hawkes_learner, node_names=labels)
+    hbase = hawkes_learner.baseline
+    hmean = hawkes_learner.mean_intensity
+    hnorms = hawkes_learner.kernels_norms
+    return [hbase, hmean, hbase/hmean, hnorms]
+
+def get_hawkes_events(data_frame, symmetries1d=[], symmetries2d=[],
+                      plot=False):
+    timestamps, labels = get_event_12_timestamps(data_frame)
+    kernel_discretization = np.hstack((0, np.logspace(-5, 0, 50)))
+    hawkes_learner = HawkesConditionalLaw(
+        claw_method="log", delta_lag=0.1, min_lag=5e-4, max_lag=500,
+        quad_method="log", n_quad=10, min_support=1e-4, max_support=1,
+        n_threads=-1)
+    hawkes_learner.set_model(symmetries1d=symmetries1d,
+                             symmetries2d=symmetries2d)
+    hawkes_learner.fit(timestamps)
+    if plot:
+        plot_hawkes_kernel_norms(hawkes_learner, node_names=labels)
+    hbase = hawkes_learner.baseline
+    hmean = hawkes_learner.mean_intensity
+    hnorms = hawkes_learner.kernels_norms
+    return [hbase, hmean, hbase/hmean, hnorms]
+
+# %% Apply tick
+
+
+hawkes_reversion = get_hawkes(dfDOL.iloc[1:], 'Reversion', True)
+hawkes_ask = get_hawkes(dfDOL.iloc[1:], 'AskQ', True)
+hawkes_cons = get_hawkes(dfDOL.iloc[1:], 'ConsQ', True)
+hawkes_imbal = get_hawkes(dfDOL.iloc[1:], 'Imbal_Sign', True)
+
+ts_12, lbls_12 = get_event_timestamps(dfDOL.iloc[1:], 'Event_12')
+
+hawkes_event_DOL = get_hawkes_events(dfDOL.iloc[1:], plot=True)
+
+hawkes_event_WDO = get_hawkes_events(dfWDO.iloc[1:], plot=True)
+
+df_intens = pd.DataFrame(
+    {'DOL baseline': hawkes_event_DOL[0],
+     'WDO baseline': hawkes_event_WDO[0],
+     'DOL mean int': hawkes_event_DOL[1],
+     'WDO mean int': hawkes_event_WDO[1],
+     'DOL ratios': hawkes_event_DOL[2],
+     'WDO ratios': hawkes_event_WDO[2]},
+    index=EV_12_LBLS)
+
+sns.heatmap(df_intens.transpose(), cmap='YlOrRd', annot=True, fmt=".2f")
+
+sns.heatmap(hawkes_event_DOL[3], center=0, cmap='RdBu',
+            annot=True, fmt=".2f",
+            xticklabels=EV_12_LBLS, yticklabels=EV_12_LBLS)
+
+sns.heatmap(hawkes_event_WDO[3], center=0, cmap='RdBu',
+            annot=True, fmt=".2f",
+            xticklabels=EV_12_LBLS, yticklabels=EV_12_LBLS)
+
+
+# %% Several days
+
+
+FILES_DOL = [
+    'DOLG1720170103.csv', 'DOLG1720170104.csv',
+    'DOLG1720170105.csv', 'DOLG1720170106.csv', 'DOLG1720170109.csv',
+    'DOLG1720170110.csv', 'DOLG1720170111.csv', 'DOLG1720170112.csv',
+    'DOLG1720170113.csv', 'DOLG1720170116.csv', 'DOLG1720170117.csv',
+    'DOLG1720170118.csv', 'DOLG1720170119.csv', 'DOLG1720170120.csv',
+    'DOLG1720170123.csv', 'DOLG1720170124.csv', 'DOLG1720170126.csv',
+    'DOLG1720170127.csv', 'DOLG1720170130.csv']
+
+FILES_WDO = [
+    'WDOG1720170103.csv', 'WDOG1720170104.csv',
+    'WDOG1720170105.csv', 'WDOG1720170106.csv', 'WDOG1720170109.csv',
+    'WDOG1720170110.csv', 'WDOG1720170111.csv', 'WDOG1720170112.csv',
+    'WDOG1720170113.csv', 'WDOG1720170116.csv', 'WDOG1720170117.csv',
+    'WDOG1720170118.csv', 'WDOG1720170119.csv', 'WDOG1720170120.csv',
+    'WDOG1720170123.csv', 'WDOG1720170124.csv', 'WDOG1720170126.csv',
+    'WDOG1720170127.csv', 'WDOG1720170130.csv']
+
+# %% Function for lists
+
+
+def get_hawkes_events_list(
+        pathin, pathout, file_list, tick_value, min_order_size, start_time,
+        end_time, file_type='CME', min_dt=MINDTCME, save_files=False,
+        symmetries1d=[], symmetries2d=[], plot=False):
+    df_list = [initall(
+        pathin, pathout, file, tick_value, min_order_size, start_time,
+        end_time, file_type, min_dt, save_files) for file in file_list]
+    timestamps = [get_event_12_timestamps(df)[0] for df in df_list]
+    kernel_discretization = np.hstack((0, np.logspace(-5, 0, 50)))
+    hawkes_learner = HawkesConditionalLaw(
+        claw_method="log", delta_lag=0.1, min_lag=5e-4, max_lag=500,
+        quad_method="log", n_quad=10, min_support=1e-4, max_support=1,
+        n_threads=-1)
+    hawkes_learner.set_model(symmetries1d=symmetries1d,
+                              symmetries2d=symmetries2d)
+    hawkes_learner.fit(timestamps)
+    if plot:
+        plot_hawkes_kernel_norms(hawkes_learner, node_names=EV_12_LBLS)
+    hbase = hawkes_learner.baseline
+    hmean = hawkes_learner.mean_intensity
+    hnorms = hawkes_learner.kernels_norms
+    return [hbase, hmean, hbase/hmean, hnorms]
+
+
+# %% Run
+
+hawkes_event_DOLs = get_hawkes_events_list(
+    PATHIN, PATHOUT, FILES_DOL, TS1, MOSDOL, START_TIME1, END_TIME1, 'BMF',
+    MINDT1, False, [], [], False)
+
+sns.heatmap(hawkes_event_DOLs[3], center=0, cmap='RdBu',
+            annot=True, fmt=".2f",
+            xticklabels=EV_12_LBLS, yticklabels=EV_12_LBLS)
+
+hawkes_event_WDOs = get_hawkes_events_list(
+    PATHIN, PATHOUT, FILES_WDO, TS1, MOSWDO, START_TIME1, END_TIME1, 'BMF',
+    MINDT1, False, [], [], False)
+
+sns.heatmap(hawkes_event_WDOs[3], center=0, cmap='RdBu',
+            annot=True, fmt=".2f",
+            xticklabels=EV_12_LBLS, yticklabels=EV_12_LBLS)
 
 # %% Imbalance prediction
 
@@ -532,7 +733,7 @@ plot_events_perc(dfCME2, title='CME 2018-01-04', window=10000,
 
 def plot_reversion_perc(data_frame, title='', window=EVENT_WINDOW,
                         perc_format=True, save_fig=False):
-    subdf = data_frame[['DateTime', 'Transition']].copy()\
+    subdf = data_frame[['DateTime', 'Reversion']].copy()\
         .set_index('DateTime')
     plot_title = title + ' | Reversion % - Window of ' + str(window)\
         + ' events'
@@ -571,9 +772,9 @@ plot_reversion_perc(dfCME2, title='CME 2018-01-04', window=10000,
 
 
 subdfCME1 = dfCME1[(dfCME1['DateTime'] >=
-                   pd.to_datetime('2018-01-05 07:15:00'))\
+                    pd.to_datetime('2018-01-05 07:15:00'))
                    & (dfCME1['DateTime'] <=
-                   pd.to_datetime('2018-01-05 07:45:00'))].copy()
+                      pd.to_datetime('2018-01-05 07:45:00'))].copy()
 
 plot_reversion_perc(subdfCME1, title='CME 2018-01-05 event', window=100,
                     save_fig=True)
@@ -598,8 +799,8 @@ def plot_duration(data_frame, title='', window=EVENT_WINDOW, invert=False,
         plot_title = title + ' | -Log(Duration) - Window of ' + str(window)\
             + ' events'
         plot_file = title + '_Log(Duration)_' + str(window)
-        (-np.log(roll_series)).plot(title=plot_title, figsize=(15, 10),
-                                    legend=False)
+        (-(roll_series.apply(np.log))).plot(title=plot_title,
+                                            figsize=(15, 10), legend=False)
     else:
         plot_title = title + ' | Duration - Window of ' + str(window)\
             + ' events'
