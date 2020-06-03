@@ -18,7 +18,6 @@ import seaborn as sns
 
 
 from tick.hawkes import HawkesSumExpKern
-from tick.plot import plot_point_process
 from tick.hawkes import SimuHawkesMulti, SimuHawkesSumExpKernels
 
 # %% Marcos' PATHPROJ
@@ -48,10 +47,10 @@ adjacency_CME2 = pd.read_csv(PATHOUT+'adjacency_CME2.csv', index_col=0)
 baseline_CME1 = pd.read_csv(PATHOUT+'baseline_CME1.csv', index_col=0)
 baseline_CME2 = pd.read_csv(PATHOUT+'baseline_CME2.csv', index_col=0)
 
-decay_DOL = np.array([314.37042236])
-decay_WDO = np.array([373.43093872])
+decay_DOL = np.array([43900.])
+decay_WDO = np.array([38500.])
 
-decay_CME = np.array([3000.])
+decay_CME = np.array([195000.])
 
 run_time = int(9.25*3600)
 
@@ -93,9 +92,9 @@ hawkes_simu_WDO = hawkes_sumexp_simul(adj_WDO, dec_WDO, bas_WDO,
                                       end_time=run_time, seed=1234)
 
 hawkes_simu_CME1 = hawkes_sumexp_simul(adj_CME1, dec_CME, bas_CME1,
-                                      end_time=run_time_CME, seed=1234)
+                                       end_time=run_time_CME, seed=1234)
 hawkes_simu_CME2 = hawkes_sumexp_simul(adj_CME2, dec_CME, bas_CME2,
-                                      end_time=run_time_CME, seed=1234)
+                                       end_time=run_time_CME, seed=1234)
 
 
 hawkes_simu_DOL_mean_int = pd.Series(hawkes_simu_DOL.mean_intensity(),
@@ -104,9 +103,9 @@ hawkes_simu_WDO_mean_int = pd.Series(hawkes_simu_WDO.mean_intensity(),
                                      index=events)
 
 hawkes_simu_CME1_mean_int = pd.Series(hawkes_simu_CME1.mean_intensity(),
-                                     index=events)
+                                      index=events)
 hawkes_simu_CME2_mean_int = pd.Series(hawkes_simu_CME2.mean_intensity(),
-                                     index=events)
+                                      index=events)
 
 hawkes_simu_DOL_ts = hawkes_simu_DOL.timestamps
 hawkes_simu_WDO_ts = hawkes_simu_WDO.timestamps

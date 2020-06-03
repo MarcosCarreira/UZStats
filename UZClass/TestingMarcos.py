@@ -66,6 +66,9 @@ PATHOUT = PATHPROJ+'/UZClass/'
 TS = 0.5
 MOSCME = 1
 MINDTCME = 0.000000001
+MAXEVDTCME = 100
+DTEVSHIFTCME = -pd.Timedelta(MINDTCME, 's')/2
+DTCUMADDCME = pd.Timedelta(MINDTCME, 's')/MAXEVDTCME
 START_TIME = pd.to_timedelta('00:00:00')
 END_TIME = pd.to_timedelta('23:59:59')
 EVENT_WINDOW = 1000
@@ -75,6 +78,9 @@ TS1 = 0.5
 MOSDOL = 5
 MOSWDO = 1
 MINDT1 = 0.001
+MAXEVDT1 = 100
+DTEVSHIFT1 = -pd.Timedelta(MINDT1, 's')/2
+DTCUMADD1 = pd.Timedelta(MINDT1, 's')/MAXEVDT1
 START_TIME1 = pd.to_timedelta('09:00:00')
 END_TIME1 = pd.to_timedelta('18:15:00')
 EVENT_WINDOW1 = 1000
@@ -100,7 +106,8 @@ SAVEBMF = False
 # Outputs a clean df with trades collapsed by price and Level1 changes only
 
 def init1(pathin, pathout, file_name, tick_value, min_order_size, start_time,
-          end_time, file_type='CME', min_dt=MINDTCME, save_files=False):
+          end_time, file_type='CME', min_dt=MINDTCME,
+          dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME, save_files=False):
     data = ad(pathin, file_name, file_type)  # ad=ArmadaData
     # Select times
     datadf = data.select_times(pd.to_timedelta(start_time),
@@ -152,7 +159,6 @@ def init1(pathin, pathout, file_name, tick_value, min_order_size, start_time,
         method='ffill') >= datadfg['trade_price']
     datadfg['ask_traded'] = datadfg['ask_1_price'].copy().fillna(
         method='ffill') <= datadfg['trade_price']
-    datadfg['dt'] = datadfg['DateTime'].diff().dt.total_seconds()
     if save_files:
         datadfg.to_csv(pathout+file_name[:-4]+'_df.csv')
     return datadfg
@@ -164,7 +170,7 @@ def init1(pathin, pathout, file_name, tick_value, min_order_size, start_time,
 
 def init2(data_frame, pathout, file_name, tick_value, min_order_size,
           start_time, end_time, file_type='CME', min_dt=MINDTCME,
-          save_files=False):
+          dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME, save_files=False):
     # Define key for groupby
     datadf = data_frame.copy()
     datadf['OrderN'] = datadf['OrderQ'].copy().cumsum()
@@ -175,7 +181,7 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
     dfagg = datadfg.agg({'OrderQ': all, 'bid_1_qty': sum, 'bid_1_price': sum,
                          'trade_price': 'count', 'trade_qty': sum,
                          'ask_1_price': sum, 'ask_1_qty': sum, 'lvl1': any,
-                         'bid_traded': any, 'ask_traded': any, 'dt': sum})
+                         'bid_traded': any, 'ask_traded': any})
     dfagg = dfagg.reset_index()
     dfagg = dfagg.rename(columns={'trade_price': 'levels_traded',
                                   'lvl1': 'Level1Q'})
@@ -199,7 +205,7 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
                            'bid_1_price': sum, 'levels_traded': sum,
                            'trade_qty': sum, 'ask_1_price': sum,
                            'ask_1_qty': sum, 'Level1Q': any, 'OrderQ': any,
-                           'bid_traded': any, 'ask_traded': any, 'dt': sum})
+                           'bid_traded': any, 'ask_traded': any})
     dfstates = dfstates.reset_index()
     # dfstates = dfstates.drop(['OrderN', 'OrderQ'], axis=1)
     # Normalize amount by the minimum order size (MOS)
@@ -249,11 +255,9 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
     dfstates['Event_Size_order'] = np.where(
         dfstates['AskQ'],
         np.where(dfstates['ask_1_price_diff'] != 0,
-                  dfstates['ask_1_qty'],
-                  np.abs(dfstates['ask_1_qty_diff'])),
+                 dfstates['ask_1_qty'], np.abs(dfstates['ask_1_qty_diff'])),
         np.where(dfstates['bid_1_price_diff'] != 0,
-                  dfstates['bid_1_qty'],
-                  np.abs(dfstates['bid_1_qty_diff'])))
+                 dfstates['bid_1_qty'], np.abs(dfstates['bid_1_qty_diff'])))
     dfstates['Event_Size'] = np.where(
         dfstates['trade_qty'] > 0, dfstates['trade_qty'],
         dfstates['Event_Size_order'])
@@ -287,6 +291,12 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
         'PaM+': False, 'Pb+': False, 'PbC-': True, 'PbM-': True}
     dfstates['Reversion'] = dfstates['Event_detail'].map(event_dict_consec)\
         ^ dfstates['Event_detail_Prev'].map(event_dict_consec)
+    dfstates['dt0'] = dfstates['DateTime'] == dfstates['DateTime'].shift()
+    dfstates['ConsTS'] =\
+        dfstates.groupby('DateTime')['dt0'].transform(pd.Series.cumsum)
+    dfstates['TS_Hawkes'] = dfstates['DateTime'] + dt_shift +\
+        dt_cum_shift * dfstates['ConsTS']
+    dfstates['dt'] = dfstates['TS_Hawkes'].diff().dt.total_seconds()
     # dfstates['event_code_short'] =\
     #     dfstates['AskQ'] * 2 + dfstates['ConsQ'] * 1
     # event_dict_short = {0: 'Ib', 1: 'Cb', 2: 'Ia', 3: 'Ca'}
@@ -295,10 +305,10 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
         dfstates.to_csv(pathout+file_name[:-4]+'_df_states.csv')
     cols_output1 =\
         ['DateTime', 'OrderId', 'bid_1_qty', 'bid_1_price', 'ask_1_price',
-         'ask_1_qty', 'trade_qty', 'levels_traded', 'AskQ', 'ConsQ',
-         'Level1Q', 'PriceQ', 'Event_detail', 'Event_detail_Prev', 'Event_14',
-         'Reversion', 'dt', 'Spread_Ticks', 'Midprice', 'Microprice',
-         'Imbalance', 'Imbal_Sign', 'Event_Size']
+         'ask_1_qty', 'trade_qty', 'levels_traded', 'Event_Size',
+         'AskQ', 'ConsQ', 'Level1Q', 'PriceQ', 'Event_detail', 'Event_14',
+         'Reversion', 'TS_Hawkes', 'dt', 'Spread_Ticks', 'Midprice',
+         'Microprice', 'Imbalance', 'Imbal_Sign']
     dfstates = dfstates[cols_output1]
     return dfstates
 
@@ -308,11 +318,13 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
 
 def initall(pathin, pathout, file_name, tick_value, min_order_size,
             start_time, end_time, file_type='CME', min_dt=MINDTCME,
-            save_files=False):
+            dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME, save_files=False):
     dfinit1 = init1(pathin, pathout, file_name, tick_value, min_order_size,
-                    start_time, end_time, file_type, min_dt, save_files)
+                    start_time, end_time, file_type, min_dt, dt_shift,
+                    dt_cum_shift, save_files)
     dfinit2 = init2(dfinit1, pathout, file_name, tick_value, min_order_size,
-                    start_time, end_time, file_type, min_dt, save_files)
+                    start_time, end_time, file_type, min_dt, dt_shift,
+                    dt_cum_shift, save_files)
     return dfinit2
 
 # %% [markdown]
@@ -322,19 +334,51 @@ def initall(pathin, pathout, file_name, tick_value, min_order_size,
 
 
 dfDOL = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
-                END_TIME1, 'BMF', MINDT1, SAVEBMF)
+                END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
 dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSWDO, START_TIME1,
-                END_TIME1, 'BMF', MINDT1, SAVEBMF)
+                END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
 
 dfCME1 = initall(PATHIN, PATHOUT, FILE1, TS, MOSCME, START_TIME, END_TIME,
-                  'CME', MINDTCME, SAVECME)
+                 'CME', MINDTCME, DTEVSHIFTCME, DTCUMADDCME, SAVECME)
 dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
-                  'CME', MINDTCME, SAVECME)
+                 'CME', MINDTCME, DTEVSHIFTCME, DTCUMADDCME, SAVECME)
 
 # %% Find Starts
 
 
 # dfDOL[dfDOL['Event'] == 'Start']
+
+# %% dt=0
+
+dfDOL.dt.describe()
+dfWDO.dt.describe()
+
+dfCME1.dt.describe()
+dfCME2.dt.describe()
+
+# dfCME1.dt.value_counts(sort=False)
+
+# dfCME1.DateTime.head()
+
+# dfDOLc = dfDOL.copy()
+# dfDOLc['flag'] = dfDOLc['DateTime'] == dfDOLc['DateTime'].shift()
+# dfDOLc['CondTS'] =\
+#     dfDOLc.groupby('DateTime')['flag'].transform(pd.Series.cumsum)
+
+# dfWDOc = dfWDO.copy()
+# dfWDOc['flag'] = dfWDOc['DateTime'] == dfWDOc['DateTime'].shift()
+# dfWDOc['CondTS'] =\
+#     dfWDOc.groupby('DateTime')['flag'].transform(pd.Series.cumsum)
+
+# dfDOLc['flag'].describe()
+# dfWDOc['flag'].describe()
+
+# dfDOLc['CondTS'].describe()
+# dfWDOc['CondTS'].describe()
+
+# dfDOLc['TS_Hawkes'] = dfDOLc['DateTime'] + DTEVSHIFT1 +\
+#     DTCUMADD1 * dfDOLc['CondTS']
+
 
 # %% Eevent Sizes
 
@@ -542,7 +586,7 @@ EV_14_LBLS = ['L_B', 'C_A', 'M_A', 'I_B', 'DmI_A', 'Dm_A', 'Dc_A',
 
 
 def get_seconds(data_frame):
-    times = data_frame['DateTime'].copy()
+    times = data_frame['TS_Hawkes'].copy()
     start = times.iloc[0]
     return (times - start).dt.total_seconds().values
 
@@ -611,7 +655,7 @@ def hawkes_sum_exp_14(timestamps, labels, reord_labels, decay):
     hawkes_learner = HawkesSumExpKern(decay, solver='bfgs')
     hawkes_learner.fit(timestamps)
     baseline_learner = pd.DataFrame(hawkes_learner.baseline,
-                                    columns=['Baseline'],index=labels)
+                                    columns=['Baseline'], index=labels)
     baseline_learner = baseline_learner.copy().reindex(reord_labels)
     adjacency_learner = hawkes_learner.adjacency
     nodes = len(labels)
@@ -628,18 +672,18 @@ def min_hawkes_exp(timestamps, learner, decays_init):
 
 
 def plot_hawkes_sum_exp(timestamps, decays_range):
-    scores = pd.Series([HawkesSumExpKern(np.array([decay]), solver='bfgs')\
-        .fit(timestamps).score() for decay in decays_range],
+    scores = pd.Series([HawkesSumExpKern(np.array([decay]), solver='bfgs').
+                        fit(timestamps).score() for decay in decays_range],
                        index= decays_range)
     scores.plot(legend=False)
 
 
 def plot_hawkes_sum_exp_two(timestamps1, label1, timestamps2, label2,
                             decays_range):
-    scores1 = [HawkesSumExpKern(np.array([decay]), solver='bfgs')\
-        .fit(timestamps1).score() for decay in decays_range]
-    scores2 = [HawkesSumExpKern(np.array([decay]), solver='bfgs')\
-        .fit(timestamps2).score() for decay in decays_range]
+    scores1 = [HawkesSumExpKern(np.array([decay]), solver='bfgs').
+               fit(timestamps1).score() for decay in decays_range]
+    scores2 = [HawkesSumExpKern(np.array([decay]), solver='bfgs').
+               fit(timestamps2).score() for decay in decays_range]
     scores = pd.DataFrame({label1: scores1, label2: scores2},
                           index=decays_range)
     scores.plot()
@@ -649,23 +693,10 @@ def find_decay(timestamps, decays_init):
     def min_hawkes_sum_exp(decays_init):
         return -HawkesSumExpKern(decays_init, solver='bfgs')\
             .fit(timestamps).score()
-    return minimize(min_hawkes_sum_exp, decays_init,
-                method='Nelder-Mead', options={'disp': True})
+    return minimize(min_hawkes_sum_exp, decays_init, method='Nelder-Mead',
+                    options={'disp': True})
 
 # %% Apply tick
-
-# dfDOL_ts, dfDOL_lbls = get_event_timestamps(dfDOL.iloc[1:], 'Reversion')
-# df_decays = np.arange(1, 1001, 10)
-# df_scores = pd.DataFrame(
-#     np.array([[decay, HawkesSumExpKern(np.array([decay, decay])).fit(dfDOL_ts)
-#                 .score()] for decay in df_decays]),
-#     columns=['decay', 'score']).set_index('decay')
-# df_decay_max = [df_scores.idxmax()[0], df_scores.max()[0]]
-# df_hawkes_learner = HawkesSumExpKern(np.array(
-#     [df_decay_max[0], df_decay_max[0]]))
-# df_hawkes_learner.fit(dfDOL_ts)
-# baseline_learner = list(hawkes_learner.baseline)
-# adjacency_learner = list(hawkes_learner.adjacency)
 
 
 dfDOL_ts, dfDOL_lbls = get_event_timestamps(dfDOL.iloc[1:], 'Event_14')
@@ -678,41 +709,51 @@ dfCME2_ts, dfCME2_lbls = get_event_timestamps(dfCME2.iloc[1:], 'Event_14')
 # plot_hawkes_sum_exp(dfWDO_ts, np.arange(1, 1001, 10))
 
 plot_hawkes_sum_exp_two(dfDOL_ts, 'DOL', dfWDO_ts, 'WDO',
-                        np.arange(1, 1001, 10))
-
-plot_hawkes_sum_exp_two(dfCME1_ts, 'CME 20180105', dfCME2_ts, 'CME 20180104',
                         np.arange(1, 100001, 1000))
 
 plot_hawkes_sum_exp_two(dfCME1_ts, 'CME 20180105', dfCME2_ts, 'CME 20180104',
-                        np.arange(1, 10001, 100))
+                        np.arange(1, 1000001, 10000))
 
-decay_DOL = find_decay(dfDOL_ts, np.array([[100.]]))
-decay_WDO = find_decay(dfWDO_ts, np.array([[100.]]))
+plot_hawkes_sum_exp_two(dfCME1_ts, 'CME 20180105', dfCME2_ts, 'CME 20180104',
+                        np.arange(100001, 300001, 1000))
 
-decay_DOL.x
-decay_WDO.x
+decay_DOL_op = find_decay(dfDOL_ts, np.array([[40000.]]))
+decay_WDO_op = find_decay(dfWDO_ts, np.array([[40000.]]))
 
-decay_CME = np.array([3000])
+decay_DOL_op.x
+decay_WDO_op.x
+
+decay_DOL = np.array([43900.])
+decay_WDO = np.array([38500.])
 
 baseline_DOL, adjacency_DOL = hawkes_sum_exp_14(dfDOL_ts, dfDOL_lbls,
-                                                EV_14_LBLS, decay_DOL.x)
+                                                EV_14_LBLS, decay_DOL)
 baseline_WDO, adjacency_WDO = hawkes_sum_exp_14(dfWDO_ts, dfWDO_lbls,
-                                                EV_14_LBLS, decay_WDO.x)
+                                                EV_14_LBLS, decay_WDO)
+
+
+decay_CME1_op = find_decay(dfCME1_ts, np.array([[175000.]]))
+decay_CME2_op = find_decay(dfCME2_ts, np.array([[175000.]]))
+
+decay_CME1_op.x
+decay_CME2_op.x
+
+decay_CME = np.array([195000.])
 
 baseline_CME1, adjacency_CME1 = hawkes_sum_exp_14(dfCME1_ts, dfCME1_lbls,
-                                                EV_14_LBLS, decay_CME)
+                                                  EV_14_LBLS, decay_CME)
 baseline_CME2, adjacency_CME2 = hawkes_sum_exp_14(dfCME2_ts, dfCME2_lbls,
-                                                EV_14_LBLS, decay_CME)
+                                                  EV_14_LBLS, decay_CME)
 
 sns.heatmap(adjacency_DOL, center=0, cmap='RdBu',
-            annot=True, fmt=".2f")
+            annot=True, fmt=".3f")
 sns.heatmap(adjacency_WDO, center=0, cmap='RdBu',
-            annot=True, fmt=".2f")
+            annot=True, fmt=".3f")
 
 sns.heatmap(adjacency_CME1, center=0, cmap='RdBu',
-            annot=True, fmt=".2f")
+            annot=True, fmt=".3f")
 sns.heatmap(adjacency_CME2, center=0, cmap='RdBu',
-            annot=True, fmt=".2f")
+            annot=True, fmt=".3f")
 
 df_baseline = pd.DataFrame({'DOL': baseline_DOL['Baseline'],
                             'WDO': baseline_WDO['Baseline']})
@@ -720,7 +761,7 @@ sns.heatmap(df_baseline, center=0, cmap='RdBu',
             annot=True, fmt=".3f")
 
 df_baseline_CME = pd.DataFrame({'CME 20180105': baseline_CME1['Baseline'],
-                            'CME 20180104': baseline_CME2['Baseline']})
+                                'CME 20180104': baseline_CME2['Baseline']})
 sns.heatmap(df_baseline_CME, center=0, cmap='RdBu',
             annot=True, fmt=".3f")
 
@@ -736,6 +777,8 @@ adjacency_CME1.to_csv(PATHOUT+'adjacency_CME1.csv')
 adjacency_CME2.to_csv(PATHOUT+'adjacency_CME2.csv')
 baseline_CME1.to_csv(PATHOUT+'baseline_CME1.csv')
 baseline_CME2.to_csv(PATHOUT+'baseline_CME2.csv')
+
+# ------------------------------
 
 hawkes_reversion = get_hawkes(dfDOL.iloc[1:], 'Reversion', True)
 hawkes_ask = get_hawkes(dfDOL.iloc[1:], 'AskQ', True)
