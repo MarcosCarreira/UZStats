@@ -86,16 +86,24 @@ END_TIME1 = pd.to_timedelta('18:15:00')
 EVENT_WINDOW1 = 1000
 
 # %% BMF file names
+
 FILE_BMF1 = 'DOLG1720170119.csv'
 FILE_BMF2 = 'WDOG1720170119.csv'
 
 # %% CME file names
+
 FILE1 = '20180105_6EH8.zip'
 FILE2 = '20180104_6EH8.zip'
 
 # %% Save files when running the examples
+
 SAVECME = False
 SAVEBMF = False
+
+# %% Preferred order for labels
+
+EV_14_LBLS = ['L_B', 'C_A', 'M_A', 'I_B', 'DmI_A', 'Dm_A', 'Dc_A',
+              'L_A', 'C_B', 'M_B', 'I_A', 'DmI_B', 'Dm_B', 'Dc_B']
 
 # %% [markdown]
 # Start function here
@@ -410,6 +418,11 @@ dfCME1_ES = pd.pivot_table(dfCME1, 'Event_Size', index='Event_14',
                           aggfunc=[np.mean, q10, q30, np.median, q70, q90])
 dfCME2_ES = pd.pivot_table(dfCME2, 'Event_Size', index='Event_14',
                           aggfunc=[np.mean, q10, q30, np.median, q70, q90])
+
+dfDOL_ES.to_csv(PATHOUT+'dfDOL_ES.csv')
+dfWDO_ES.to_csv(PATHOUT+'dfWDO_ES.csv')
+dfCME1_ES.to_csv(PATHOUT+'dfCME1_ES.csv')
+dfCME2_ES.to_csv(PATHOUT+'dfCME2_ES.csv')
 
 # %% Intensities - pivots function
 
@@ -1053,74 +1066,64 @@ plot_duration(subdfCME1, title='CME 2018-01-05', window=1000,
 # %% Transition matrix
 
 
-def transition_events(data_frame, event='Event_CLM', normalize=False):
-    # Options for event: 'Event_CLM' (default) and 'Event_detail'
+def transition_events(data_frame, event='Event_14', margins=False,
+                      normalize=False):
+    # Options for event: 'Event_14' (default) and 'Event_detail'
     return pd.crosstab(index=data_frame[event].values,
                        columns=data_frame[event].shift(-1).values,
-                       margins=True, normalize=normalize)
+                       margins=margins, normalize=normalize)[EV_14_LBLS]\
+        .reindex(EV_14_LBLS)
 
 # %% Test transition matrix
 
 
-trans_CLM_count_DOL = transition_events(dfDOL, event='Event_CLM')
-trans_CLM_count_WDO = transition_events(dfWDO, event='Event_CLM')
-if SAVEBMF:
-    trans_CLM_count_DOL.to_csv(PATHOUT+'trans_CLM_count_ev_DOL.csv')
-    trans_CLM_count_WDO.to_csv(PATHOUT+'trans_CLM_count_ev_WDO.csv')
 
-trans_detail_count_DOL = transition_events(dfDOL, event='Event_detail')
-trans_detail_count_WDO = transition_events(dfWDO, event='Event_detail')
-if SAVECME:
-    trans_detail_count_DOL.to_csv(PATHOUT+'trans_detail_count_ev_DOL.csv')
-    trans_detail_count_WDO.to_csv(PATHOUT+'trans_detail_count_ev_WDO.csv')
+
 
 # %% Transition matrix - Pivot
 
 
-def pivot_events(data_frame, event='Event_CLM',
+def pivot_events(data_frame, event='Event_14',
                  piv_values='dt',
                  aggfunc=np.mean):
-    # Options for event: 'Event', 'Event_CLM', 'Event_detail'
+    # Options for event: 'Event_14', 'Event_detail'
     # Options for values: 'dt'
     dfc = data_frame.copy()
     dfc['Previous_Event'] = dfc[event].shift(+1).values
-    return pd.pivot_table(dfc, values=piv_values, index=['Previous_Event'],
-                          columns=event, aggfunc=aggfunc, margins=True)
+    return pd.pivot_table(dfc, values=piv_values, columns=['Previous_Event'],
+                          index=event, aggfunc=aggfunc, margins=True)\
+        [EV_14_LBLS].reindex(EV_14_LBLS)
 
 
-def pivot_prev_events(data_frame, event='Event_CLM', piv_values='Imbalance',
+def pivot_prev_events(data_frame, event='Event_14', piv_values='Imbalance',
                       aggfunc=np.mean):
-    # Options for event: 'Event', 'Event_CLM', 'Event_detail'
+    # Options for event: 'Event_14', 'Event_detail'
     # Options for values: 'Imbalance', 'trade_qty', 'Spread_Ticks'
     dfc = data_frame.copy()
     dfc['Previous_Event'] = dfc[event].shift(+1).values
     dfc['Previuos_Values'] = dfc[piv_values].shift(+1).values
     return pd.pivot_table(dfc, values='Previuos_Values',
-                          index=['Previous_Event'], columns=event,
-                          aggfunc=aggfunc, margins=True)
+                          columns=['Previous_Event'], index=event,
+                          aggfunc=aggfunc, margins=True)\
+        [EV_14_LBLS].reindex(EV_14_LBLS)
 
 # %% Test Pivot
 
+trans_count_DOL = pivot_events(dfDOL, aggfunc='count')
+pivot_dt_DOL = pivot_events(dfDOL)
+pivot_imb_DOL = pivot_prev_events(dfDOL)
 
-pivot_dt_detail_DOL = pivot_events(dfDOL, event='Event_detail')
-pivot_imb_detail_DOL = pivot_prev_events(dfDOL, event='Event_detail')
-pivot_dt_detail_DOL.to_csv(PATHOUT+'pivot_dt_detail_DOL.csv')
-pivot_imb_detail_DOL.to_csv(PATHOUT+'pivot_imb_detail_DOL.csv')
+trans_count_WDO = pivot_events(dfWDO, aggfunc='count')
+pivot_dt_WDO = pivot_events(dfWDO)
+pivot_imb_detail_WDO = pivot_prev_events(dfWDO)
 
-pivot_dt_CLM_DOL = pivot_events(dfDOL, event='Event_CLM')
-pivot_imb_CLM_DOL = pivot_prev_events(dfDOL, event='Event_CLM')
-pivot_dt_CLM_DOL.to_csv(PATHOUT+'pivot_dt_CLM_DOL.csv')
-pivot_imb_CLM_DOL.to_csv(PATHOUT+'pivot_imb_CLM_DOL.csv')
-
-pivot_dt_detail_WDO = pivot_events(dfWDO, event='Event_detail')
-pivot_imb_detail_WDO = pivot_prev_events(dfWDO, event='Event_detail')
-pivot_dt_detail_WDO.to_csv(PATHOUT+'pivot_dt_detail_WDO.csv')
-pivot_imb_detail_WDO.to_csv(PATHOUT+'pivot_imb_detail_WDO.csv')
-
-pivot_dt_CLM_WDO = pivot_events(dfWDO, event='Event_CLM')
-pivot_imb_CLM_WDO = pivot_prev_events(dfWDO, event='Event_CLM')
-pivot_dt_CLM_WDO.to_csv(PATHOUT+'pivot_dt_CLM_WDO.csv')
-pivot_imb_CLM_WDO.to_csv(PATHOUT+'pivot_imb_CLM_WDO.csv')
+if SAVEBMF:
+    trans_14_count_DOL.to_csv(PATHOUT+'trans_14_count_ev_DOL.csv')
+    pivot_dt_detail_DOL.to_csv(PATHOUT+'pivot_dt_detail_DOL.csv')
+    pivot_imb_detail_DOL.to_csv(PATHOUT+'pivot_imb_detail_DOL.csv')
+    trans_14_count_WDO.to_csv(PATHOUT+'trans_14_count_ev_WDO.csv')
+    pivot_dt_detail_WDO.to_csv(PATHOUT+'pivot_dt_detail_WDO.csv')
+    pivot_imb_detail_WDO.to_csv(PATHOUT+'pivot_imb_detail_WDO.csv')
 
 # %% From now on previous code do not uncomment
 

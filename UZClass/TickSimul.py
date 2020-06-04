@@ -156,8 +156,8 @@ def pivot_durations(ts_ev, labels, aggfunc=np.mean):
     df_ev = ts_ev.reset_index()
     df_ev['dt'] = df_ev['t'].diff()
     df_ev['Previous_Event'] = df_ev['Event'].shift(+1).values
-    df_piv = pd.pivot_table(df_ev, values='dt', index=['Previous_Event'],
-                          columns=['Event'], aggfunc=aggfunc, margins=True)
+    df_piv = pd.pivot_table(df_ev, values='dt', columns=['Previous_Event'],
+                          index=['Event'], aggfunc=aggfunc, margins=True)
     return df_piv[labels].reindex(labels)
 
 # %% Duration and counts
