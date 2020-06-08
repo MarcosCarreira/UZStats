@@ -208,8 +208,8 @@ df_trd2.loc[:, 'px_chg'] = df_trd2.loc[:, 'trade_price'].copy().diff()\
     .fillna(0)
 df_trd2 = df_trd2[df_trd2['px_chg'] != 0]
 df_trd2.loc[:, 'px_chg_sign'] = np.sign(df_trd2.loc[:, 'px_chg'])
-df_trd2.loc[:, 'run'] = df_trd2['px_chg_sign'] ==\
-    df_trd2['px_chg_sign'].shift()
+df_trd2.loc[:, 'run'] = df_trd2.loc[:, 'px_chg_sign'].copy() ==\
+    df_trd2.loc[:, 'px_chg_sign'].copy().shift()
 
 sht.range('Z46').value = len(df_trd2)
 sht.range('Z47').value = df_trd2['px_chg'].abs().sum()

@@ -42,7 +42,7 @@ from armadaClassMarcos import Armada_Data as ad
 
 # %% Tick Imports
 
-from tick.hawkes import HawkesConditionalLaw, HawkesSumExpKern
+from tick.hawkes import HawkesConditionalLaw, HawkesSumExpKern, HawkesEM
 from tick.plot import plot_hawkes_kernel_norms, plot_hawkes_kernels
 
 # %% Pandas Options
@@ -167,8 +167,10 @@ def init1(pathin, pathout, file_name, tick_value, min_order_size, start_time,
         method='ffill') >= datadfg['trade_price']
     datadfg['ask_traded'] = datadfg['ask_1_price'].copy().fillna(
         method='ffill') <= datadfg['trade_price']
+    print('init1 finished')
     if save_files:
         datadfg.to_csv(pathout+file_name[:-4]+'_df.csv')
+        print('init1 file saved')
     return datadfg
 
 # %% New init for Armada TOB - Part 2
@@ -311,6 +313,7 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
     # dfstates['Event'] = dfstates['event_code_short'].map(event_dict_short)
     if save_files:
         dfstates.to_csv(pathout+file_name[:-4]+'_df_states.csv')
+        print('init2 file saved')
     cols_output1 =\
         ['DateTime', 'OrderId', 'bid_1_qty', 'bid_1_price', 'ask_1_price',
          'ask_1_qty', 'trade_qty', 'levels_traded', 'Event_Size',
@@ -318,6 +321,7 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
          'Reversion', 'TS_Hawkes', 'dt', 'Spread_Ticks', 'Midprice',
          'Microprice', 'Imbalance', 'Imbal_Sign']
     dfstates = dfstates[cols_output1]
+    print('init2 finished')
     return dfstates
 
 
@@ -358,11 +362,11 @@ dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
 
 # %% dt=0
 
-dfDOL.dt.describe()
-dfWDO.dt.describe()
+# dfDOL.dt.describe()
+# dfWDO.dt.describe()
 
-dfCME1.dt.describe()
-dfCME2.dt.describe()
+# dfCME1.dt.describe()
+# dfCME2.dt.describe()
 
 # dfCME1.dt.value_counts(sort=False)
 
@@ -390,17 +394,20 @@ dfCME2.dt.describe()
 
 # %% Eevent Sizes
 
-dfDOL['Event_Size'].describe()
-dfWDO['Event_Size'].describe()
-dfCME1['Event_Size'].describe()
-dfCME2['Event_Size'].describe()
+# dfDOL['Event_Size'].describe()
+# dfWDO['Event_Size'].describe()
+# dfCME1['Event_Size'].describe()
+# dfCME2['Event_Size'].describe()
 
 def q10(array):
     return np.quantile(array, 0.1)
+
 def q30(array):
     return np.quantile(array, 0.3)
+
 def q70(array):
     return np.quantile(array, 0.7)
+
 def q90(array):
     return np.quantile(array, 0.9)
 
@@ -409,11 +416,6 @@ dfDOL_ES = pd.pivot_table(dfDOL, 'Event_Size', index='Event_14',
 dfWDO_ES = pd.pivot_table(dfWDO, 'Event_Size', index='Event_14',
                           aggfunc=[np.mean, q10, q30, np.median, q70, q90])
 
-dfDOL[dfDOL['Event_14'] == 'DmI_A'][['bid_1_qty', 'ask_1_qty', 'trade_qty']]\
-    .describe()
-dfDOL[dfDOL['Event_14'] == 'DmI_B'][['bid_1_qty', 'ask_1_qty', 'trade_qty']]\
-    .describe()
-    
 dfCME1_ES = pd.pivot_table(dfCME1, 'Event_Size', index='Event_14',
                           aggfunc=[np.mean, q10, q30, np.median, q70, q90])
 dfCME2_ES = pd.pivot_table(dfCME2, 'Event_Size', index='Event_14',
@@ -421,8 +423,29 @@ dfCME2_ES = pd.pivot_table(dfCME2, 'Event_Size', index='Event_14',
 
 dfDOL_ES.to_csv(PATHOUT+'dfDOL_ES.csv')
 dfWDO_ES.to_csv(PATHOUT+'dfWDO_ES.csv')
+
 dfCME1_ES.to_csv(PATHOUT+'dfCME1_ES.csv')
 dfCME2_ES.to_csv(PATHOUT+'dfCME2_ES.csv')
+
+dfDOL[dfDOL['Event_14'] == 'DmI_A'][['bid_1_qty', 'ask_1_qty', 'trade_qty']]\
+    .describe().to_csv(PATHOUT+'dfDOL_ES_DmI_A.csv')
+dfDOL[dfDOL['Event_14'] == 'DmI_B'][['bid_1_qty', 'ask_1_qty', 'trade_qty']]\
+    .describe().to_csv(PATHOUT+'dfDOL_ES_DmI_B.csv')
+
+dfWDO[dfWDO['Event_14'] == 'DmI_A'][['bid_1_qty', 'ask_1_qty', 'trade_qty']]\
+    .describe().to_csv(PATHOUT+'dfWDO_ES_DmI_A.csv')
+dfWDO[dfWDO['Event_14'] == 'DmI_B'][['bid_1_qty', 'ask_1_qty', 'trade_qty']]\
+    .describe().to_csv(PATHOUT+'dfWDO_ES_DmI_B.csv')
+
+dfCME1[dfCME1['Event_14'] == 'DmI_A'][['bid_1_qty', 'ask_1_qty', 'trade_qty']]\
+    .describe().to_csv(PATHOUT+'dfCME1_ES_DmI_A.csv')
+dfCME1[dfCME1['Event_14'] == 'DmI_B'][['bid_1_qty', 'ask_1_qty', 'trade_qty']]\
+    .describe().to_csv(PATHOUT+'dfCME1_ES_DmI_B.csv')
+
+dfCME2[dfCME2['Event_14'] == 'DmI_A'][['bid_1_qty', 'ask_1_qty', 'trade_qty']]\
+    .describe().to_csv(PATHOUT+'dfCME2_ES_DmI_A.csv')
+dfCME2[dfCME2['Event_14'] == 'DmI_B'][['bid_1_qty', 'ask_1_qty', 'trade_qty']]\
+    .describe().to_csv(PATHOUT+'dfCME2_ES_DmI_B.csv')
 
 # %% Intensities - pivots function
 
@@ -646,15 +669,12 @@ def get_hawkes(data_frame, cols, plot=False):
     return [hbase, hmean, hbase/hmean, hnorms]
 
 
-def get_hawkes_events(data_frame, symmetries1d=[], symmetries2d=[],
-                      plot=False):
+def get_hawkes_events(data_frame, plot=False):
     timestamps, labels = get_event_14_timestamps(data_frame)
     hawkes_learner = HawkesConditionalLaw(
         claw_method="log", delta_lag=0.1, min_lag=5e-4, max_lag=500,
         quad_method="log", n_quad=10, min_support=1e-4, max_support=1,
         n_threads=-1)
-    hawkes_learner.set_model(symmetries1d=symmetries1d,
-                             symmetries2d=symmetries2d)
     hawkes_learner.fit(timestamps)
     if plot:
         plot_hawkes_kernel_norms(hawkes_learner, node_names=labels)
@@ -709,7 +729,7 @@ def find_decay(timestamps, decays_init):
     return minimize(min_hawkes_sum_exp, decays_init, method='Nelder-Mead',
                     options={'disp': True})
 
-# %% Apply tick
+# %% Apply tick - parametric
 
 
 dfDOL_ts, dfDOL_lbls = get_event_timestamps(dfDOL.iloc[1:], 'Event_14')
@@ -791,18 +811,18 @@ adjacency_CME2.to_csv(PATHOUT+'adjacency_CME2.csv')
 baseline_CME1.to_csv(PATHOUT+'baseline_CME1.csv')
 baseline_CME2.to_csv(PATHOUT+'baseline_CME2.csv')
 
-# ------------------------------
+# %% Apply tick - non - parametric
 
-hawkes_reversion = get_hawkes(dfDOL.iloc[1:], 'Reversion', True)
-hawkes_ask = get_hawkes(dfDOL.iloc[1:], 'AskQ', True)
-hawkes_cons = get_hawkes(dfDOL.iloc[1:], 'ConsQ', True)
-hawkes_imbal = get_hawkes(dfDOL.iloc[1:], 'Imbal_Sign', True)
+# hawkes_reversion = get_hawkes(dfDOL.iloc[1:], 'Reversion', True)
+# hawkes_ask = get_hawkes(dfDOL.iloc[1:], 'AskQ', True)
+# hawkes_cons = get_hawkes(dfDOL.iloc[1:], 'ConsQ', True)
+# hawkes_imbal = get_hawkes(dfDOL.iloc[1:], 'Imbal_Sign', True)
 
-ts_14, lbls_14 = get_event_timestamps(dfDOL.iloc[1:], 'Event_12')
+# ts_14, lbls_14 = get_event_timestamps(dfDOL.iloc[1:], 'Event_12')
 
-hawkes_event_DOL = get_hawkes_events(dfDOL.iloc[1:], plot=True)
+hawkes_event_DOL = get_hawkes_events(dfDOL.iloc[1:], plot=False)
 
-hawkes_event_WDO = get_hawkes_events(dfWDO.iloc[1:], plot=True)
+hawkes_event_WDO = get_hawkes_events(dfWDO.iloc[1:], plot=False)
 
 df_intens = pd.DataFrame(
     {'DOL baseline': hawkes_event_DOL[0],
@@ -813,16 +833,60 @@ df_intens = pd.DataFrame(
      'WDO ratios': hawkes_event_WDO[2]},
     index=EV_14_LBLS)
 
-sns.heatmap(df_intens.transpose(), cmap='YlOrRd', annot=True, fmt=".2f")
+sns.heatmap(df_intens.transpose(), center=0, cmap='RdBu', annot=True,
+            fmt=".3f")
 
 sns.heatmap(hawkes_event_DOL[3], center=0, cmap='RdBu',
-            annot=True, fmt=".2f",
+            annot=True, fmt=".3f",
             xticklabels=EV_14_LBLS, yticklabels=EV_14_LBLS)
 
 sns.heatmap(hawkes_event_WDO[3], center=0, cmap='RdBu',
-            annot=True, fmt=".2f",
+            annot=True, fmt=".3f",
             xticklabels=EV_14_LBLS, yticklabels=EV_14_LBLS)
 
+df_intens.to_csv(PATHOUT+'df_intens_BMF.csv')
+
+pd.DataFrame(hawkes_event_DOL[3], columns=EV_14_LBLS, index=EV_14_LBLS)\
+    .to_csv(PATHOUT+'df_norms_DOL.csv')
+pd.DataFrame(hawkes_event_WDO[3], columns=EV_14_LBLS, index=EV_14_LBLS)\
+    .to_csv(PATHOUT+'df_norms_WDO.csv')
+
+# %% Estimation definitions
+
+
+kernel_size = 40
+max_iter = 1000
+kernel_support = 2
+tol = 0.00001
+
+# %% Estimation
+
+[len(ts) for ts in dfDOL_ts]
+
+n_threads = 4
+
+em = HawkesEM(kernel_support=kernel_support, kernel_size=kernel_size,
+              n_threads=n_threads, max_iter=max_iter, verbose=True,
+              tol=tol)
+em.fit(dfWDO_ts)
+
+em_baseline = em.baseline
+em_kernel = em.kernel
+
+# %% Plot
+
+# fig = plot_hawkes_kernels(em, support=kernel_support)
+
+# %% Attributes
+
+
+print(em.n_nodes)
+print(em.baseline)
+print(em.n_realizations)
+print(em.kernel)
+
+pd.Series(em.kernel[0, 1],
+          index=np.linspace(0, kernel_support, kernel_size)).plot()
 
 # %% Several days
 
@@ -850,11 +914,12 @@ FILES_WDO = [
 
 def get_hawkes_events_list(
         pathin, pathout, file_list, tick_value, min_order_size, start_time,
-        end_time, file_type='CME', min_dt=MINDTCME, save_files=False,
-        symmetries1d=[], symmetries2d=[], plot=False):
+        end_time, file_type='CME', min_dt=MINDTCME, dt_shift=DTEVSHIFTCME,
+        dt_cum_shift=DTCUMADDCME, save_files=False, plot=False):
     df_list = [initall(
         pathin, pathout, file, tick_value, min_order_size, start_time,
-        end_time, file_type, min_dt, save_files) for file in file_list]
+        end_time, file_type, min_dt, dt_shift, dt_cum_shift, save_files)
+        for file in file_list]
     timestamps = [get_event_14_timestamps(df)[0] for df in df_list]
     hawkes_learner = HawkesConditionalLaw(
         claw_method="log", delta_lag=0.1, min_lag=5e-4, max_lag=500,
@@ -871,23 +936,113 @@ def get_hawkes_events_list(
     return [hbase, hmean, hbase/hmean, hnorms]
 
 
+def prepare_hawkes_EM_events_list(
+        pathin, pathout, file_list, tick_value, min_order_size, start_time,
+        end_time, file_type='CME', min_dt=MINDTCME,
+        dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME):
+    df_list = [initall(
+        pathin, pathout, file, tick_value, min_order_size, start_time,
+        end_time, file_type, min_dt, dt_shift, dt_cum_shift, False)
+        for file in file_list]
+    timestamps = [get_event_14_timestamps(df)[0] for df in df_list]
+    return timestamps
+
+
+def get_hawkes_EM(timestamps, kernel_support=2, kernel_size=20, n_threads=4,
+                  max_iter=100, verbose=True, tol=1e-5):
+    hkem = HawkesEM(kernel_support=kernel_support, kernel_size=kernel_size,
+                  n_threads=n_threads, max_iter=max_iter, verbose=verbose,
+                  tol=tol)
+    hkem.fit(timestamps)
+    return [hkem.baseline, hkem.kernel]
+
+def get_hawkes_EM_events_list(
+        pathin, pathout, file_list, tick_value, min_order_size, start_time,
+        end_time, kernel_support=2, kernel_size=20, n_threads=4, max_iter=100,
+        verbose=True, tol=1e-5, file_type='CME', min_dt=MINDTCME,
+        dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME,):
+    df_list = [initall(
+        pathin, pathout, file, tick_value, min_order_size, start_time,
+        end_time, file_type, min_dt, dt_shift, dt_cum_shift, False)
+        for file in file_list]
+    timestamps = [get_event_14_timestamps(df)[0] for df in df_list]
+    hkem = HawkesEM(kernel_support=kernel_support, kernel_size=kernel_size,
+                  n_threads=n_threads, max_iter=max_iter, verbose=verbose,
+                  tol=tol)
+    hkem.fit(timestamps)
+    return [hkem.baseline, hkem.kernel]
+
+
 # %% Run
 
-hawkes_event_DOLs = get_hawkes_events_list(
+# hawkes_event_DOLs = get_hawkes_events_list(
+#     PATHIN, PATHOUT, FILES_DOL, TS1, MOSDOL, START_TIME1, END_TIME1, 'BMF',
+#     MINDT1, False, [], [], False)
+
+# sns.heatmap(hawkes_event_DOLs[3], center=0, cmap='RdBu',
+#             annot=True, fmt=".2f",
+#             xticklabels=EV_14_LBLS, yticklabels=EV_14_LBLS)
+
+# hawkes_event_WDOs = get_hawkes_events_list(
+#     PATHIN, PATHOUT, FILES_WDO, TS1, MOSWDO, START_TIME1, END_TIME1, 'BMF',
+#     MINDT1, False, [], [], False)
+
+# sns.heatmap(hawkes_event_WDOs[3], center=0, cmap='RdBu',
+#             annot=True, fmt=".2f",
+#             xticklabels=EV_14_LBLS, yticklabels=EV_14_LBLS)
+
+# %% Run EM
+
+
+# EM_DOLs_baseline, EM_DOLs_kernels = get_hawkes_EM_events_list(
+#     PATHIN, PATHOUT, FILES_DOL, TS1, MOSDOL, START_TIME1, END_TIME1, 2, 20,
+#     4, 100, True, 1e-5, 'BMF', MINDT1)
+
+# EM_WDOs_baseline, EM_WDOs_kernels = get_hawkes_EM_events_list(
+#     PATHIN, PATHOUT, FILES_WDO, TS1, MOSWDO, START_TIME1, END_TIME1, 2, 20,
+#     4, 100, True, 1e-5, 'BMF', MINDT1)
+
+# %% Get data for EM
+
+
+EM_DOLs_timestamps = prepare_hawkes_EM_events_list(
     PATHIN, PATHOUT, FILES_DOL, TS1, MOSDOL, START_TIME1, END_TIME1, 'BMF',
-    MINDT1, False, [], [], False)
+    MINDT1)
 
-sns.heatmap(hawkes_event_DOLs[3], center=0, cmap='RdBu',
-            annot=True, fmt=".2f",
-            xticklabels=EV_14_LBLS, yticklabels=EV_14_LBLS)
-
-hawkes_event_WDOs = get_hawkes_events_list(
+EM_WDOs_timestamps = prepare_hawkes_EM_events_list(
     PATHIN, PATHOUT, FILES_WDO, TS1, MOSWDO, START_TIME1, END_TIME1, 'BMF',
-    MINDT1, False, [], [], False)
+    MINDT1)
 
-sns.heatmap(hawkes_event_WDOs[3], center=0, cmap='RdBu',
-            annot=True, fmt=".2f",
-            xticklabels=EV_14_LBLS, yticklabels=EV_14_LBLS)
+# %% Run EM with different parameters
+
+
+kernel_support = 2
+kernel_size = 20
+n_threads = 4
+max_iter = 1000
+verbose_EM = True
+tol = 1e-5
+
+EM_DOLs_baseline_1, EM_DOLs_kernel_1 =\
+    get_hawkes_EM(EM_DOLs_timestamps, kernel_support, kernel_size, n_threads,
+                  max_iter, verbose_EM, tol)
+EM_DOLs_baseline_1 = pd.Series(EM_DOLs_baseline_1, index=EV_14_LBLS)
+
+EM_WDOs_baseline_1, EM_WDOs_kernel_1 =\
+    get_hawkes_EM(EM_WDOs_timestamps, kernel_support, kernel_size, n_threads,
+                  max_iter, verbose_EM, tol)
+EM_WDOs_baseline_1 = pd.Series(EM_WDOs_baseline_1, index=EV_14_LBLS)
+
+
+# %% View results
+
+
+pd.Series(EM_DOLs_kernel_1[0, 0],
+          index=np.linspace(0, kernel_support, kernel_size)).plot()
+
+pd.Series(EM_WDOs_kernel_1[0, 0],
+          index=np.linspace(0, kernel_support, kernel_size)).plot()
+
 
 # %% Imbalance prediction
 
@@ -1063,23 +1218,6 @@ plot_duration(subdfCME1, title='CME 2018-01-05', window=100,
 plot_duration(subdfCME1, title='CME 2018-01-05', window=1000,
               save_fig=SAVECME)
 
-# %% Transition matrix
-
-
-def transition_events(data_frame, event='Event_14', margins=False,
-                      normalize=False):
-    # Options for event: 'Event_14' (default) and 'Event_detail'
-    return pd.crosstab(index=data_frame[event].values,
-                       columns=data_frame[event].shift(-1).values,
-                       margins=margins, normalize=normalize)[EV_14_LBLS]\
-        .reindex(EV_14_LBLS)
-
-# %% Test transition matrix
-
-
-
-
-
 # %% Transition matrix - Pivot
 
 
@@ -1115,15 +1253,53 @@ pivot_imb_DOL = pivot_prev_events(dfDOL)
 
 trans_count_WDO = pivot_events(dfWDO, aggfunc='count')
 pivot_dt_WDO = pivot_events(dfWDO)
-pivot_imb_detail_WDO = pivot_prev_events(dfWDO)
+pivot_imb_WDO = pivot_prev_events(dfWDO)
 
-if SAVEBMF:
-    trans_14_count_DOL.to_csv(PATHOUT+'trans_14_count_ev_DOL.csv')
-    pivot_dt_detail_DOL.to_csv(PATHOUT+'pivot_dt_detail_DOL.csv')
-    pivot_imb_detail_DOL.to_csv(PATHOUT+'pivot_imb_detail_DOL.csv')
-    trans_14_count_WDO.to_csv(PATHOUT+'trans_14_count_ev_WDO.csv')
-    pivot_dt_detail_WDO.to_csv(PATHOUT+'pivot_dt_detail_WDO.csv')
-    pivot_imb_detail_WDO.to_csv(PATHOUT+'pivot_imb_detail_WDO.csv')
+trans_count_CME1 = pivot_events(dfCME1, aggfunc='count')
+pivot_dt_CME1 = pivot_events(dfCME1)
+pivot_imb_CME1 = pivot_prev_events(dfCME1)
+
+trans_count_CME2 = pivot_events(dfCME2, aggfunc='count')
+pivot_dt_CME2 = pivot_events(dfCME2)
+pivot_imb_CME2 = pivot_prev_events(dfCME2)
+
+trans_count_DOL.to_csv(PATHOUT+'trans_ev_count_DOL.csv')
+pivot_dt_DOL.to_csv(PATHOUT+'pivot_dt_mean_DOL.csv')
+pivot_imb_DOL.to_csv(PATHOUT+'pivot_imb_mean_DOL.csv')
+trans_count_WDO.to_csv(PATHOUT+'trans_ev_count_WDO.csv')
+pivot_dt_WDO.to_csv(PATHOUT+'pivot_dt_mean_WDO.csv')
+pivot_imb_WDO.to_csv(PATHOUT+'pivot_imb_mean_WDO.csv')
+
+trans_count_CME1.to_csv(PATHOUT+'trans_ev_count_CME1.csv')
+pivot_dt_CME1.to_csv(PATHOUT+'pivot_dt_mean_CME1.csv')
+pivot_imb_CME1.to_csv(PATHOUT+'pivot_imb_mean_CME1.csv')
+trans_count_CME2.to_csv(PATHOUT+'trans_ev_count_CME2.csv')
+pivot_dt_CME2.to_csv(PATHOUT+'pivot_dt_mean_CME2.csv')
+pivot_imb_CME2.to_csv(PATHOUT+'pivot_imb_mean_CME2.csv')
+
+pivot_events(dfDOL, aggfunc=q10).to_csv(PATHOUT+'pivot_q10_DOL.csv')
+pivot_events(dfDOL, aggfunc=q30).to_csv(PATHOUT+'pivot_q30_DOL.csv')
+pivot_events(dfDOL, aggfunc=np.median).to_csv(PATHOUT+'pivot_q50_DOL.csv')
+pivot_events(dfDOL, aggfunc=q70).to_csv(PATHOUT+'pivot_q70_DOL.csv')
+pivot_events(dfDOL, aggfunc=q90).to_csv(PATHOUT+'pivot_q90_DOL.csv')
+
+pivot_events(dfWDO, aggfunc=q10).to_csv(PATHOUT+'pivot_q10_WDO.csv')
+pivot_events(dfWDO, aggfunc=q30).to_csv(PATHOUT+'pivot_q30_WDO.csv')
+pivot_events(dfWDO, aggfunc=np.median).to_csv(PATHOUT+'pivot_q50_WDO.csv')
+pivot_events(dfWDO, aggfunc=q70).to_csv(PATHOUT+'pivot_q70_WDO.csv')
+pivot_events(dfWDO, aggfunc=q90).to_csv(PATHOUT+'pivot_q90_WDO.csv')
+
+pivot_events(dfCME1, aggfunc=q10).to_csv(PATHOUT+'pivot_q10_CME1.csv')
+pivot_events(dfCME1, aggfunc=q30).to_csv(PATHOUT+'pivot_q30_CME1.csv')
+pivot_events(dfCME1, aggfunc=np.median).to_csv(PATHOUT+'pivot_q50_CME1.csv')
+pivot_events(dfCME1, aggfunc=q70).to_csv(PATHOUT+'pivot_q70_CME1.csv')
+pivot_events(dfCME1, aggfunc=q90).to_csv(PATHOUT+'pivot_q90_CME1.csv')
+
+pivot_events(dfCME2, aggfunc=q10).to_csv(PATHOUT+'pivot_q10_CME2.csv')
+pivot_events(dfCME2, aggfunc=q30).to_csv(PATHOUT+'pivot_q30_CME2.csv')
+pivot_events(dfCME2, aggfunc=np.median).to_csv(PATHOUT+'pivot_q50_CME2.csv')
+pivot_events(dfCME2, aggfunc=q70).to_csv(PATHOUT+'pivot_q70_CME2.csv')
+pivot_events(dfCME2, aggfunc=q90).to_csv(PATHOUT+'pivot_q90_CME2.csv')
 
 # %% From now on previous code do not uncomment
 
