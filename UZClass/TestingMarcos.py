@@ -617,10 +617,6 @@ pivots_intensities(dfCME2, 25, 'CME 2018-01-04')
 # %% Functions for tick application
 
 
-EV_14_LBLS = ['L_B', 'C_A', 'M_A', 'I_B', 'DmI_A', 'Dm_A', 'Dc_A',
-              'L_A', 'C_B', 'M_B', 'I_A', 'DmI_B', 'Dm_B', 'Dc_B']
-
-
 def get_seconds(data_frame):
     times = data_frame['TS_Hawkes'].copy()
     start = times.iloc[0]
@@ -948,29 +944,29 @@ def prepare_hawkes_EM_events_list(
     return timestamps
 
 
-def get_hawkes_EM(timestamps, kernel_support=2, kernel_size=20, n_threads=4,
-                  max_iter=100, verbose=True, tol=1e-5):
-    hkem = HawkesEM(kernel_support=kernel_support, kernel_size=kernel_size,
-                  n_threads=n_threads, max_iter=max_iter, verbose=verbose,
-                  tol=tol)
-    hkem.fit(timestamps)
-    return [hkem.baseline, hkem.kernel]
+def get_hawkes_EM(timestamps, kernel_discretization, baseline_start,
+                  n_threads=4, max_iter=100, verbose=True, tol=1e-5):
+    hkem = HawkesEM(kernel_discretization=kernel_discretization,
+                    n_threads=n_threads, max_iter=max_iter, verbose=verbose,
+                    tol=tol)
+    hkem.fit(timestamps, baseline_start=baseline_start)
+    return [hkem.baseline, hkem.kernel, hkem.get_kernel_norms()]
 
-def get_hawkes_EM_events_list(
-        pathin, pathout, file_list, tick_value, min_order_size, start_time,
-        end_time, kernel_support=2, kernel_size=20, n_threads=4, max_iter=100,
-        verbose=True, tol=1e-5, file_type='CME', min_dt=MINDTCME,
-        dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME,):
-    df_list = [initall(
-        pathin, pathout, file, tick_value, min_order_size, start_time,
-        end_time, file_type, min_dt, dt_shift, dt_cum_shift, False)
-        for file in file_list]
-    timestamps = [get_event_14_timestamps(df)[0] for df in df_list]
-    hkem = HawkesEM(kernel_support=kernel_support, kernel_size=kernel_size,
-                  n_threads=n_threads, max_iter=max_iter, verbose=verbose,
-                  tol=tol)
-    hkem.fit(timestamps)
-    return [hkem.baseline, hkem.kernel]
+# def get_hawkes_EM_events_list(
+#         pathin, pathout, file_list, tick_value, min_order_size, start_time,
+#         end_time, kernel_support=2, kernel_size=20, n_threads=4, max_iter=100,
+#         verbose=True, tol=1e-5, file_type='CME', min_dt=MINDTCME,
+#         dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME,):
+#     df_list = [initall(
+#         pathin, pathout, file, tick_value, min_order_size, start_time,
+#         end_time, file_type, min_dt, dt_shift, dt_cum_shift, False)
+#         for file in file_list]
+#     timestamps = [get_event_14_timestamps(df)[0] for df in df_list]
+#     hkem = HawkesEM(kernel_support=kernel_support, kernel_size=kernel_size,
+#                   n_threads=n_threads, max_iter=max_iter, verbose=verbose,
+#                   tol=tol)
+#     hkem.fit(timestamps)
+#     return [hkem.baseline, hkem.kernel]
 
 
 # %% Run
@@ -1013,36 +1009,97 @@ EM_WDOs_timestamps = prepare_hawkes_EM_events_list(
     PATHIN, PATHOUT, FILES_WDO, TS1, MOSWDO, START_TIME1, END_TIME1, 'BMF',
     MINDT1)
 
-# %% Run EM with different parameters
+for j in range(len(EM_DOLs_timestamps)):
+    np.save(PATHOUT+'TS_'+FILES_DOL[j][:-4], EM_DOLs_timestamps[j])
+    np.save(PATHOUT+'TS_'+FILES_WDO[j][:-4], EM_WDOs_timestamps[j])
 
 
-kernel_support = 2
-kernel_size = 20
-n_threads = 4
-max_iter = 1000
+# %% EM common parameters
+
+n_threads = -1
 verbose_EM = True
+max_iter = 1000
 tol = 1e-5
+baseline_start = np.array([1., 1., 0.1, 0., 0., 0., 0.,
+                           1., 1., 0.1, 0., 0., 0., 0.])
 
-EM_DOLs_baseline_1, EM_DOLs_kernel_1 =\
-    get_hawkes_EM(EM_DOLs_timestamps, kernel_support, kernel_size, n_threads,
-                  max_iter, verbose_EM, tol)
-EM_DOLs_baseline_1 = pd.Series(EM_DOLs_baseline_1, index=EV_14_LBLS)
+# %% Run EM with different parameters - 1
 
-EM_WDOs_baseline_1, EM_WDOs_kernel_1 =\
-    get_hawkes_EM(EM_WDOs_timestamps, kernel_support, kernel_size, n_threads,
-                  max_iter, verbose_EM, tol)
-EM_WDOs_baseline_1 = pd.Series(EM_WDOs_baseline_1, index=EV_14_LBLS)
+
+kernel_discretization =\
+    np.concatenate(
+        (np.linspace(0, 0.01, 10, endpoint=False),
+         np.linspace(0.01, 0.1, 9, endpoint=False),
+         np.linspace(0.1, 1.0, 9, endpoint=False),
+         np.linspace(1.0, 5.0, 16+1)))
+kernel_intervals = np.diff(kernel_discretization)
+
+
+em_DOLs_baseline_1, em_DOLs_kernel_1, em_DOLs_kernel_norms_1 =\
+    get_hawkes_EM(EM_DOLs_timestamps,
+                  kernel_discretization=kernel_discretization,
+                  baseline_start=baseline_start,
+                  n_threads=n_threads, max_iter=max_iter,
+                  verbose=verbose_EM, tol=tol)
+em_DOLs_baseline_1 = pd.Series(em_DOLs_baseline_1, index=EV_14_LBLS)
+em_DOLs_baseline_1.to_csv(PATHOUT+'em_DOLs_baseline_1.csv')
+em_DOLs_kernel_norms_1 = pd.DataFrame(em_DOLs_kernel_norms_1,
+                                      index=EV_14_LBLS, columns=EV_14_LBLS)
+em_DOLs_kernel_norms_1.to_csv(PATHOUT+'em_DOLs_kernel_norms_1.csv')
+np.save(PATHOUT+'em_DOLs_kernel_1', em_DOLs_kernel_1)
+
+em_WDOs_baseline_1, em_WDOs_kernel_1, em_WDOs_kernel_norms_1 =\
+    get_hawkes_EM(EM_WDOs_timestamps,
+                  kernel_discretization=kernel_discretization,
+                  baseline_start=baseline_start,
+                  n_threads=n_threads, max_iter=max_iter,
+                  verbose=verbose_EM, tol=tol)
+em_WDOs_baseline_1 = pd.Series(em_WDOs_baseline_1, index=EV_14_LBLS)
+em_WDOs_baseline_1.to_csv(PATHOUT+'em_WDOs_baseline_1.csv')
+em_WDOs_kernel_norms_1 = pd.DataFrame(em_WDOs_kernel_norms_1,
+                                      index=EV_14_LBLS, columns=EV_14_LBLS)
+em_WDOs_kernel_norms_1.to_csv(PATHOUT+'em_WDOs_kernel_norms_1.csv')
+np.save(PATHOUT+'em_WDOs_kernel_1', em_WDOs_kernel_1)
 
 
 # %% View results
 
 
-pd.Series(EM_DOLs_kernel_1[0, 0],
-          index=np.linspace(0, kernel_support, kernel_size)).plot()
+sns.heatmap(em_DOLs_kernel_norms_1, center=0, cmap='RdBu',
+            annot=True, fmt=".3f",
+            xticklabels=EV_14_LBLS, yticklabels=EV_14_LBLS)
 
-pd.Series(EM_WDOs_kernel_1[0, 0],
-          index=np.linspace(0, kernel_support, kernel_size)).plot()
+prog_kn_DOL = [[(em_DOLs_kernel_1[i, j] * kernel_intervals).cumsum()
+               for j in range(14)] for i in range(14)]
 
+prog_kn_WDO = [[(em_WDOs_kernel_1[i, j] * kernel_intervals).cumsum()
+                for j in range(14)] for i in range(14)]
+
+rel_kn_DOL = [[(em_DOLs_kernel_1[i, j] * kernel_intervals).cumsum() /
+               em_DOLs_kernel_norms_1.iloc[i, j] for j in range(14)]
+              for i in range(14)]
+
+rel_kn_WDO = [[(em_WDOs_kernel_1[i, j] * kernel_intervals).cumsum() /
+               em_WDOs_kernel_norms_1.iloc[i, j] for j in range(14)]
+              for i in range(14)]
+
+pd.Series(prog_kn_DOL[0][0], index=kernel_discretization[1:]).plot(color='r')
+pd.Series(prog_kn_DOL[7][7], index=kernel_discretization[1:]).plot(color='b')
+
+pd.Series(rel_kn_DOL[0][0], index=kernel_discretization[1:]).plot(color='r')
+pd.Series(rel_kn_DOL[7][7], index=kernel_discretization[1:]).plot(color='b')
+
+(pd.Series(EM_DOLs_kernel_2[0, 8] * kernel_intervals,
+          index=kernel_discretization_DOL[1:]).cumsum()/\
+    em_DOLs_kernel_norms_1.iloc[0, 8]).plot(color='b')
+
+(pd.Series(EM_DOLs_kernel_2[0, 1] * kernel_intervals,
+          index=kernel_discretization_DOL[1:]).cumsum()/\
+    em_DOLs_kernel_norms_1.iloc[0, 1]).loc[:0.01].plot(color='r')
+
+(pd.Series(EM_DOLs_kernel_2[0, 8] * kernel_intervals,
+          index=kernel_discretization_DOL[1:]).cumsum()/\
+    em_DOLs_kernel_norms_1.iloc[0, 8]).loc[:0.01].plot(color='b')
 
 # %% Imbalance prediction
 
