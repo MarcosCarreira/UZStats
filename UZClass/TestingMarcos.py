@@ -905,6 +905,10 @@ FILES_WDO = [
     'WDOG1720170123.csv', 'WDOG1720170124.csv', 'WDOG1720170126.csv',
     'WDOG1720170127.csv', 'WDOG1720170130.csv']
 
+FILES_CME = [
+    '20180102_6EH8.zip', '20180103_6EH8.zip',
+    '20180104_6EH8.zip', '20180105_6EH8.zip']
+
 # %% Function for lists
 
 
@@ -1013,6 +1017,13 @@ for j in range(len(EM_DOLs_timestamps)):
     np.save(PATHOUT+'TS_'+FILES_DOL[j][:-4], EM_DOLs_timestamps[j])
     np.save(PATHOUT+'TS_'+FILES_WDO[j][:-4], EM_WDOs_timestamps[j])
 
+EM_CME_timestamps = prepare_hawkes_EM_events_list(
+    PATHIN, PATHOUT, FILES_CME, TS, MOSCME, START_TIME, END_TIME, 'CME',
+    MINDTCME)
+
+for j in range(len(EM_CME_timestamps)):
+    np.save(PATHOUT+'TS_'+FILES_CME[j][:-4], EM_CME_timestamps[j])
+
 
 # %% EM common parameters
 
@@ -1061,6 +1072,32 @@ em_WDOs_kernel_norms_1 = pd.DataFrame(em_WDOs_kernel_norms_1,
 em_WDOs_kernel_norms_1.to_csv(PATHOUT+'em_WDOs_kernel_norms_1.csv')
 np.save(PATHOUT+'em_WDOs_kernel_1', em_WDOs_kernel_1)
 
+# %% Run EM with different parameters - 2
+
+
+kernel_discretization_CME =\
+    np.concatenate(
+        (np.linspace(0, 0.0001, 10, endpoint=False),
+         np.linspace(0.0001, 0.001, 9, endpoint=False),
+         np.linspace(0.001, 0.01, 9, endpoint=False),
+         np.linspace(0.01, 0.1, 9, endpoint=False),
+         np.linspace(0.1, 1.0, 9, endpoint=False),
+         np.linspace(1.0, 2.0, 4+1)))
+kernel_intervals_CME = np.diff(kernel_discretization_CME)
+
+
+em_CME_baseline_1, em_CME_kernel_1, em_CME_kernel_norms_1 =\
+    get_hawkes_EM(EM_CME_timestamps,
+                  kernel_discretization=kernel_discretization_CME,
+                  baseline_start=baseline_start,
+                  n_threads=n_threads, max_iter=max_iter,
+                  verbose=verbose_EM, tol=tol)
+em_CME_baseline_1 = pd.Series(em_CME_baseline_1, index=EV_14_LBLS)
+em_CME_baseline_1.to_csv(PATHOUT+'em_CME_baseline_1.csv')
+em_CME_kernel_norms_1 = pd.DataFrame(em_CME_kernel_norms_1,
+                                     index=EV_14_LBLS, columns=EV_14_LBLS)
+em_CME_kernel_norms_1.to_csv(PATHOUT+'em_CME_kernel_norms_1.csv')
+np.save(PATHOUT+'em_CME_kernel_1', em_CME_kernel_1)
 
 # %% View results
 
@@ -1075,12 +1112,19 @@ prog_kn_DOL = [[(em_DOLs_kernel_1[i, j] * kernel_intervals).cumsum()
 prog_kn_WDO = [[(em_WDOs_kernel_1[i, j] * kernel_intervals).cumsum()
                 for j in range(14)] for i in range(14)]
 
+prog_kn_CME = [[(em_CME_kernel_1[i, j] * kernel_intervals_CME).cumsum()
+                for j in range(14)] for i in range(14)]
+
 rel_kn_DOL = [[(em_DOLs_kernel_1[i, j] * kernel_intervals).cumsum() /
                em_DOLs_kernel_norms_1.iloc[i, j] for j in range(14)]
               for i in range(14)]
 
 rel_kn_WDO = [[(em_WDOs_kernel_1[i, j] * kernel_intervals).cumsum() /
                em_WDOs_kernel_norms_1.iloc[i, j] for j in range(14)]
+              for i in range(14)]
+
+rel_kn_CME = [[(em_CME_kernel_1[i, j] * kernel_intervals_CME).cumsum() /
+               em_CME_kernel_norms_1.iloc[i, j] for j in range(14)]
               for i in range(14)]
 
 pd.Series(prog_kn_DOL[0][0], index=kernel_discretization[1:]).plot(color='r')
@@ -1100,6 +1144,17 @@ pd.Series(rel_kn_DOL[7][7], index=kernel_discretization[1:]).plot(color='b')
 (pd.Series(EM_DOLs_kernel_2[0, 8] * kernel_intervals,
           index=kernel_discretization_DOL[1:]).cumsum()/\
     em_DOLs_kernel_norms_1.iloc[0, 8]).loc[:0.01].plot(color='b')
+
+pd.Series(prog_kn_CME[0][0],
+          index=kernel_discretization_CME[1:]).plot(color='r')
+pd.Series(prog_kn_CME[7][7],
+          index=kernel_discretization_CME[1:]).plot(color='b')
+
+pd.Series(rel_kn_CME[0][0],
+          index=kernel_discretization_CME[1:]).plot(color='r')
+pd.Series(rel_kn_CME[7][7],
+          index=kernel_discretization_CME[1:]).plot(color='b')
+
 
 # %% Imbalance prediction
 
