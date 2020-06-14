@@ -17,6 +17,8 @@
 # # Testing Florian's Excellent Code
 
 # %% Python imports
+
+
 import os
 # import timeit
 import pandas as pd
@@ -28,8 +30,10 @@ from scipy.optimize import minimize
 # print(os.getcwd())
 
 # %% Armada Class imports
-# from armadaClassMarcos import ArmadaData_UZModel as uz
+
+
 from armadaClassMarcos import Armada_Data as ad
+from armadaClassMarcos import ArmadaData_UZModel as uz
 # from armadaClassMarcos import Armada_TOB as atob
 
 # %% Othmane imports
@@ -51,10 +55,14 @@ pd.options.display.max_columns = 30
 pd.options.display.max_rows = 50
 
 # %% Florian's PATHPROJ
+
+
 # PATHPROJ = os.path.join(os.path.expanduser("~"), "Documents", "GitHub",\
 #                        "UZStats")
 
 # %% Marcos' PATHPROJ
+
+
 PATHPROJ = os.path.join(os.path.expanduser("~"), "My Papers",
                         "UZModelUncertainty")
 
@@ -391,13 +399,8 @@ dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
 # dfDOLc['TS_Hawkes'] = dfDOLc['DateTime'] + DTEVSHIFT1 +\
 #     DTCUMADD1 * dfDOLc['CondTS']
 
+# %% Quantile functions
 
-# %% Eevent Sizes
-
-# dfDOL['Event_Size'].describe()
-# dfWDO['Event_Size'].describe()
-# dfCME1['Event_Size'].describe()
-# dfCME2['Event_Size'].describe()
 
 def q10(array):
     return np.quantile(array, 0.1)
@@ -410,6 +413,14 @@ def q70(array):
 
 def q90(array):
     return np.quantile(array, 0.9)
+
+# %% Eevent Sizes
+
+
+# dfDOL['Event_Size'].describe()
+# dfWDO['Event_Size'].describe()
+# dfCME1['Event_Size'].describe()
+# dfCME2['Event_Size'].describe()
 
 dfDOL_ES = pd.pivot_table(dfDOL, 'Event_Size', index='Event_14',
                           aggfunc=[np.mean, q10, q30, np.median, q70, q90])
@@ -549,15 +560,15 @@ def pivots_intensities(data_frame, max_q=20, plot_q=True, title=''):
         title_count = ' - Events by queue size - count'
         # plot_intensity(df_all_count, cols=cols_cp, title_plot=title_count)
         plot_intensity(df_all_count, cols=cols_agg, title_plot=title_count)
-        # plot_intensity(df_all_count, cols=cols_all, title_plot=title_count)
+        plot_intensity(df_all_count, cols=cols_all, title_plot=title_count)
         title_intens = ' - Events by queue size - intensity'
         # plot_intensity(df_all_intens, cols=cols_cp, title_plot=title_intens)
         plot_intensity(df_all_intens, cols=cols_agg, title_plot=title_intens)
-        # plot_intensity(df_all_intens, cols=cols_all, title_plot=title_intens)
+        plot_intensity(df_all_intens, cols=cols_all, title_plot=title_intens)
         title_dur = ' - Events by queue size - durations'
         # plot_intensity(df_all_dur, cols=cols_cp, title_plot=title_dur)
         plot_intensity(df_all_dur, cols=cols_agg, title_plot=title_dur)
-        # plot_intensity(df_all_dur, cols=cols_all, title_plot=title_dur)
+        plot_intensity(df_all_dur, cols=cols_all, title_plot=title_dur)
 
         title_count_rein = ' - Events by queue size - count - Reinforce'
         # plot_intensity(df_rein_count, cols=cols_cp,
@@ -894,7 +905,14 @@ FILES_DOL = [
     'DOLG1720170113.csv', 'DOLG1720170116.csv', 'DOLG1720170117.csv',
     'DOLG1720170118.csv', 'DOLG1720170119.csv', 'DOLG1720170120.csv',
     'DOLG1720170123.csv', 'DOLG1720170124.csv', 'DOLG1720170126.csv',
-    'DOLG1720170127.csv', 'DOLG1720170130.csv']
+    'DOLG1720170127.csv', 'DOLG1720170130.csv',
+    'DOLH1720170131.csv',
+    'DOLH1720170201.csv', 'DOLH1720170202.csv', 'DOLH1720170203.csv',
+    'DOLH1720170207.csv', 'DOLH1720170208.csv', \
+    'DOLH1720170209.csv', 'DOLH1720170210.csv', 'DOLH1720170213.csv',
+    'DOLH1720170214.csv', 'DOLH1720170215.csv', 'DOLH1720170216.csv',
+    'DOLH1720170217.csv', 'DOLH1720170220.txt', 'DOLH1720170221.txt',
+    'DOLH1720170222.txt', 'DOLH1720170223.txt']
 
 FILES_WDO = [
     'WDOG1720170103.csv', 'WDOG1720170104.csv',
@@ -903,7 +921,14 @@ FILES_WDO = [
     'WDOG1720170113.csv', 'WDOG1720170116.csv', 'WDOG1720170117.csv',
     'WDOG1720170118.csv', 'WDOG1720170119.csv', 'WDOG1720170120.csv',
     'WDOG1720170123.csv', 'WDOG1720170124.csv', 'WDOG1720170126.csv',
-    'WDOG1720170127.csv', 'WDOG1720170130.csv']
+    'WDOG1720170127.csv', 'WDOG1720170130.csv',
+    'WDOH1720170131.csv',
+    'WDOH1720170201.csv', 'WDOH1720170202.csv', 'WDOH1720170203.csv',
+    'WDOH1720170207.csv', 'WDOH1720170208.csv',
+    'WDOH1720170209.csv', 'WDOH1720170210.csv', 'WDOH1720170213.csv',
+    'WDOH1720170214.csv', 'WDOH1720170215.csv', 'WDOH1720170216.csv',
+    'WDOH1720170217.csv', 'WDOH1720170220.txt', 'WDOH1720170221.txt',
+    'WDOH1720170222.txt', 'WDOH1720170223.txt']
 
 FILES_CME = [
     '20180102_6EH8.zip', '20180103_6EH8.zip',
@@ -1002,6 +1027,56 @@ def get_hawkes_EM(timestamps, kernel_discretization, baseline_start,
 #     PATHIN, PATHOUT, FILES_WDO, TS1, MOSWDO, START_TIME1, END_TIME1, 2, 20,
 #     4, 100, True, 1e-5, 'BMF', MINDT1)
 
+# %% UZ function - multiple days
+
+
+def runc_multi_days(pathin, pathout, tick_value, start_time, end_time,
+                    file_names=[], file_type='CME'):
+    """Run uz_stats for multiple days.
+
+    runc_multi_days(pathin, pathout, tick_value, start_time, end_time,
+                    file_names=[], file_type='CME', save_files=False)
+    returns the UZ stats for multiple days
+    """
+    # tick_value = TS
+    # filepaths = [pathout]
+    # # create directories if do not exist
+    # for path in filepaths:
+    #     if not os.path.exists(path):
+    #         os.makedirs(path)
+    # # either explicitly set file_names or get file_names from data path
+    # if len(file_names) == 0:
+    #     for file in os.listdir(pathin):
+    #         if file.endswith("csv") or file.endswith(".zip"):
+    #             file_names.append(file)
+    for f_name in file_names:
+        # start = timeit.default_timer()
+        print('--START------')
+        data = ad(pathin, f_name, file_type)
+        uz_obj = uz(data, tick_value, start_time, end_time)
+        if file_names[0] == f_name:
+            output = uz_obj.get_Armada_UZModel_output()
+        else:
+            output.append(uz_obj.get_Armada_UZModel_output())
+        # stop = timeit.default_timer()
+        # print('Time Spent: ', round(stop - start), ' seconds')
+        print('--END-------')
+    output.print2file_df_cont_alt_by_ticks(pathout)
+    output.print2file_df_uz_stats(pathout)
+    output.plot_html_uz_stats(pathout)
+
+
+# %% Run UZ_model
+
+runc_multi_days(PATHIN, PATHOUT, TS1, START_TIME1, END_TIME1,
+                    file_names=FILES_DOL, file_type='BMF')
+
+# Rename files before running again!
+
+runc_multi_days(PATHIN, PATHOUT, TS1, START_TIME1, END_TIME1,
+                    file_names=FILES_WDO, file_type='BMF')
+
+
 # %% Get data for EM
 
 
@@ -1023,6 +1098,15 @@ EM_CME_timestamps = prepare_hawkes_EM_events_list(
 
 for j in range(len(EM_CME_timestamps)):
     np.save(PATHOUT+'TS_'+FILES_CME[j][:-4], EM_CME_timestamps[j])
+
+# %% Retrieve saved timestamps
+
+
+EM_DOLs_timestamps_S = [list(np.load(PATHOUT + 'TS_' + file[:-4] + '.npy',
+                              allow_pickle=True)) for file in FILES_DOL]
+
+EM_WDOs_timestamps_S = [list(np.load(PATHOUT + 'TS_' + file[:-4] + '.npy',
+                              allow_pickle=True)) for file in FILES_WDO]
 
 
 # %% EM common parameters
@@ -1047,7 +1131,7 @@ kernel_intervals = np.diff(kernel_discretization)
 
 
 em_DOLs_baseline_1, em_DOLs_kernel_1, em_DOLs_kernel_norms_1 =\
-    get_hawkes_EM(EM_DOLs_timestamps,
+    get_hawkes_EM(EM_DOLs_timestamps_S,
                   kernel_discretization=kernel_discretization,
                   baseline_start=baseline_start,
                   n_threads=n_threads, max_iter=max_iter,
@@ -1060,7 +1144,7 @@ em_DOLs_kernel_norms_1.to_csv(PATHOUT+'em_DOLs_kernel_norms_1.csv')
 np.save(PATHOUT+'em_DOLs_kernel_1', em_DOLs_kernel_1)
 
 em_WDOs_baseline_1, em_WDOs_kernel_1, em_WDOs_kernel_norms_1 =\
-    get_hawkes_EM(EM_WDOs_timestamps,
+    get_hawkes_EM(EM_WDOs_timestamps_S,
                   kernel_discretization=kernel_discretization,
                   baseline_start=baseline_start,
                   n_threads=n_threads, max_iter=max_iter,
@@ -1071,6 +1155,23 @@ em_WDOs_kernel_norms_1 = pd.DataFrame(em_WDOs_kernel_norms_1,
                                       index=EV_14_LBLS, columns=EV_14_LBLS)
 em_WDOs_kernel_norms_1.to_csv(PATHOUT+'em_WDOs_kernel_norms_1.csv')
 np.save(PATHOUT+'em_WDOs_kernel_1', em_WDOs_kernel_1)
+
+# %% Retrieve HawkesEM fits - 1
+
+
+em_DOLs_baseline_S = pd.read_csv(PATHOUT+'em_DOLs_baseline_1.csv',
+                                 index_col=0, squeeze=True)
+em_DOLs_kernel_norms_S = pd.read_csv(PATHOUT+'em_DOLs_kernel_norms_1.csv',
+                                 index_col=0)
+em_DOLs_kernel_S = np.load(PATHOUT + 'em_DOLs_kernel_1.npy',
+                           allow_pickle=True)
+
+em_WDOs_baseline_S = pd.read_csv(PATHOUT+'em_WDOs_baseline_1.csv',
+                                 index_col=0, squeeze=True)
+em_WDOs_kernel_norms_S = pd.read_csv(PATHOUT+'em_WDOs_kernel_norms_1.csv',
+                                 index_col=0)
+em_WDOs_kernel_S = np.load(PATHOUT + 'em_WDOs_kernel_1.npy',
+                           allow_pickle=True)
 
 # %% Run EM with different parameters - 2
 
@@ -1099,51 +1200,90 @@ em_CME_kernel_norms_1 = pd.DataFrame(em_CME_kernel_norms_1,
 em_CME_kernel_norms_1.to_csv(PATHOUT+'em_CME_kernel_norms_1.csv')
 np.save(PATHOUT+'em_CME_kernel_1', em_CME_kernel_1)
 
+
 # %% View results
 
 
-sns.heatmap(em_DOLs_kernel_norms_1, center=0, cmap='RdBu',
+sns.heatmap(em_DOLs_kernel_norms_S, center=0, cmap='RdBu',
             annot=True, fmt=".3f",
             xticklabels=EV_14_LBLS, yticklabels=EV_14_LBLS)
 
-prog_kn_DOL = [[(em_DOLs_kernel_1[i, j] * kernel_intervals).cumsum()
+prog_kn_DOL = [[(em_DOLs_kernel_S[i, j] * kernel_intervals).cumsum()
                for j in range(14)] for i in range(14)]
 
-prog_kn_WDO = [[(em_WDOs_kernel_1[i, j] * kernel_intervals).cumsum()
+prog_kn_WDO = [[(em_WDOs_kernel_S[i, j] * kernel_intervals).cumsum()
                 for j in range(14)] for i in range(14)]
 
-prog_kn_CME = [[(em_CME_kernel_1[i, j] * kernel_intervals_CME).cumsum()
+prog_kn_CME = [[(em_CME_kernel_S[i, j] * kernel_intervals_CME).cumsum()
                 for j in range(14)] for i in range(14)]
 
-rel_kn_DOL = [[(em_DOLs_kernel_1[i, j] * kernel_intervals).cumsum() /
-               em_DOLs_kernel_norms_1.iloc[i, j] for j in range(14)]
+rel_kn_DOL = [[(em_DOLs_kernel_S[i, j] * kernel_intervals).cumsum() /
+               em_DOLs_kernel_norms_S.iloc[i, j] for j in range(14)]
               for i in range(14)]
 
-rel_kn_WDO = [[(em_WDOs_kernel_1[i, j] * kernel_intervals).cumsum() /
-               em_WDOs_kernel_norms_1.iloc[i, j] for j in range(14)]
+rel_kn_WDO = [[(em_WDOs_kernel_S[i, j] * kernel_intervals).cumsum() /
+               em_WDOs_kernel_norms_S.iloc[i, j] for j in range(14)]
               for i in range(14)]
 
-rel_kn_CME = [[(em_CME_kernel_1[i, j] * kernel_intervals_CME).cumsum() /
-               em_CME_kernel_norms_1.iloc[i, j] for j in range(14)]
+rel_kn_CME = [[(em_CME_kernel_S[i, j] * kernel_intervals_CME).cumsum() /
+               em_CME_kernel_norms_S.iloc[i, j] for j in range(14)]
               for i in range(14)]
 
-pd.Series(prog_kn_DOL[0][0], index=kernel_discretization[1:]).plot(color='r')
-pd.Series(prog_kn_DOL[7][7], index=kernel_discretization[1:]).plot(color='b')
+pd.Series(prog_kn_DOL[0][2], index=kernel_discretization[1:]).plot(color='r')
+pd.Series(prog_kn_DOL[7][9], index=kernel_discretization[1:]).plot(color='b')
 
-pd.Series(rel_kn_DOL[0][0], index=kernel_discretization[1:]).plot(color='r')
-pd.Series(rel_kn_DOL[7][7], index=kernel_discretization[1:]).plot(color='b')
+pd.Series(rel_kn_DOL[0][2], index=kernel_discretization[1:]).plot(color='r')
+pd.Series(rel_kn_DOL[7][9], index=kernel_discretization[1:]).plot(color='b')
 
-(pd.Series(EM_DOLs_kernel_2[0, 8] * kernel_intervals,
-          index=kernel_discretization_DOL[1:]).cumsum()/\
-    em_DOLs_kernel_norms_1.iloc[0, 8]).plot(color='b')
+pd.Series(rel_kn_DOL[0][2], index=kernel_discretization[1:]).loc[:0.01]\
+    .plot(color='r')
+pd.Series(rel_kn_DOL[7][9], index=kernel_discretization[1:]).loc[:0.01]\
+    .plot(color='b')
 
-(pd.Series(EM_DOLs_kernel_2[0, 1] * kernel_intervals,
-          index=kernel_discretization_DOL[1:]).cumsum()/\
-    em_DOLs_kernel_norms_1.iloc[0, 1]).loc[:0.01].plot(color='r')
+pd.Series(prog_kn_DOL[0][9], index=kernel_discretization[1:]).plot(color='r')
+pd.Series(prog_kn_DOL[7][2], index=kernel_discretization[1:]).plot(color='b')
 
-(pd.Series(EM_DOLs_kernel_2[0, 8] * kernel_intervals,
-          index=kernel_discretization_DOL[1:]).cumsum()/\
-    em_DOLs_kernel_norms_1.iloc[0, 8]).loc[:0.01].plot(color='b')
+pd.Series(rel_kn_DOL[0][9], index=kernel_discretization[1:]).plot(color='r')
+pd.Series(rel_kn_DOL[7][2], index=kernel_discretization[1:]).plot(color='b')
+
+pd.Series(rel_kn_DOL[0][9], index=kernel_discretization[1:]).loc[:0.01]\
+    .plot(color='r')
+pd.Series(rel_kn_DOL[7][2], index=kernel_discretization[1:]).loc[:0.01]\
+    .plot(color='b')
+
+pd.Series(prog_kn_WDO[0][2], index=kernel_discretization[1:]).plot(color='r')
+pd.Series(prog_kn_WDO[7][9], index=kernel_discretization[1:]).plot(color='b')
+
+pd.Series(rel_kn_WDO[0][2], index=kernel_discretization[1:]).plot(color='r')
+pd.Series(rel_kn_WDO[7][9], index=kernel_discretization[1:]).plot(color='b')
+
+pd.Series(rel_kn_WDO[0][2], index=kernel_discretization[1:]).loc[:0.01]\
+    .plot(color='r')
+pd.Series(rel_kn_WDO[7][9], index=kernel_discretization[1:]).loc[:0.01]\
+    .plot(color='b')
+
+pd.Series(prog_kn_WDO[0][9], index=kernel_discretization[1:]).plot(color='r')
+pd.Series(prog_kn_WDO[7][2], index=kernel_discretization[1:]).plot(color='b')
+
+pd.Series(rel_kn_WDO[0][9], index=kernel_discretization[1:]).plot(color='r')
+pd.Series(rel_kn_WDO[7][2], index=kernel_discretization[1:]).plot(color='b')
+
+pd.Series(rel_kn_WDO[0][9], index=kernel_discretization[1:]).loc[:0.01]\
+    .plot(color='r')
+pd.Series(rel_kn_WDO[7][2], index=kernel_discretization[1:]).loc[:0.01]\
+    .plot(color='b')
+
+# (pd.Series(EM_DOLs_kernel_2[0, 8] * kernel_intervals,
+#           index=kernel_discretization_DOL[1:]).cumsum()/\
+#     em_DOLs_kernel_norms_1.iloc[0, 8]).plot(color='b')
+
+# (pd.Series(EM_DOLs_kernel_2[0, 1] * kernel_intervals,
+#           index=kernel_discretization_DOL[1:]).cumsum()/\
+#     em_DOLs_kernel_norms_1.iloc[0, 1]).loc[:0.01].plot(color='r')
+
+# (pd.Series(EM_DOLs_kernel_2[0, 8] * kernel_intervals,
+#           index=kernel_discretization_DOL[1:]).cumsum()/\
+#     em_DOLs_kernel_norms_1.iloc[0, 8]).loc[:0.01].plot(color='b')
 
 pd.Series(prog_kn_CME[0][0],
           index=kernel_discretization_CME[1:]).plot(color='r')
