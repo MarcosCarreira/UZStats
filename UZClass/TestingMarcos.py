@@ -25,7 +25,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy.optimize import minimize
+# from scipy.optimize import minimize
+from scipy.optimize import curve_fit
 
 # print(os.getcwd())
 
@@ -73,9 +74,9 @@ PATHOUT = PATHPROJ+'/UZClass/'
 # %% CME Constants
 TS = 0.5
 MOSCME = 1
-MINDTCME = 0.000000001
-MAXEVDTCME = 100
-DTEVSHIFTCME = -pd.Timedelta(MINDTCME, 's')/2
+MINDTCME = 0.0000001
+MAXEVDTCME = 10
+DTEVSHIFTCME = -pd.Timedelta(MINDTCME, 's')*0
 DTCUMADDCME = pd.Timedelta(MINDTCME, 's')/MAXEVDTCME
 START_TIME = pd.to_timedelta('00:00:00')
 END_TIME = pd.to_timedelta('23:59:59')
@@ -86,7 +87,7 @@ TS1 = 0.5
 MOSDOL = 5
 MOSWDO = 1
 MINDT1 = 0.001
-MAXEVDT1 = 100
+MAXEVDT1 = 40
 DTEVSHIFT1 = -pd.Timedelta(MINDT1, 's')/2
 DTCUMADD1 = pd.Timedelta(MINDT1, 's')/MAXEVDT1
 START_TIME1 = pd.to_timedelta('09:00:00')
@@ -105,8 +106,8 @@ FILE2 = '20180104_6EH8.zip'
 
 # %% Save files when running the examples
 
-SAVECME = False
-SAVEBMF = False
+SAVECME = True
+SAVEBMF = True
 
 # %% Preferred order for labels
 
@@ -315,6 +316,7 @@ def init2(data_frame, pathout, file_name, tick_value, min_order_size,
     dfstates['TS_Hawkes'] = dfstates['DateTime'] + dt_shift +\
         dt_cum_shift * dfstates['ConsTS']
     dfstates['dt'] = dfstates['TS_Hawkes'].diff().dt.total_seconds()
+    print(dfstates['dt'].value_counts().sort_index().head())
     # dfstates['event_code_short'] =\
     #     dfstates['AskQ'] * 2 + dfstates['ConsQ'] * 1
     # event_dict_short = {0: 'Ib', 1: 'Cb', 2: 'Ia', 3: 'Ca'}
@@ -1076,25 +1078,32 @@ runc_multi_days(PATHIN, PATHOUT, TS1, START_TIME1, END_TIME1,
 runc_multi_days(PATHIN, PATHOUT, TS1, START_TIME1, END_TIME1,
                     file_names=FILES_WDO, file_type='BMF')
 
+# Rename files before running again!
 
-# %% Get data for EM
+runc_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME,
+                    file_names=FILES_CME, file_type='CME')
+
+# %% Get data for EM - BMF
 
 
 EM_DOLs_timestamps = prepare_hawkes_EM_events_list(
     PATHIN, PATHOUT, FILES_DOL, TS1, MOSDOL, START_TIME1, END_TIME1, 'BMF',
-    MINDT1)
+    min_dt=MINDT1, dt_shift=DTEVSHIFT1, dt_cum_shift=DTCUMADD1)
 
 EM_WDOs_timestamps = prepare_hawkes_EM_events_list(
     PATHIN, PATHOUT, FILES_WDO, TS1, MOSWDO, START_TIME1, END_TIME1, 'BMF',
-    MINDT1)
+    min_dt=MINDT1, dt_shift=DTEVSHIFT1, dt_cum_shift=DTCUMADD1)
 
 for j in range(len(EM_DOLs_timestamps)):
     np.save(PATHOUT+'TS_'+FILES_DOL[j][:-4], EM_DOLs_timestamps[j])
     np.save(PATHOUT+'TS_'+FILES_WDO[j][:-4], EM_WDOs_timestamps[j])
 
+# %% Get data for EM - CME
+
+
 EM_CME_timestamps = prepare_hawkes_EM_events_list(
     PATHIN, PATHOUT, FILES_CME, TS, MOSCME, START_TIME, END_TIME, 'CME',
-    MINDTCME)
+    min_dt=MINDTCME, dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME)
 
 for j in range(len(EM_CME_timestamps)):
     np.save(PATHOUT+'TS_'+FILES_CME[j][:-4], EM_CME_timestamps[j])
@@ -1103,10 +1112,16 @@ for j in range(len(EM_CME_timestamps)):
 
 
 EM_DOLs_timestamps_S = [list(np.load(PATHOUT + 'TS_' + file[:-4] + '.npy',
-                              allow_pickle=True)) for file in FILES_DOL]
+                                     allow_pickle=True))
+                        for file in FILES_DOL]
 
 EM_WDOs_timestamps_S = [list(np.load(PATHOUT + 'TS_' + file[:-4] + '.npy',
-                              allow_pickle=True)) for file in FILES_WDO]
+                                     allow_pickle=True))
+                        for file in FILES_WDO]
+
+EM_CME_timestamps_S = [list(np.load(PATHOUT + 'TS_' + file[:-4] + '.npy',
+                                    allow_pickle=True))
+                       for file in FILES_CME]
 
 
 # %% EM common parameters
@@ -1118,16 +1133,59 @@ tol = 1e-5
 baseline_start = np.array([1., 1., 0.1, 0., 0., 0., 0.,
                            1., 1., 0.1, 0., 0., 0., 0.])
 
-# %% Run EM with different parameters - 1
+# %% Kernel discretizations - BMF
 
 
 kernel_discretization =\
     np.concatenate(
-        (np.linspace(0, 0.01, 10, endpoint=False),
+        (np.linspace(0.001, 0.01, 9, endpoint=False),
          np.linspace(0.01, 0.1, 9, endpoint=False),
          np.linspace(0.1, 1.0, 9, endpoint=False),
          np.linspace(1.0, 5.0, 16+1)))
-kernel_intervals = np.diff(kernel_discretization)
+kernel_intervals = np.concatenate((np.array([0.001]),
+                                   np.diff(kernel_discretization)))
+
+kernel_discretization_2 =\
+    np.concatenate(
+        (np.array([0.000025, 0.00075]),
+         np.linspace(0.001, 0.01, 9, endpoint=False),
+         np.linspace(0.01, 0.1, 9, endpoint=False),
+         np.linspace(0.1, 1.0, 9, endpoint=False),
+         np.linspace(1.0, 5.0, 16+1)))
+kernel_intervals_2 = np.concatenate((np.array([0.000025]),
+                                     np.diff(kernel_discretization_2)))
+
+kernel_discretization_3 =\
+    np.array([0.000025, 0.00075, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05,
+              0.1, 0.2, 0.5, 1.0, 2.0, 5.0])
+kernel_intervals_3 = np.concatenate((np.array([0.000025]),
+                                     np.diff(kernel_discretization_3)))
+
+# %% Kernel discretizations - CME
+
+
+kernel_discretization_CME =\
+    np.concatenate(
+        (np.linspace(0.0000001, 0.000001, 9, endpoint=False),
+         np.linspace(0.000001, 0.00001, 9, endpoint=False),
+         np.linspace(0.00001, 0.0001, 9, endpoint=False),
+         np.linspace(0.0001, 0.001, 9, endpoint=False),
+         np.linspace(0.001, 0.01, 9, endpoint=False),
+         np.linspace(0.01, 0.1, 9, endpoint=False),
+         np.linspace(0.1, 1.0, 9, endpoint=False),
+         np.linspace(1.0, 2.0, 4+1)))
+kernel_intervals_CME = np.concatenate((np.array([0.0000001]),
+                                       np.diff(kernel_discretization_CME)))
+
+kernel_discretization_CME_2 =\
+     np.array([2.5e-07, 5.0e-07, 1.0e-06, 2.0e-06, 5.0e-06, 1.0e-05,
+              2.0e-05, 5.0e-05, 1.0e-04, 2.0e-04, 5.0e-04, 1.0e-03, 2.0e-03,
+              5.0e-03, 1.0e-02, 2.0e-02, 5.0e-02, 1.0e-01, 2.0e-01, 5.0e-01,
+              1.0, 2.0, 5.0])
+kernel_intervals_CME_2 = np.concatenate((np.array([2.5e-07]),
+                                         np.diff(kernel_discretization_CME_2)))
+
+# %% Run EM with different parameters - 1
 
 
 em_DOLs_baseline_1, em_DOLs_kernel_1, em_DOLs_kernel_norms_1 =\
@@ -1162,29 +1220,131 @@ np.save(PATHOUT+'em_WDOs_kernel_1', em_WDOs_kernel_1)
 em_DOLs_baseline_S = pd.read_csv(PATHOUT+'em_DOLs_baseline_1.csv',
                                  index_col=0, squeeze=True)
 em_DOLs_kernel_norms_S = pd.read_csv(PATHOUT+'em_DOLs_kernel_norms_1.csv',
-                                 index_col=0)
+                                     index_col=0)
 em_DOLs_kernel_S = np.load(PATHOUT + 'em_DOLs_kernel_1.npy',
                            allow_pickle=True)
 
 em_WDOs_baseline_S = pd.read_csv(PATHOUT+'em_WDOs_baseline_1.csv',
                                  index_col=0, squeeze=True)
 em_WDOs_kernel_norms_S = pd.read_csv(PATHOUT+'em_WDOs_kernel_norms_1.csv',
-                                 index_col=0)
+                                     index_col=0)
 em_WDOs_kernel_S = np.load(PATHOUT + 'em_WDOs_kernel_1.npy',
                            allow_pickle=True)
 
 # %% Run EM with different parameters - 2
 
 
-kernel_discretization_CME =\
-    np.concatenate(
-        (np.linspace(0, 0.0001, 10, endpoint=False),
-         np.linspace(0.0001, 0.001, 9, endpoint=False),
-         np.linspace(0.001, 0.01, 9, endpoint=False),
-         np.linspace(0.01, 0.1, 9, endpoint=False),
-         np.linspace(0.1, 1.0, 9, endpoint=False),
-         np.linspace(1.0, 2.0, 4+1)))
-kernel_intervals_CME = np.diff(kernel_discretization_CME)
+em_DOLs_baseline_2, em_DOLs_kernel_2, em_DOLs_kernel_norms_2 =\
+    get_hawkes_EM(EM_DOLs_timestamps_S,
+                  kernel_discretization=kernel_discretization_2,
+                  baseline_start=baseline_start,
+                  n_threads=n_threads, max_iter=max_iter,
+                  verbose=verbose_EM, tol=tol)
+em_DOLs_baseline_2 = pd.Series(em_DOLs_baseline_2, index=EV_14_LBLS)
+em_DOLs_baseline_2.to_csv(PATHOUT+'em_DOLs_baseline_2.csv')
+em_DOLs_kernel_norms_2 = pd.DataFrame(em_DOLs_kernel_norms_2,
+                                      index=EV_14_LBLS, columns=EV_14_LBLS)
+em_DOLs_kernel_norms_2.to_csv(PATHOUT+'em_DOLs_kernel_norms_2.csv')
+np.save(PATHOUT+'em_DOLs_kernel_2', em_DOLs_kernel_2)
+
+em_WDOs_baseline_2, em_WDOs_kernel_2, em_WDOs_kernel_norms_2 =\
+    get_hawkes_EM(EM_WDOs_timestamps_S,
+                  kernel_discretization=kernel_discretization_2,
+                  baseline_start=baseline_start,
+                  n_threads=n_threads, max_iter=max_iter,
+                  verbose=verbose_EM, tol=tol)
+em_WDOs_baseline_2 = pd.Series(em_WDOs_baseline_2, index=EV_14_LBLS)
+em_WDOs_baseline_2.to_csv(PATHOUT+'em_WDOs_baseline_2.csv')
+em_WDOs_kernel_norms_2 = pd.DataFrame(em_WDOs_kernel_norms_2,
+                                      index=EV_14_LBLS, columns=EV_14_LBLS)
+em_WDOs_kernel_norms_2.to_csv(PATHOUT+'em_WDOs_kernel_norms_2.csv')
+np.save(PATHOUT+'em_WDOs_kernel_2', em_WDOs_kernel_2)
+
+# %% Retrieve HawkesEM fits - 2
+
+
+em_DOLs_baseline_2S = pd.read_csv(PATHOUT+'em_DOLs_baseline_2.csv',
+                                  index_col=0, squeeze=True)
+em_DOLs_kernel_norms_2S = pd.read_csv(PATHOUT+'em_DOLs_kernel_norms_2.csv',
+                                      index_col=0)
+em_DOLs_kernel_2S = np.load(PATHOUT + 'em_DOLs_kernel_2.npy',
+                            allow_pickle=True)
+
+em_WDOs_baseline_2S = pd.read_csv(PATHOUT+'em_WDOs_baseline_2.csv',
+                                  index_col=0, squeeze=True)
+em_WDOs_kernel_norms_2S = pd.read_csv(PATHOUT+'em_WDOs_kernel_norms_2.csv',
+                                      index_col=0)
+em_WDOs_kernel_2S = np.load(PATHOUT + 'em_WDOs_kernel_2.npy',
+                            allow_pickle=True)
+
+# %% Run EM with different parameters - 3
+
+
+em_DOLs_baseline_3, em_DOLs_kernel_3, em_DOLs_kernel_norms_3 =\
+    get_hawkes_EM(EM_DOLs_timestamps_S,
+                  kernel_discretization=kernel_discretization_3,
+                  baseline_start=baseline_start,
+                  n_threads=n_threads, max_iter=max_iter,
+                  verbose=verbose_EM, tol=tol)
+em_DOLs_baseline_3 = pd.Series(em_DOLs_baseline_3, index=EV_14_LBLS)
+em_DOLs_baseline_3.to_csv(PATHOUT+'em_DOLs_baseline_3.csv')
+em_DOLs_kernel_norms_3 = pd.DataFrame(em_DOLs_kernel_norms_3,
+                                      index=EV_14_LBLS, columns=EV_14_LBLS)
+em_DOLs_kernel_norms_3.to_csv(PATHOUT+'em_DOLs_kernel_norms_3.csv')
+np.save(PATHOUT+'em_DOLs_kernel_3', em_DOLs_kernel_3)
+
+em_WDOs_baseline_3, em_WDOs_kernel_3, em_WDOs_kernel_norms_3 =\
+    get_hawkes_EM(EM_WDOs_timestamps_S,
+                  kernel_discretization=kernel_discretization_3,
+                  baseline_start=baseline_start,
+                  n_threads=n_threads, max_iter=max_iter,
+                  verbose=verbose_EM, tol=tol)
+em_WDOs_baseline_3 = pd.Series(em_WDOs_baseline_3, index=EV_14_LBLS)
+em_WDOs_baseline_3.to_csv(PATHOUT+'em_WDOs_baseline_3.csv')
+em_WDOs_kernel_norms_3 = pd.DataFrame(em_WDOs_kernel_norms_3,
+                                      index=EV_14_LBLS, columns=EV_14_LBLS)
+em_WDOs_kernel_norms_3.to_csv(PATHOUT+'em_WDOs_kernel_norms_3.csv')
+np.save(PATHOUT+'em_WDOs_kernel_3', em_WDOs_kernel_3)
+
+# %% Retrieve HawkesEM fits - 3
+
+
+em_DOLs_baseline_3S = pd.read_csv(PATHOUT+'em_DOLs_baseline_3.csv',
+                                  index_col=0, squeeze=True)
+em_DOLs_kernel_norms_3S = pd.read_csv(PATHOUT+'em_DOLs_kernel_norms_3.csv',
+                                      index_col=0)
+em_DOLs_kernel_3S = np.load(PATHOUT + 'em_DOLs_kernel_3.npy',
+                            allow_pickle=True)
+
+em_WDOs_baseline_3S = pd.read_csv(PATHOUT+'em_WDOs_baseline_3.csv',
+                                  index_col=0, squeeze=True)
+em_WDOs_kernel_norms_3S = pd.read_csv(PATHOUT+'em_WDOs_kernel_norms_3.csv',
+                                      index_col=0)
+em_WDOs_kernel_3S = np.load(PATHOUT + 'em_WDOs_kernel_3.npy',
+                            allow_pickle=True)
+
+# %% View
+
+
+pd.Series(em_DOLs_kernel_S[0, 0],
+          index=kernel_discretization[1:]).loc[:0.01]
+
+pd.Series(em_DOLs_kernel_2S[0, 0],
+          index=kernel_discretization_2[1:]).loc[:0.01]
+
+pd.Series(em_DOLs_kernel_3S[0, 0],
+          index=kernel_discretization_3[1:]).loc[:0.01]
+
+pd.Series(em_WDOs_kernel_S[0, 0],
+          index=kernel_discretization[1:]).loc[:0.01]
+
+pd.Series(em_DOLs_kernel_S[0, 0],
+          index=kernel_discretization[1:]).loc[0.01:]
+
+pd.Series(em_WDOs_kernel_S[0, 0],
+          index=kernel_discretization[1:]).loc[0.01:]
+
+# %% Run EM with different parameters - CME - 1
 
 
 em_CME_baseline_1, em_CME_kernel_1, em_CME_kernel_norms_1 =\
@@ -1200,6 +1360,121 @@ em_CME_kernel_norms_1 = pd.DataFrame(em_CME_kernel_norms_1,
 em_CME_kernel_norms_1.to_csv(PATHOUT+'em_CME_kernel_norms_1.csv')
 np.save(PATHOUT+'em_CME_kernel_1', em_CME_kernel_1)
 
+# %% Retrieve HawkesEM fits - CME - 1
+
+
+em_CME_baseline_S = pd.read_csv(PATHOUT+'em_CME_baseline_1.csv',
+                                 index_col=0, squeeze=True)
+em_CME_kernel_norms_S = pd.read_csv(PATHOUT+'em_CME_kernel_norms_1.csv',
+                                     index_col=0)
+em_CME_kernel_S = np.load(PATHOUT + 'em_CME_kernel_1.npy',
+                           allow_pickle=True)
+
+# %% Run EM with different parameters - CME - 2
+
+
+em_CME_baseline_2, em_CME_kernel_2, em_CME_kernel_norms_2 =\
+    get_hawkes_EM(EM_CME_timestamps,
+                  kernel_discretization=kernel_discretization_CME_2,
+                  baseline_start=baseline_start,
+                  n_threads=n_threads, max_iter=max_iter,
+                  verbose=verbose_EM, tol=tol)
+em_CME_baseline_2 = pd.Series(em_CME_baseline_2, index=EV_14_LBLS)
+em_CME_baseline_2.to_csv(PATHOUT+'em_CME_baseline_2.csv')
+em_CME_kernel_norms_2 = pd.DataFrame(em_CME_kernel_norms_2,
+                                     index=EV_14_LBLS, columns=EV_14_LBLS)
+em_CME_kernel_norms_2.to_csv(PATHOUT+'em_CME_kernel_norms_2.csv')
+np.save(PATHOUT+'em_CME_kernel_2', em_CME_kernel_2)
+
+# %% Retrieve HawkesEM fits - CME - 2
+
+
+em_CME_baseline_2S = pd.read_csv(PATHOUT+'em_CME_baseline_2.csv',
+                                 index_col=0, squeeze=True)
+em_CME_kernel_norms_2S = pd.read_csv(PATHOUT+'em_CME_kernel_norms_2.csv',
+                                     index_col=0)
+em_CME_kernel_2S = np.load(PATHOUT + 'em_CME_kernel_2.npy',
+                           allow_pickle=True)
+
+# %% View
+
+
+pd.Series(em_CME_kernel_S[0, 0],
+          index=kernel_discretization_CME[1:]).loc[0.0000003:0.00001].plot()
+
+pd.Series(em_CME_kernel_2S[0, 0],
+          index=kernel_discretization_CME_2[1:]).loc[0.0000003:0.00001].plot()
+
+pd.Series(em_CME_kernel_S[0, 0],
+          index=kernel_discretization_CME[1:]).loc[0.00001:0.001].plot()
+
+pd.Series(em_CME_kernel_2S[0, 0],
+          index=kernel_discretization_CME_2[1:]).loc[0.00001:0.001].plot()
+
+pd.Series(em_CME_kernel_S[0, 0],
+          index=kernel_discretization_CME[1:]).loc[0.001:0.1].plot()
+
+pd.Series(em_CME_kernel_2S[0, 0],
+          index=kernel_discretization_CME_2[1:]).loc[0.001:0.1].plot()
+
+# %% Fit curves
+
+
+def expkBMF(t, a1, b1, a2, b2):
+    kern1 = a1 * b1 * np.exp(-b1 * (t - DTCUMADD1.total_seconds()))
+    kern2 = a2 * b2 * np.exp(-b2 * (t - DTCUMADD1.total_seconds()))
+    return np.log(kern1 + kern2)
+
+def expkCME(t, a1, b1, a2, b2):
+    kern1 = a1 * b1 * np.exp(-b1 * (t - 20*DTCUMADDCME.total_seconds()))
+    kern2 = a2 * b2 * np.exp(-b2 * (t - 20*DTCUMADDCME.total_seconds()))
+    return np.log(kern1 + kern2)
+
+# %% Fit BMF 1
+
+
+popt1, pcov1 = curve_fit(f=expkBMF,
+                         xdata=kernel_discretization_3[1:],
+                         ydata=np.log(em_DOLs_kernel_3S[0, 0]),
+                         p0 = [0.8, 3, 0.4, 1000],
+                         bounds=np.transpose(np.array([
+                             [0.0001, 100.], [0.001, 100.],
+                             [0.0001, 100.], [0.001, 100000.]])))
+
+popt2, pcov2 = curve_fit(f=expkBMF,
+                         xdata=kernel_discretization_3[1:],
+                         ydata=np.log(em_DOLs_kernel_3S[0, 2]),
+                         p0 = [0.8, 3, 0.4, 1000],
+                         bounds=np.transpose(np.array([
+                             [0.0001, 100.], [0.001, 100.],
+                             [0.0001, 100.], [0.001, 100000.]])))
+
+popt3, pcov3 = curve_fit(f=expkBMF,
+                         xdata=kernel_discretization_3[1:],
+                         ydata=np.log(em_DOLs_kernel_3S[0, 0]),
+                         p0 = [0.8, 3, 0.4, 1000],
+                         bounds=np.transpose(np.array([
+                             [0.0001, 100.], [0.001, 100.],
+                             [0.0001, 100.], [0.001, 100000.]])))
+
+# %% Fit CME 1 and 2
+
+
+popt_CME1, pcov_CME1 = curve_fit(f=expkCME,
+                         xdata=kernel_discretization_CME[1:-1],
+                         ydata=np.log(em_CME_kernel_S[0, 0][1:]),
+                         p0 = [0.8, 3, 0.4, 1000],
+                         bounds=np.transpose(np.array([
+                             [0.0001, 100.], [0.001, 100.],
+                             [0.0001, 100.], [0.001, 100000.]])))
+
+popt_CME2, pcov_CME2 = curve_fit(f=expkCME,
+                         xdata=kernel_discretization_CME_2[:-1],
+                         ydata=np.log(em_CME_kernel_2S[0, 0]),
+                         p0 = [0.8, 3, 0.4, 1000],
+                         bounds=np.transpose(np.array([
+                             [0.0001, 100.], [0.001, 100.],
+                             [0.0001, 100.], [0.001, 100000.]])))
 
 # %% View results
 
@@ -1214,6 +1489,12 @@ prog_kn_DOL = [[(em_DOLs_kernel_S[i, j] * kernel_intervals).cumsum()
 prog_kn_WDO = [[(em_WDOs_kernel_S[i, j] * kernel_intervals).cumsum()
                 for j in range(14)] for i in range(14)]
 
+prog_kn_DOL_2 = [[(em_DOLs_kernel_2S[i, j] * kernel_intervals_2).cumsum()
+               for j in range(14)] for i in range(14)]
+
+prog_kn_WDO_2 = [[(em_WDOs_kernel_2S[i, j] * kernel_intervals_2).cumsum()
+                for j in range(14)] for i in range(14)]
+
 prog_kn_CME = [[(em_CME_kernel_S[i, j] * kernel_intervals_CME).cumsum()
                 for j in range(14)] for i in range(14)]
 
@@ -1225,9 +1506,33 @@ rel_kn_WDO = [[(em_WDOs_kernel_S[i, j] * kernel_intervals).cumsum() /
                em_WDOs_kernel_norms_S.iloc[i, j] for j in range(14)]
               for i in range(14)]
 
+rel_kn_DOL_2 = [[(em_DOLs_kernel_2S[i, j] * kernel_intervals_2).cumsum() /
+               em_DOLs_kernel_norms_2S.iloc[i, j] for j in range(14)]
+              for i in range(14)]
+
+rel_kn_WDO_2 = [[(em_WDOs_kernel_2S[i, j] * kernel_intervals_2).cumsum() /
+               em_WDOs_kernel_norms_2S.iloc[i, j] for j in range(14)]
+              for i in range(14)]
+
 rel_kn_CME = [[(em_CME_kernel_S[i, j] * kernel_intervals_CME).cumsum() /
                em_CME_kernel_norms_S.iloc[i, j] for j in range(14)]
               for i in range(14)]
+
+pd.Series(em_DOLs_kernel_2S[0, 2],
+          index=kernel_discretization_2[1:]).loc[:0.01].plot(color='r')
+pd.Series(em_DOLs_kernel_2S[7, 9],
+          index=kernel_discretization_2[1:]).loc[:0.01].plot(color='b')
+
+pd.Series(em_DOLs_kernel_S[0, 0],
+          index=kernel_discretization[1:]).loc[:0.01]
+
+pd.Series(em_DOLs_kernel_2S[0, 0],
+          index=kernel_discretization_2[1:]).loc[:0.01]
+
+pd.Series(em_DOLs_kernel_2S[0, 0],
+          index=kernel_discretization_2[1:]).loc[0.0002:0.01].plot(color='r')
+pd.Series(em_DOLs_kernel_2S[7, 7],
+          index=kernel_discretization_2[1:]).loc[0.0002:0.01].plot(color='b')
 
 pd.Series(prog_kn_DOL[0][2], index=kernel_discretization[1:]).plot(color='r')
 pd.Series(prog_kn_DOL[7][9], index=kernel_discretization[1:]).plot(color='b')
