@@ -366,7 +366,6 @@ dfDOL_2ad = dfDOL_2_ad.df
 dfDOL_2_al1 = al1(dfDOL_2_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
 dfDOL_2 = dfDOL_2_al1.df
 
-
 uz_DOL_1 = uz(dfDOL_2_ad, TS1, START_TIME1, END_TIME1)
 
 uz_DOL_2 = uz(dfDOL_2_al1, TS1, START_TIME1, END_TIME1)
@@ -374,6 +373,24 @@ uz_DOL_2 = uz(dfDOL_2_al1, TS1, START_TIME1, END_TIME1)
 uz_DOL_1.df_uz_stats
 
 uz_DOL_2.df_uz_stats
+
+
+dfWDO_1 = init1(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSWDO, START_TIME1,
+                END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
+
+dfWDO_2_ad = ad(PATHIN, FILE_BMF2, 'BMF')
+dfWDO_2ad = dfWDO_2_ad.df
+dfWDO_2_al1 = al1(dfWDO_2_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
+dfWDO_2 = dfWDO_2_al1.df
+
+uz_WDO_1 = uz(dfWDO_2_ad, TS1, START_TIME1, END_TIME1)
+
+uz_WDO_2 = uz(dfWDO_2_al1, TS1, START_TIME1, END_TIME1)
+
+uz_WDO_1.df_uz_stats
+
+uz_WDO_2.df_uz_stats
+
 
 dfDOL = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
                 END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
@@ -1053,7 +1070,7 @@ def get_hawkes_EM(timestamps, kernel_discretization, baseline_start,
 
 
 def runc_multi_days(pathin, pathout, tick_value, start_time, end_time,
-                    file_names=[], file_type='CME'):
+                    file_names=[], file_type='CME', min_dt=MINDTCME):
     """Run uz_stats for multiple days.
 
     runc_multi_days(pathin, pathout, tick_value, start_time, end_time,
@@ -1075,7 +1092,8 @@ def runc_multi_days(pathin, pathout, tick_value, start_time, end_time,
         # start = timeit.default_timer()
         print('--START------')
         data = ad(pathin, f_name, file_type)
-        uz_obj = uz(data, tick_value, start_time, end_time)
+        dataadj = al1(data, start_time, end_time, file_type, min_dt)
+        uz_obj = uz(dataadj, tick_value, start_time, end_time)
         if file_names[0] == f_name:
             output = uz_obj.get_Armada_UZModel_output()
         else:
@@ -1091,17 +1109,17 @@ def runc_multi_days(pathin, pathout, tick_value, start_time, end_time,
 # %% Run UZ_model
 
 runc_multi_days(PATHIN, PATHOUT, TS1, START_TIME1, END_TIME1,
-                    file_names=FILES_DOL, file_type='BMF')
+                    file_names=FILES_DOL, file_type='BMF', min_dt=MINDT1)
 
 # Rename files before running again!
 
 runc_multi_days(PATHIN, PATHOUT, TS1, START_TIME1, END_TIME1,
-                    file_names=FILES_WDO, file_type='BMF')
+                    file_names=FILES_WDO, file_type='BMF', min_dt=MINDT1)
 
 # Rename files before running again!
 
 runc_multi_days(PATHIN, PATHOUT, TS, START_TIME, END_TIME,
-                    file_names=FILES_CME, file_type='CME')
+                    file_names=FILES_CME, file_type='CME', min_dt=MINDTCME)
 
 # %% Get data for EM - BMF
 

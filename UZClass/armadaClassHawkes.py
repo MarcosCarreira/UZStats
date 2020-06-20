@@ -371,10 +371,14 @@ class Armada_Lvl1(Armada_Data):
             return dfc[~dfc['Check']].copy()\
                 .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
         # Clear trades without book update or sweep not instantaneous
+        cleaned_df = clear_invalid_trades(self.__df)
+        while len(cleaned_df) != len(self.__df):
+            self.__df = cleaned_df
+            cleaned_df = clear_invalid_trades(self.__df)
         # Ideally a fixed point iteration, but let's run it 3 times for now
-        self.__df = clear_invalid_trades(self.__df)
-        self.__df = clear_invalid_trades(self.__df)
-        self.__df = clear_invalid_trades(self.__df)
+        # self.__df = clear_invalid_trades(self.__df)
+        # self.__df = clear_invalid_trades(self.__df)
+        # self.__df = clear_invalid_trades(self.__df)
         # Levels 1 and 2 diff (flag changes in each of the first two levels)
         def lvldiff(df):
             dfc = df.copy()
@@ -397,6 +401,11 @@ class Armada_Lvl1(Armada_Data):
             method='ffill') >= self.__df['trade_price']
         self.__df['ask_traded'] = self.__df['ask_1_price'].copy().fillna(
             method='ffill') <= self.__df['trade_price']
+        # Clear trades without book update or sweep not instantaneous
+        cleaned_df = clear_invalid_trades(self.__df)
+        while len(cleaned_df) != len(self.__df):
+            self.__df = cleaned_df
+            cleaned_df = clear_invalid_trades(self.__df)
         print('init1 finished')
         stop = timeit.default_timer()
         print('Time spent on Armada Data cleaning: ',
