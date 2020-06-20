@@ -13,71 +13,107 @@ May-2019
 '''
 
 # %% Import packages
+
+
 import timeit
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import matplotlib.pyplot as plt 
+
+# %% Constants - CME
+
+
+TS = 0.5
+MOSCME = 1
+MINDTCME = 0.0000001
+MAXEVDTCME = 10
+DTEVSHIFTCME = -pd.Timedelta(MINDTCME, 's')*0
+DTCUMADDCME = pd.Timedelta(MINDTCME, 's')/MAXEVDTCME
+START_TIME = pd.to_timedelta('00:00:00')
+END_TIME = pd.to_timedelta('23:59:59')
+
+# %% Constants - BMF
+
+
+TS1 = 0.5
+MOSDOL = 5
+MOSWDO = 1
+MINDT1 = 0.001
+MAXEVDT1 = 40
+DTEVSHIFT1 = -pd.Timedelta(MINDT1, 's')/2
+DTCUMADD1 = pd.Timedelta(MINDT1, 's')/MAXEVDT1
+START_TIME1 = pd.to_timedelta('09:00:00')
+END_TIME1 = pd.to_timedelta('18:15:00')
+
+# %% Constants - tick
+
+EV_14_LBLS = ['L_B', 'C_A', 'M_A', 'I_B', 'DmI_A', 'Dm_A', 'Dc_A',
+              'L_A', 'C_B', 'M_B', 'I_A', 'DmI_B', 'Dm_B', 'Dc_B']
 
 # %% Armada Data Class
 
+
 class Armada_Data():
 
-# %% Main Functions    
-    
-    def __init__(self, file_path, file_name, exchange = 'CME'):
+# %% Main Functions
+
+    def __init__(self, file_path, file_name, exchange='CME'):
         self.__exchange = exchange
         self.__file_name = file_name
         self.__processing_date = self.get_processing_date()
         self.__file_path = file_path
         self.__df = pd.DataFrame()
-        #self.__measures = pd.DataFrame()
-        
-        print('Reading file '+ self.file_entire_path)
+        # self.__measures = pd.DataFrame()
+
+        print('Reading file ' + self.file_entire_path)
         self.__read_ArmadaData()
         print('Re-formatting data')
         self.__column_datetime()
         self.__rename_columns()
         print('Remove data outside exchange trading hours')
-        self.__filter_exchange_data_by_time()  
+        self.__filter_exchange_data_by_time()
         self.__filter_exchange_data_prior_first_trade()
-        print('Armada Data Object Construction Successfull')
-    
+        print('Armada Data Object Construction Successful')
+
     @property
     def processing_date(self):
         return self.get_processing_date()
-    
+
     @property
     def file_name(self):
         return self.__file_name
+
     @property
     def file_name_long(self):
-            return self.__file_name[:-4]
+        return self.__file_name[:-4]
+
     @property
     def file_entire_path(self):
         return (self.__file_path+self.__file_name)
+
     @property
     def exchange(self):
         return self.__exchange
+
     @property
     def df(self):
         return self.__df
 
-    def select_times(self,start_time = pd.to_timedelta('00:30:00'), \
-                     end_time = pd.to_timedelta('23:59:59')):
-        self.__filter_exchange_data_by_time([start_time,end_time])
+    def select_times(self, start_time=pd.to_timedelta('00:30:00'), \
+                     end_time=pd.to_timedelta('23:59:59')):
+        self.__filter_exchange_data_by_time([start_time, end_time])
         self.__filter_exchange_data_prior_first_trade()
         return self
-    
+
     # %% Public Functions
-    
+
     def get_processing_date(self):
         if self.__exchange == 'CME':
-            return pd.to_datetime(self.file_name[0:8],format='%Y%m%d')
+            return pd.to_datetime(self.file_name[0:8], format='%Y%m%d')
         if self.__exchange == 'BMF':
-            return pd.to_datetime(self.file_name[6:-4],format='%Y%m%d')
-        
+            return pd.to_datetime(self.file_name[6:-4], format='%Y%m%d')
+
     def get_exchange_starting_time(self):
         if self.__exchange == 'CME':
             return self.processing_date\
@@ -85,126 +121,27 @@ class Armada_Data():
         if self.__exchange == 'BMF':
             return self.processing_date\
                                 + pd.to_timedelta('09:00:00')
-                                
+
     def get_exchange_end_time(self):
         if self.__exchange == 'CME':
-            return self.processing_date\
-                                + pd.to_timedelta('16:00:00')
+            return self.processing_date + pd.to_timedelta('16:00:00')
         if self.__exchange == 'BMF':
-            return self.processing_date\
-                                + pd.to_timedelta('23:59:59')
-# %% Main Functions
-    
-    def __read_ArmadaData(self):
-        self.__df = pd.read_csv(self.file_entire_path \
-                                          ,dtype={'Index':int,
-                                                'Date':str,
-                                                'Time':str,
-                                                'Bid 1 Qty':float,
-                                                'Bid 2 Qty':float,
-                                                'Bid 1 Price':float,
-                                                'Bid 2 Price':float,
-                                                'Bid 1 Ord':float,
-                                                'Bid 2 Ord':float,
-                                                'Trade Price':float,
-                                                'Trade Qty':float,
-                                                'Ask 1 Qty':float,
-                                                'Ask 2 Qty':float,
-                                                'Ask 1 Price':float,
-                                                'Ask 2 Price':float,
-                                                'Ask 1 Ord':float,
-                                                'Ask 2 Ord':float
-                                                })
-    def __rename_columns(self):
-        self.__df.rename(columns = {'Bid 1 Qty':'bid_1_qty',\
-                                       'Bid 2 Qty':'bid_2_qty',\
-                                       'Bid 1 Price':'bid_1_price',\
-                                       'Bid 2 Price':'bid_2_price',\
-                                       'Bid 1 Ord':'bid_1_ord',\
-                                       'Ask 1 Ord':'ask_1_ord',\
-                                       'Bid 2 Ord':'bid_2_ord',\
-                                       'Ask 2 Ord':'ask_2_ord',\
-                                       'Ask 1 Qty':'ask_1_qty',\
-                                       'Ask 2 Qty':'ask_2_qty',\
-                                       'Ask 1 Price':'ask_1_price',\
-                                       'Ask 2 Price':'ask_2_price',\
-                                       'Trade Price':'trade_price',\
-                                       'Trade Qty':'trade_qty',\
-                                           }, inplace = True)
-        self.__df.drop(['Time.1', 'Date.1','Index','Index.1',\
-                              'Date', 'Time'],axis=1, inplace=True)    
-    def __filter_exchange_data_prior_first_trade(self):
-        first_trade = self.df[self.get_trade_indicator()].index[0]
-        df_tmp = self.__df.copy()
-        #df_tmp = df_tmp.set_index(['DateTime'])
-        df_tmp = df_tmp.loc[first_trade:]
-        #df_tmp = df_tmp.reset_index()
-        self.__df = df_tmp  
-    
-    def __filter_exchange_data_by_time(self, arg = None):
-        if arg == None:
-            start_time = self.get_exchange_starting_time()
-            end_time = self.get_exchange_end_time()
-        else:
-            start_time = self.processing_date + arg[0]
-            end_time = self.processing_date + arg[1]
-        
-        # truncating df
-        df_tmp = self.__df.copy()
-        df_tmp = df_tmp.set_index(['DateTime'])
-        df_tmp = df_tmp.loc[start_time:end_time]
-        df_tmp = df_tmp.reset_index()
-        self.__df = df_tmp        
+            return self.processing_date + pd.to_timedelta('18:15:00')
 
-# %% Measures Functions 
-        
-    def get_order_indicator(self):
-        return self.__df.trade_price.isnull().copy()
-    
-    def get_trade_indicator(self):
-        return ~(self.get_order_indicator())
-    
-    def __get_ba_spread(self, data=None):
-        if data is not None:
-            spread = (data.ask_1_price - data.bid_1_price)
-            return spread
-        else:
-            df = self.__df.copy()
-            self.measures['ba_spread'] = (df.ask_1_price - df.bid_1_price)    
-    
-    def __get_delta_t(self, data=None):
-        if data is not None:
-            delta_t = self.df.DateTime.diff().shift(-1)
-            return delta_t
-        else:
-            self.measures['dt'] = self.__df.DateTime.diff().shift(-1) 
-    
-    def __get_mid_price(self, data=None):
-        if data is not None:
-            mid_price = (data.ask_1_price + data.bid_1_price)/2
-            return mid_price
-        else:
-            self.measures['mid_price'] = \
-                (self.__df.ask_1_price + self.__df.bid_1_price)/2
-    
-    def __rlz_vol_log(self,prices):
-        '''rlzvollog(prices) calculates the realized volatility of a time series
-    of prices using logreturns
-    Inputs: Time Series of prices
-    Outputs: scalar with the volatility for the period'''
-        pxs = np.log(prices/prices.shift(1))
-        self.measures['realized_vol']=np.sqrt(np.sum(pxs*pxs))
-        
-    def __custom_resampler_abs_sum(self,array):
-        return np.sum(np.abs(array))
-    
-    def __get_time_weighted_spread(self, data=None):
-        if data is not None:    
-            return ((data['ba_spread']*data['dt']).sum())/\
-                (data['dt'].sum())
-            return ((self.__df['ba_spread']*self.__df['dt']).sum())/\
-                (self.__df['dt'].sum())
-    
+# %% Main Functions
+
+    def __read_ArmadaData(self):
+        self.__df = pd.read_csv(
+            self.file_entire_path,
+            dtype={'Index': int, 'Date': str, 'Time': str,
+                   'Bid 1 Qty': float, 'Bid 2 Qty': float,
+                   'Bid 1 Price': float, 'Bid 2 Price': float,
+                   'Bid 1 Ord': float, 'Bid 2 Ord': float,
+                   'Trade Price': float, 'Trade Qty': float,
+                   'Ask 1 Qty': float, 'Ask 2 Qty': float,
+                   'Ask 1 Price': float, 'Ask 2 Price': float,
+                   'Ask 1 Ord': float, 'Ask 2 Ord': float})
+
     def __column_datetime(self):
         '''column_datetime(data_frame) creates the column 'DateTime'
         concatenating 'Date' and 'Time' and converting it to datetime.
@@ -214,118 +151,255 @@ class Armada_Data():
         data_framec['Date'] = pd.to_datetime(data_framec['Date'],\
             format="%m/%d/%Y")
         data_framec['Time'] = pd.to_timedelta(data_framec['Time'], unit='ns')
-        data_framec['DateTime'] = data_framec['Date']+data_framec['Time']
+        data_framec['DateTime'] = data_framec['Date'] + data_framec['Time']
         self.__df = data_framec
+
+    def __rename_columns(self):
+        self.__df.rename(
+            columns={
+                'Bid 1 Qty': 'bid_1_qty', 'Bid 2 Qty': 'bid_2_qty',
+                'Bid 1 Price': 'bid_1_price', 'Bid 2 Price': 'bid_2_price',
+                'Bid 1 Ord': 'bid_1_ord', 'Ask 1 Ord': 'ask_1_ord',
+                'Bid 2 Ord': 'bid_2_ord', 'Ask 2 Ord': 'ask_2_ord',
+                'Ask 1 Qty': 'ask_1_qty', 'Ask 2 Qty': 'ask_2_qty',
+                'Ask 1 Price': 'ask_1_price', 'Ask 2 Price': 'ask_2_price',
+                'Trade Price': 'trade_price', 'Trade Qty': 'trade_qty'},
+            inplace=True)
+        self.__df.drop(
+            ['Time.1', 'Date.1', 'Index', 'Index.1', 'Date', 'Time'],
+            axis=1, inplace=True)
+
+    def __filter_exchange_data_prior_first_trade(self):
+        first_trade = self.df[self.get_trade_indicator()].index[0]
+        df_tmp = self.__df.copy()
+        # df_tmp = df_tmp.set_index(['DateTime'])
+        df_tmp = df_tmp.loc[first_trade:]
+        # df_tmp = df_tmp.reset_index()
+        self.__df = df_tmp
+
+    def __filter_exchange_data_by_time(self, arg=None):
+        if arg is None: # is in place of ==
+            start_time = self.get_exchange_starting_time()
+            end_time = self.get_exchange_end_time()
+        else:
+            start_time = self.processing_date + arg[0]
+            end_time = self.processing_date + arg[1]
+        # truncating df
+        df_tmp = self.__df.copy()
+        df_tmp = df_tmp.set_index(['DateTime'])
+        df_tmp = df_tmp.loc[start_time:end_time]
+        df_tmp = df_tmp.reset_index()
+        self.__df = df_tmp
+
+# %% Measures Functions
+
+    def get_order_indicator(self):
+        return self.__df.trade_price.isnull().copy()
+
+    def get_trade_indicator(self):
+        return ~(self.get_order_indicator())
+
+    def __get_ba_spread(self, data=None):
+        if data is not None:
+            spread = (data.ask_1_price - data.bid_1_price)
+            return spread
+        else:
+            df = self.__df.copy()
+            self.measures['ba_spread'] = (df.ask_1_price - df.bid_1_price)
+
+    def __get_delta_t(self, data=None):
+        if data is not None:
+            delta_t = self.df.DateTime.diff().shift(-1)
+            return delta_t
+        else:
+            self.measures['dt'] = self.__df.DateTime.diff().shift(-1)
+
+    def __get_mid_price(self, data=None):
+        if data is not None:
+            mid_price = (data.ask_1_price + data.bid_1_price)/2
+            return mid_price
+        else:
+            self.measures['mid_price'] = \
+                (self.__df.ask_1_price + self.__df.bid_1_price)/2
+
+    def __rlz_vol_log(self,prices):
+    '''rlzvollog(prices) calculates the realized volatility of a time series
+    of prices using logreturns
+    Inputs: Time Series of prices
+    Outputs: scalar with the volatility for the period'''
+        pxs = np.log(prices / prices.shift(1))
+        self.measures['realized_vol']=np.sqrt(np.sum(pxs * pxs))
+        
+    def __custom_resampler_abs_sum(self,array):
+        return np.sum(np.abs(array))
+    
+    def __get_time_weighted_spread(self, data=None):
+        if data is not None:    
+            return ((data['ba_spread'] * data['dt']).sum()) /\
+                (data['dt'].sum())
+            return ((self.__df['ba_spread'] * self.__df['dt']).sum()) /\
+                (self.__df['dt'].sum())
 
 # %%  Plots Functions
 
-    def plot_html_1mintick(self,path_out, start_xaxis = pd.to_timedelta('07:30:00')):
-        #layout = self.__plot_html_layout('Bid Price', 'Ask Price', 'Price Time Series')
+    def plot_html_1mintick(self,path_out,
+                           start_xaxis=pd.to_timedelta('07:30:00')):
+        # layout = self.__plot_html_layout('Bid Price', 'Ask Price',
+        #                                  'Price Time Series')
         data = self.__df.copy()
         data = data.set_index(['DateTime'])
-        
         start_xaxis = self.get_processing_date() + start_xaxis
         end_xaxis = start_xaxis + pd.to_timedelta('00:01:00')
-        
         data = data.loc[start_xaxis:end_xaxis]
-        
         #data['trade_price_minus_1']=data.trade_price.shift(-1)
         #data['buy']=np.where((data['trade_price_minus_1']==data.bid_1_price)
         #                     & (data['trade_price_minus_1'].notna())
         #                     & (data.bid_1_price.notna())
         #                     , True, False)
-        
-        fig = make_subplots(rows=3, cols=1, row_width=[0.2, 0.2, 0.4], 
+        fig = make_subplots(rows=3, cols=1, row_width=[0.2, 0.2, 0.4],
                             shared_xaxes=True)
-        fig.add_trace(go.Scatter(x=data.index, y=data.bid_1_price, 
-                            name = 'Bid'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=data.index, y=data.ask_1_price, 
-                            name = 'Ask'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=data.index, y=data.trade_qty, 
-                            name = 'Trade Qty'), row=2, col=1)
-        fig.add_trace(go.Scatter(x=data.index, y=self.__get_ba_spread(data), 
-                            name = 'Bid-ask spread'), row=3, col=1)
-        
-        
-        file = path_out+self.file_name_long+"_price.html"
+        fig.add_trace(go.Scatter(x=data.index, y=data.bid_1_price,
+                                 name='Bid'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=data.ask_1_price,
+                                 name='Ask'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=data.trade_qty,
+                                 name='Trade Qty'), row=2, col=1)
+        fig.add_trace(go.Scatter(x=data.index, y=self.__get_ba_spread(data),
+                                 name='Bid-ask spread'), row=3, col=1)
+        file = path_out + self.file_name_long + "_price.html"
         print('saving html plot to ', file)
         fig.write_html(file)
-        
+
     def plot_html_qty(self,path_out):
-        layout = self.__plot_html_layout('Bid Qty', 'Ask Qty', 'Quantity Time Series')
+        layout = self.__plot_html_layout('Bid Qty', 'Ask Qty',
+                                         'Quantity Time Series')
         bid_data = go.Scatter(x=self.__df.DateTime,
                          y=self.__df.bid_1_qty)
         ask_data = go.Scatter(x=self.__df.DateTime,
                         y=self.__df.ask_1_qty)
         fig = go.Figure(data=[bid_data, ask_data], layout=layout)
-        fig.update_layout(height=600, width=600, title_text="Stacked Subplots")
-        file = path_out+self.file_name_long+"_qty.html"
+        fig.update_layout(height=600, width=600,
+                          title_text="Stacked Subplots")
+        file = path_out + self.file_name_long + "_qty.html"
         print('saving html plot to ', file)
-        fig.write_html(file)  
-    
-    
-    def plot_html_ohlc(self, pathout, 
-                       freq='1min',start_xaxis = pd.to_timedelta('09:00:00'),
-                       end_xaxis = pd.to_timedelta('16:00:00')):
-        
+        fig.write_html(file)
+
+    def plot_html_ohlc(self, pathout, freq='1min',
+                       start_xaxis=pd.to_timedelta('09:00:00'),
+                       end_xaxis=pd.to_timedelta('18:15:00')):
         data = self.__df.copy()
         data = data.set_index(['DateTime'])
-        
         start_xaxis = self.get_processing_date() + start_xaxis
         end_xaxis = self.get_processing_date() + end_xaxis
-        
         # prepare OHLC data
-        data['mid_price'] = (data.ask_1_price + data.bid_1_price)/2
+        data['mid_price'] = (data.ask_1_price + data.bid_1_price) / 2
         ohlc = data.mid_price.resample(freq).ohlc()
         ohlc = ohlc.loc[start_xaxis:end_xaxis]
-        
-        
         # prepare Volume data
-        volume = pd.DataFrame(data.trade_qty.resample(freq)\
+        volume = pd.DataFrame(data.trade_qty.resample(freq)
                               .apply(self.__custom_resampler_abs_sum))
         #volume = volume.set_index(ohlc.index)    
         volume = volume.loc[start_xaxis:end_xaxis]
-        
-        # prepare time weigthed spread data
-        #data = data.assign(ba_spread=self.measures.ba_spread.values)
-        #data = data.assign(dt=self.measures.dt .values)
-        #data_masked = data[data.ba_spread > 0]
-        #time_weighted_spread = pd.DataFrame(\
-        #    data_masked.groupby(pd.Grouper(freq=freq)).apply(self.__get_time_weighted_spread))   
-        #time_weighted_spread.columns = ['time_weighted_spread']
-        #time_weighted_spread = time_weighted_spread.loc[start_xaxis:end_xaxis]
-        
-        
+        prepare time weigthed spread data
+        data = data.assign(ba_spread=self.measures.ba_spread.values)
+        data = data.assign(dt=self.measures.dt .values)
+        data_masked = data[data.ba_spread > 0]
+        time_weighted_spread = pd.DataFrame(
+            data_masked.groupby(
+                pd.Grouper(freq=freq)).apply(self.__get_time_weighted_spread))
+        time_weighted_spread.columns = ['time_weighted_spread']
+        time_weighted_spread = time_weighted_spread.loc[start_xaxis:end_xaxis]
         # plotting
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
         row_width=[0.2, 0.4],vertical_spacing=0.1,
         subplot_titles=('Open High Low Close Candlestick', 'Volume'))
-        
-        fig.add_trace(go.Candlestick(name='OHLC',
-                x=ohlc.index,
-                open=ohlc.open, high=ohlc.high,
+        fig.add_trace(
+            go.Candlestick(
+                name='OHLC', x=ohlc.index, open=ohlc.open, high=ohlc.high,
                 low=ohlc.low, close=ohlc.close,
                 increasing_line_color= 'green', decreasing_line_color= 'red'),
-                row=1, col=1)
-        
-    
-        fig.add_trace(go.Bar(name='Volume', x=volume.index, \
-                y=volume.trade_qty), row=2, col=1)
-            
+            row=1, col=1)
+        fig.add_trace(go.Bar(name='Volume', x=volume.index,
+                             y=volume.trade_qty), row=2, col=1)
         #fig.add_trace(go.Bar(x=time_weighted_spread.index, \
         #        y=time_weighted_spread.time_weighted_spread , 
         #        name = 'Time Weighted Spread', marker_color='black'), 
         #        row=3,col=1)
-        
         fig.update_layout(
-                xaxis=dict(rangeslider=dict(visible=False),type="date", 
-                       )) 
-
-          
-        file = pathout+self.get_processing_date().strftime('%Y%m%d')\
-                +'_'+freq+"_ohlc.html"
+                xaxis=dict(rangeslider=dict(visible=False),type="date"))
+        file = pathout+self.get_processing_date().strftime('%Y%m%d') + '_'\
+            + freq+"_ohlc.html"
         print('saving html plot to ', file)
         fig.write_html(file)
+
+# %% Armada Level 1 clean and collapsed class
+
+class Armada_Lvl1(Armada_Data):
+    def __init__(self, Armada_Data, start_time, end_time, file_type='CME',
+                 min_dt=MINDTCME):
+        start = timeit.default_timer()
+        self.__Armada_Data = Armada_Data
+        self.__exchange = Armada_Data.exchange
+        self.__file_name = Armada_Data.file_name
+        self.__file_name_long = Armada_Data.file_name_long
+        self.__file_entire_path = Armada_Data.file_entire_path
+        self.__processing_date = Armada_Data.processing_date
+        # Select times
+        self.__df = self.__Armada_Data.select_times(
+            pd.to_timedelta(start_time), pd.to_timedelta(end_time)).df
+        # Add order flags and count
+        self.__df['OrderQ'] = self.__df['trade_price'].isnull().copy()
+        self.__df['OrderN'] = self.__df['OrderQ'].copy().cumsum()
+        self.__df['last_trade'] = self.__df['trade_price'].copy().fillna(
+            method='ffill')
+        # Group trades by time and price
+        self.__dfg = self.__df.groupby(
+            ['OrderN', 'DateTime', 'OrderQ', 'last_trade'], sort=False
+            ).sum(min_count=1)
+        # Reset columns from groupby
+        self.__dfg['trade_price'] = np.where(self.__dfg['OrderQ'], np.nan,
+                                          self.__dfg['last_trade'].copy())
+        self.__dfg = self.__dfg.drop(columns=['OrderN', 'last_trade'])
+        # Clear trades without book update or sweep not instantaneous
+        def clear_invalid_trades(df, dt=min_dt):
+            dfc = df.copy()
+            dfc['Prev_Trade'] = (~dfc['OrderQ']).shift()
+            dfc['Signif_dt'] = dfc['DateTime'].diff().dt.total_seconds() > dt
+            dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt'])).shift(
+                periods=-1, fill_value=False)
+            return dfc[~dfc['Check']].copy()\
+                .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
+        # Clear trades without book update or sweep not instantaneous
+        # Ideally a fixed point iteration, but let's run it 3 times for now
+        self.__dfg = clear_invalid_trades(self.__dfg)
+        self.__dfg = clear_invalid_trades(self.__dfg)
+        self.__dfg = clear_invalid_trades(self.__dfg)
+        # Levels 1 and 2 diff (flag changes in each of the first two levels)
+        def lvldiff(df):
+            dfc = df.copy()
+            dfdiff1 = dfc[['bid_1_qty', 'bid_1_price', 'ask_1_price',
+                           'ask_1_qty']].copy().diff().abs()
+            dfc['lvl1'] = dfdiff1.sum(axis=1) != 0
+            dfprevtrade = ((~(dfc['OrderQ'].copy())).shift(fill_value=True))
+            dfc['lvl2'] = (~dfc['OrderQ']) |\
+                (dfc['OrderQ'] & dfprevtrade) |\
+                (dfc['OrderQ'] & dfc['lvl1'])
+            return dfc
+        # Excluding Level 2 events
+        self.__dfg = lvldiff(self.__dfg)
+        self.__dfg = self.__dfg[self.__dfg['lvl2']]
+        self.__dfg = self.__dfg.drop(['bid_2_qty', 'bid_2_ord', 'bid_2_price',
+                                      'bid_1_ord', 'ask_1_ord', 'ask_2_price',
+                                      'ask_2_ord', 'ask_2_qty', 'lvl2'],
+                                     axis=1)
+        self.__dfg['bid_traded'] = self.__dfg['bid_1_price'].copy().fillna(
+            method='ffill') >= self.__dfg['trade_price']
+        self.__dfg['ask_traded'] = self.__dfg['ask_1_price'].copy().fillna(
+            method='ffill') <= self.__dfg['trade_price']
+        print('init1 finished')
+        stop = timeit.default_timer()
+        print('Time spent on Armada Data cleaning: ',
+              round(stop - start), ' seconds')
 
 
 # %% Armada Top-Of-Book Class
@@ -351,23 +425,28 @@ class Armada_TOB(Armada_Data):
         self.__fill_price_traded()
         #self.__fill_aggression()
         self.num_consecutive_trade = self.__find_num_consecutive_trade()
-        print(self.__Armada_Data.file_name+' max_runs = '+str(self.num_consecutive_trade))
+        print(self.__Armada_Data.file_name+' max_runs = '
+              +str(self.num_consecutive_trade))
         self.__fill_tob()
         stop = timeit.default_timer()
-        print('Time spent on top-of-book filling: ', round(stop - start), ' seconds')
+        print('Time spent on top-of-book filling: ', round(stop - start),
+              ' seconds')
         self.__depletion()
         print('Depletion completed')
         print('Calculating order indicators')
         self.__order_indicators()
         print('Order indicators completed')
         self.get_data_for_tob_intensity()
+        self.fill_transition_matrix()
 
     @property
     def file_name(self):
         return self.__file_name
+
     @property
     def file_name_long(self):
         return self.__file_name_long
+
     @property
     def file_entire_path(self):
         return self.__file_entire_path
@@ -375,29 +454,85 @@ class Armada_TOB(Armada_Data):
     @property
     def tick_value(self):
         return self.__tick_value
-    
+
     @property
     def tob(self):
         return self.__tob
-        
+
     @property
     def exchange(self):
         return self.__exchange
-    
+
     @property
     def processing_date(self):
         return self.__processing_date
-    
+
     #def get_processing_date(self):
     #    return Armada_Data.get_processing_date
-    
+
     def get_tob_intensity_output(self):
-        return TOB_Intensity_Output(self.processing_date, self.results_bid, self.results_ask)
-    
+        return TOB_Intensity_Output(self.processing_date, self.results_bid,
+                                    self.results_ask)
+
+    def get_event_count(self):
+        self.event = pd.DataFrame()
+        # get data we need
+        df = self.__tob[['bid_1_price', 'bid_1_qty', 'ask_1_price',
+                         'ask_1_qty']].copy()
+        df['trade_price'] = self.__Armada_Data.df.trade_price.copy()
+        df['trade_qty'] = self.__Armada_Data.df.trade_qty.copy()
+        df['DateTime'] = self.__Armada_Data.df.DateTime.copy()
+        df['order_idx'] = self.__Armada_Data.get_order_indicator()
+        df[['bid_traded','ask_traded']] = \
+            self.__tob[['bid_price_traded', 'ask_price_traded']].copy()
+        # run unique - collapse time and remove second level bid / ask
+        df_unique = df.drop_duplicates(
+            subset = ['bid_1_price', 'bid_1_qty', 'ask_1_price', 'ask_1_qty',
+                      'trade_price', 'trade_qty'])
+        # get bid and ask before attributes
+        bid_qty_before = df_unique.bid_1_qty.shift(+1).copy()
+        ask_qty_before = df_unique.ask_1_qty.shift(+1).copy()
+        # get delta_t attribute
+        delta_t = df_unique.DateTime.diff().shift(+1)
+        # get consumption / insertion boolean attribute
+        #istrade = ~(df_unique.traded_price.isnull().copy())
+        orders_idx_shift = df_unique.order_idx.shift(+1)
+        orders_idx_shift.fillna(False, inplace=True)
+        
+        # price diff  
+        bid_price_diff = df_unique.bid_1_price.diff()/self.tick_value
+        ask_price_diff = df_unique.ask_1_price.diff()/self.tick_value
+        
+        #spread 
+        spread_diff =  (df_unique.ask_1_price - df_unique.bid_1_price).diff()
+        
+        # combinations
+        bool_b_neg = (bid_price_diff < 0)
+        bool_b_pos = (bid_price_diff > 0)
+        bool_b_cst = bool_b_neg & bool_b_pos
+        
+        bool_s_neg = spread_diff < 0
+        bool_s_pos = spread_diff > 0
+        bool_s_pos = bool_s_neg & bool_s_pos
+        
+        bool_a_neg = (ask_price_diff < 0)
+        bool_a_pos = (ask_price_diff > 0)
+        bool_a_cst = bool_a_neg & bool_a_pos
+        
+        e_b1_s1_a1 = bool_b_neg & bool_s_neg & bool_a_neg
+        e_b1_s1_a2 = bool_b_neg & bool_s_neg & bool_a_pos
+        e_b1_s1_a3 = bool_b_neg & bool_s_neg & bool_a_cst
+        
+        e_b1_s2_a1 = bool_b_neg & bool_s_pos & bool_a_neg
+        e_b1_s2_a2 = bool_b_neg & bool_s_pos & bool_a_pos
+        e_b1_s2_a3 = bool_b_neg & bool_s_pos & bool_a_cst
+        
+        
     def get_data_for_tob_intensity(self):
         self.event = pd.DataFrame()
         # get data we need
-        df = self.__tob[['bid_1_price', 'bid_1_qty', 'ask_1_price', 'ask_1_qty']].copy()
+        df = self.__tob[['bid_1_price', 'bid_1_qty', 'ask_1_price',
+                         'ask_1_qty']].copy()
         df['trade_price'] = self.__Armada_Data.df.trade_price.copy()
         df['trade_qty'] = self.__Armada_Data.df.trade_qty.copy()
         df['DateTime'] = self.__Armada_Data.df.DateTime.copy()
@@ -406,7 +541,9 @@ class Armada_TOB(Armada_Data):
             self.__tob[['bid_price_traded', 'ask_price_traded']].copy()
         
         # run unique - collapse time and remove second level bid / ask
-        df_unique = df.drop_duplicates(subset = ['bid_1_price', 'bid_1_qty', 'ask_1_price', 'ask_1_qty', 'trade_price', 'trade_qty'])
+        df_unique = df.drop_duplicates(subset = [
+            'bid_1_price', 'bid_1_qty', 'ask_1_price', 'ask_1_qty',
+            'trade_price', 'trade_qty'])
         
         # get bid and ask before attributes
         bid_qty_before = df_unique.bid_1_qty.shift(+1).copy()
@@ -430,36 +567,56 @@ class Armada_TOB(Armada_Data):
         bid_qty_diff = df_unique.bid_1_qty.diff().copy()
         ask_qty_diff = df_unique.ask_1_qty.diff().copy()
         # no trade, decrease qty, price the same 
-        bid_qty_less = (bid_qty_diff <0) & (bid_price_diff ==0) & df_unique.order_idx
-        bid_qty_add = (bid_qty_diff >0) & (bid_price_diff ==0) & df_unique.order_idx
+        bid_qty_less = (bid_qty_diff <0) & (bid_price_diff ==0)\
+            & df_unique.order_idx
+        bid_qty_add = (bid_qty_diff >0) & (bid_price_diff ==0)\
+            & df_unique.order_idx
         
         bid_inspread_add = (bid_price_diff > 0) & df_unique.order_idx
+        bid_outspread_less = (bid_price_diff < 0) & df_unique.order_idx
         
-        bid_event = bid_depl_trade | bid_depl_cancel \
-                       | bid_qty_less | bid_qty_add | bid_inspread_add
+        bid_event = bid_depl_trade | bid_depl_cancel | bid_qty_less |\
+            bid_qty_add | bid_inspread_add | bid_outspread_less
         # Ask 
         
         ask_depl_trade = (ask_price_diff < 0) & (~orders_idx_shift) 
         ask_depl_cancel = (ask_price_diff < 0) & (orders_idx_shift) 
         
         # no trade, decrease qty, price the same 
-        ask_qty_less = (ask_qty_diff <0) & (ask_price_diff ==0) & df_unique.order_idx
-        ask_qty_add = (ask_qty_diff >0) & (ask_price_diff ==0) & df_unique.order_idx
+        ask_qty_less = (ask_qty_diff <0) & (ask_price_diff ==0)\
+            & df_unique.order_idx
+        ask_qty_add = (ask_qty_diff >0) & (ask_price_diff ==0)\
+            & df_unique.order_idx
         
         ask_inspread_add = (ask_price_diff < 0) & df_unique.order_idx
         ask_outspread_less = (ask_price_diff > 0) & df_unique.order_idx
         
         
-        ask_event = ask_depl_trade | ask_depl_cancel | \
-                       ask_qty_less | ask_qty_add | ask_inspread_add | ask_outspread_less
+        ask_event = ask_depl_trade | ask_depl_cancel | ask_qty_less |\
+            ask_qty_add | ask_inspread_add | ask_outspread_less
                        
         
         ## finding insertion (add) and consumption (less)
-        consumption_bid = bid_depl_trade | bid_depl_cancel | bid_qty_less 
-        consumption_ask = ask_depl_trade | ask_depl_cancel | ask_qty_less | ask_outspread_less
+        consumption_bid = bid_depl_trade | bid_depl_cancel | bid_qty_less |\
+            bid_outspread_less
+        consumption_ask = ask_depl_trade | ask_depl_cancel | ask_qty_less |\
+            ask_outspread_less
        
         #insertion = bid_qty_add | bid_inspread_add \
         #        | ask_qty_add | ask_inspread_add
+        self.event['bid_consumption'] = bid_event & consumption_bid
+        self.event['bid_insertion'] = bid_event & (~consumption_bid)
+        self.event['bid_size'] = df_unique.bid_1_qty
+        self.event['bid_delta_t'] = delta_t
+        
+        
+        self.event['ask_consumption'] = consumption_ask
+        self.event['ask_insertion'] = ask_event & (~consumption_ask)
+        self.event['ask_size'] = df_unique.ask_1_qty
+        self.event['ask_delta_t'] = delta_t
+    
+        self.event['spread'] = df_unique.ask_1_price - df_unique.bid_1_price 
+        self.event = self.event.set_index(df_unique.DateTime.copy())
         
     
         #self.event['ask_event'] = ask_event
@@ -485,13 +642,19 @@ class Armada_TOB(Armada_Data):
         
         event_ask = event_ask[event_ask.ask_event==True]
         
-        
-        #data = result.groupby(['ISIN', 'BuyMemberID','Newspread', 'Bid_BBO_Qty_AES']).agg({'Limit':'sum', 'Market':'sum','Cancel':'sum', 'DiffTime':'sum','count':'sum'})    
+        data = result.groupby([
+            'ISIN', 'BuyMemberID','Newspread', 'Bid_BBO_Qty_AES']).agg(
+                {'Limit':'sum', 'Market':'sum','Cancel':'sum',
+                 'DiffTime':'sum','count':'sum'})    
         self.results_bid = pd.DataFrame()
         self.results_ask = pd.DataFrame()
         
-        self.results_bid = event_bid.groupby(['consumption','size_before']).agg({'delta_t':'sum', 'bid_event':'sum'}) 
-        self.results_ask = event_ask.groupby(['consumption','size_before']).agg({'delta_t':'sum', 'ask_event':'sum'}) 
+        self.results_bid = event_bid.groupby(
+            ['consumption','size_before']).agg(
+                {'delta_t':'sum', 'bid_event':'sum'}) 
+        self.results_ask = event_ask.groupby(
+            ['consumption','size_before']).agg(
+                {'delta_t':'sum', 'ask_event':'sum'}) 
         self.results_bid.delta_t  = self.results_bid.delta_t.dt.total_seconds()
         self.results_ask.delta_t  = self.results_ask.delta_t.dt.total_seconds()
         
@@ -507,30 +670,59 @@ class Armada_TOB(Armada_Data):
         # if all true, we have all event cases
         all_event = (~df_unique.order_idx) | ask_event | bid_event
         print(all_event.sum() / len(all_event))
-        ''' output for debudgging 
-        df_unique['bid_depl_trade'] =  bid_depl_trade
-        df_unique['bid_depl_cancel'] = bid_depl_cancel
-        df_unique['bid_qty_less'] = bid_qty_less
-        df_unique['bid_qty_add'] = bid_qty_add
-        df_unique['bid_inspread_add'] = bid_inspread_add
-        df_unique['ask_depl_trade'] = ask_depl_trade
-        df_unique['ask_depl_cancel'] =ask_depl_cancel
-        df_unique['ask_qty_less'] = ask_qty_less
-        df_unique['ask_qty_add'] = ask_qty_add
-        df_unique['ask_inspread_add'] = ask_inspread_add
-        df_unique['ask_outspread_less'] = ask_outspread_less
         
-        df_unique['all_event'] = all_event
-
-        test = df_unique[0:100] # for debug'''
-        #test_1 = self.event[0:100]
-        # bid consu,ption
-        # remove level 2 order book lines due to 
-        # bid qty before
-        # detla_t 
-        # count the number of event 
-        # column event (qty added, price change, )
+        self.event_detail = pd.DataFrame()
         
+        self.event_detail['bid_depl_trade'] =  bid_depl_trade
+        self.event_detail['bid_depl_cancel'] = bid_depl_cancel
+        self.event_detail['bid_qty_less'] = bid_qty_less
+        self.event_detail['bid_qty_add'] = bid_qty_add
+        self.event_detail['bid_inspread_add'] = bid_inspread_add
+        self.event_detail['bid_outspread_less'] = bid_outspread_less
+        self.event_detail['BDT+AF'] = bid_depl_trade & ask_qty_add
+        self.event_detail['ask_depl_trade'] = ask_depl_trade
+        self.event_detail['ask_depl_cancel'] =ask_depl_cancel
+        self.event_detail['ask_qty_less'] = ask_qty_less
+        self.event_detail['ask_qty_add'] = ask_qty_add
+        self.event_detail['ask_inspread_add'] = ask_inspread_add
+        self.event_detail['ask_outspread_less'] = ask_outspread_less
+        self.event_detail['ADT+BF'] = ask_depl_trade & bid_qty_add
+    
+    def fill_transition_matrix(self, margins=False):
+        df = self.event_detail.copy()
+        trans_cols = ['bid_depl_trade', 'bid_depl_cancel','ask_depl_trade',
+                      'ask_depl_cancel', 'bid_qty_add', 'ask_qty_add',
+                      'BDT+AF', 'ADT+BF', 'bid_qty_less', 'ask_qty_less',
+                      'bid_inspread_add', 'ask_inspread_add',
+                      'bid_outspread_less', 'ask_outspread_less']
+        depl_fill_df = df[trans_cols].copy()+0
+        depl_fill_df.columns = ['BDT   ', 'BDC   ', 'ADT   ', 'ADC   ',\
+                                    'BF    ', 'AF    ', 'BDT+AF', 'ADT+BF',\
+                                    'BQL   ','AQL   ', 'BIA   ','AIA   ' ,\
+                                    'BOL   ', 'AOL   ']
+        depl_fill_series = pd.Series(\
+            depl_fill_df.columns[np.where(depl_fill_df != 0)[1]])
+        trans_matrix = pd.crosstab(depl_fill_series, depl_fill_series.shift(),\
+            rownames=['t'], colnames=['t+1'], margins=margins)
+        return trans_matrix
+        
+        
+    def get_rolling_event(self, start_time, end_time):
+        date = self.processing_date
+        start_lag =  date + start_time - pd.to_timedelta('00:00:01')
+        start = date + start_time
+        end = date + end_time
+        
+        df = pd.DataFrame(self.event)
+        df = df.loc[start_lag:end]
+        df_roll = df.rolling('1s').sum()
+        
+        df_roll = df_roll.loc[start:end]
+        df_roll['bid_size'] = df.bid_size.loc[start:end]
+        df_roll['ask_size'] = df.ask_size.loc[start:end]
+        df_roll['spread'] = df.spread.loc[start:end]
+        return df_roll 
+    
     def __fill_tob(self):
         # initialize to original not filled tob
         self.__tob['bid_1_price'] = self.__Armada_Data.df.bid_1_price.copy()
@@ -550,14 +742,17 @@ class Armada_TOB(Armada_Data):
             shift_ask_qty = self.__tob.ask_1_qty.shift(-1)
             
             #If ask or bid price t+1 = trade price t 
-            self.__tob['bool_bid_D'] = self.__Armada_Data.df.trade_price == shift_bid_price
-            self.__tob['bool_ask_D'] = self.__Armada_Data.df.trade_price == shift_ask_price      
+            self.__tob['bool_bid_D'] =\
+                self.__Armada_Data.df.trade_price == shift_bid_price
+            self.__tob['bool_ask_D'] =\
+                self.__Armada_Data.df.trade_price == shift_ask_price      
             
             self.__tob.bid_1_qty.loc[    \
                 self.__tob.bool_idx &    \
                 self.__tob.bool_trade &  \
                 self.__tob.bool_bid_D] = \
-                pd.Series(np.sum([self.__Armada_Data.df.trade_qty , shift_bid_qty], axis=0))
+                pd.Series(np.sum(
+                    [self.__Armada_Data.df.trade_qty , shift_bid_qty], axis=0))
             
             self.__tob.bid_1_price.loc[    \
                 self.__tob.bool_idx &    \
@@ -568,7 +763,8 @@ class Armada_TOB(Armada_Data):
                 self.__tob.bool_idx &    \
                 self.__tob.bool_trade &  \
                 self.__tob.bool_ask_D] = \
-                pd.Series(np.sum([self.__Armada_Data.df.trade_qty , shift_ask_qty], axis=0))
+                pd.Series(np.sum([self.__Armada_Data.df.trade_qty,
+                                  shift_ask_qty], axis=0))
                 
             self.__tob.ask_1_price.loc[    \
                 self.__tob.bool_idx &    \
@@ -576,8 +772,10 @@ class Armada_TOB(Armada_Data):
                 self.__tob.bool_ask_D] = self.__Armada_Data.df.trade_price
 
             #If ask or bid price t+1 != trade price t 
-            self.__tob['bool_bid_C'] = self.__Armada_Data.df.trade_price != shift_bid_price
-            self.__tob['bool_ask_C'] = self.__Armada_Data.df.trade_price != shift_ask_price      
+            self.__tob['bool_bid_C'] =\
+                self.__Armada_Data.df.trade_price != shift_bid_price
+            self.__tob['bool_ask_C'] =\
+                self.__Armada_Data.df.trade_price != shift_ask_price 
             
             self.__tob.ask_1_qty.loc[    \
                 self.__tob.bool_idx &    \
@@ -620,8 +818,9 @@ class Armada_TOB(Armada_Data):
                 self.__tob.bool_idx] = np.nan #shift_bid_qty
         
         # remove if debug
-        self.tob.drop(['bool_bid_C', 'bool_ask_C','bool_ask_D','bool_bid_D',\
-                              'bool_idx', 'bool_trade', 'cumsum'],axis=1, inplace=True)
+        self.tob.drop(
+            ['bool_bid_C', 'bool_ask_C','bool_ask_D','bool_bid_D',
+             'bool_idx', 'bool_trade', 'cumsum'], axis=1, inplace=True)
             
         self.__tob.ask_1_price.fillna(method='ffill', inplace=True)
         self.__tob.ask_1_qty.fillna(method='ffill', inplace=True)
@@ -629,10 +828,12 @@ class Armada_TOB(Armada_Data):
         self.__tob.bid_1_qty.fillna(method='ffill', inplace=True)
         
     def __fill_tob_price_last(self):
-        self.__tob['bid_1_price_last'] = self.__Armada_Data.df.bid_1_price.copy()
+        self.__tob['bid_1_price_last'] =\
+            self.__Armada_Data.df.bid_1_price.copy()
         self.__tob.bid_1_price_last.fillna(method='ffill', inplace=True)
         
-        self.__tob['ask_1_price_last'] = self.__Armada_Data.df.ask_1_price.copy()
+        self.__tob['ask_1_price_last'] =\
+            self.__Armada_Data.df.ask_1_price.copy()
         self.__tob.ask_1_price_last.fillna(method='ffill', inplace=True)
        
     def __fill_price_traded(self):
@@ -676,7 +877,8 @@ class Armada_TOB(Armada_Data):
     def __find_num_consecutive_trade(self):
         boolean_series = self.__Armada_Data.get_trade_indicator()
         cumsum = boolean_series.cumsum()
-        temp = cumsum.sub(cumsum.mask(boolean_series).ffill().fillna(0)).astype(int)
+        temp = cumsum.sub(
+            cumsum.mask(boolean_series).ffill().fillna(0)).astype(int)
         num_consecutive_trade = temp.max()
         ###can be deleted later#
         self.__tob['cumsum'] = temp
@@ -912,7 +1114,145 @@ class Armada_TOB(Armada_Data):
         file = path_out+self.__Armada_Data.file_name+"_1sec_roll_net_number_aggression.html"
         print('saving html plot to ', file)
         fig.write_html(file) 
+
+    def plot_html_tob_event(self,path_out, \
+                                 start_xaxis = pd.to_timedelta('07:00:00'),\
+                                 start_end_delta = pd.to_timedelta('01:00:00'),\
+                                 start_delta = pd.to_timedelta('01:00:00')):
         
+        # time management
+        date = self.processing_date
+        start_data_delta = start_xaxis - start_delta
+        #start_end_delta = pd.to_timedelta('01:30:00')
+        end_xaxis = start_xaxis + start_end_delta
+        #tob data
+        data = self.__tob.copy()
+        data = data.set_index(self.__Armada_Data.df.DateTime)
+        traded_qty_signed = np.where(data.bid_price_traded, \
+                                     -1*data.traded_qty, +1*data.traded_qty)
+        #ord data
+        data_ord = self.ord_indic.copy()
+        data_ord['traded_qty_signed']= traded_qty_signed
+        data_ord = data_ord.set_index(self.__Armada_Data.df.DateTime)
+        #event data
+        data_event = self.get_rolling_event(start_data_delta, end_xaxis)
+        
+        data_event['delta_t'] = \
+            data_event.index.to_series().diff().shift(-1)
+        data_event['bid_net_intensity'] = \
+            data_event.bid_insertion - data_event.bid_consumption 
+        data_event['ask_net_intensity'] = \
+            data_event.ask_insertion - data_event.ask_consumption
+        data_event['net_intensity'] = data_event.ask_net_intensity + \
+            data_event.bid_net_intensity 
+        
+        data_event_tw = data_event.loc[(date + start_data_delta):(date+start_xaxis)]
+        
+        # time weighted average metrics
+        def delta_t_weigh(field):
+            return ((data_event_tw[field]*data_event_tw['delta_t']).sum())/\
+                (data_event_tw['delta_t'].sum())
+                
+        data_event['tw_bid_size']= delta_t_weigh('bid_size')
+        data_event['tw_ask_size']= delta_t_weigh('ask_size')
+        data_event['tw_spread']= delta_t_weigh('spread')/self.tick_value
+        data_event['tw_ask_net_intensity']= delta_t_weigh('ask_net_intensity')
+        data_event['tw_bid_net_intensity']= delta_t_weigh('bid_net_intensity')
+        data_event['tw_net_intensity']= delta_t_weigh('net_intensity')
+        
+        # data filtered for plot
+        data_event = data_event.loc[(date + start_xaxis):(date+end_xaxis)]
+        data = data.loc[(date + start_xaxis):(date+end_xaxis)]
+        data_ord = data_ord.loc[(date + start_xaxis):(date+end_xaxis)]
+        
+        # plotting
+        fig = make_subplots(rows=5, cols=1, row_width=[0.1,0.4,0.2, 0.2, 0.4], 
+                            shared_xaxes=True, vertical_spacing=0.01)
+        fig.update_layout(title_text="Top of Book from " + \
+                         (date+start_xaxis).strftime('%Y-%m-%d %H:%M:%S') + " to " \
+                        +(date+end_xaxis).strftime('%Y-%m-%d %H:%M:%S'),\
+                        legend=dict(y=0.5, font_size=8))
+        fig.add_trace(go.Scattergl(x=data.index, y=data.bid_1_price,
+                                   line=dict(color='#1f77b4'),# muted blue
+                            name = 'Bid', line_shape='hv', opacity= 0.5), row=1, col=1)
+        fig.add_trace(go.Scattergl(x=data.index, y=data.ask_1_price, 
+                                   line=dict(color='brown'),#brick red
+                            name = 'Ask', line_shape='hv', opacity= 0.5), row=1, col=1)
+        fig.add_trace(go.Scattergl(x=data.index, y=data_ord.micro_price, 
+                                   line=dict(color='#7f7f7f'),visible = 'legendonly',# grey
+                            name = 'Micro price', line_shape='hv'), row=1, col=1)
+        ### 
+        fig.add_trace(go.Scattergl(x=data_event.index, y= - data_event.bid_size,
+                                   line=dict(color='#1f77b4'),
+                            name = 'Bid qty', line_shape='hv', opacity= 0.5), row=2, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y= - data_event.tw_bid_size,
+                                   line=dict(color='midnightblue'),
+                            name = 'Time Weighted Bid Qty (1h)', line_shape='hv', opacity= 0.9), row=2, col=1)
+        
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.ask_size, 
+                                   line=dict(color='#d62728'),
+                            name = 'Ask qty', line_shape='hv', opacity= 0.5), row=2, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y= data_event.tw_ask_size,
+                                   line=dict(color='firebrick'),
+                            name = 'Time Weighted Ask Qty (1h)', line_shape='hv', opacity= 0.9), row=2, col=1)
+        
+        ###
+        fig.add_trace(go.Scattergl(x=data.index, y=data_ord.spread_ticks, 
+                                   line=dict(color='midnightblue'),
+                            name = 'Bid-ask spread in ticks', line_shape='hv',opacity= 0.5), row=3, col=1)
+        fig.add_trace(go.Scattergl(x=data.index, y=data_event.tw_spread, 
+                                   line=dict(color='black'),
+                            name = 'Time Weighted Spread (1h)', line_shape='hv',opacity= 0.5), row=3, col=1)
+        
+        ###
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.bid_consumption, 
+                                   line=dict(color='#1f77b4'),
+                            name = 'Bid Consumption', line_shape='hv', visible = 'legendonly'), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.ask_consumption, 
+                                   line=dict(color='#d62728'),
+                            name = 'Ask Consumption', line_shape='hv', visible = 'legendonly'), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.bid_insertion, 
+                                   line=dict(color='green'),
+                            name = 'Bid Insertion', line_shape='hv', visible = 'legendonly'), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.ask_insertion, 
+                                   line=dict(color='orange'),
+                            name = 'Ask Insertion', line_shape='hv', visible = 'legendonly'), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.bid_net_intensity, 
+                                   line=dict(color='#1f77b4'),
+                            name = 'Bid Net Intensity', line_shape='hv',opacity= 0.5), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.ask_net_intensity, 
+                                   line=dict(color='#d62728'),
+                            name = 'Ask Net Intensity', line_shape='hv',opacity= 0.5), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.net_intensity, 
+                                   line=dict(color='#7f7f7f'),
+                            name = 'Net Intensity', line_shape='hv'), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.tw_net_intensity, 
+                                   line=dict(color='black'),
+                            name = 'Time Weighted Net Intensity (1h)', line_shape='hv'), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.tw_ask_net_intensity, 
+                                   line=dict(color='red'),
+                            name = 'Time Weighted Ask Net Intensity (1h)', line_shape='hv', visible = 'legendonly'), row=4, col=1)
+        fig.add_trace(go.Scattergl(x=data_event.index, y=data_event.tw_bid_net_intensity, 
+                                   line=dict(color='blue'),
+                            name = 'Time Weighted Bid Net Intensity (1h)', line_shape='hv',visible = 'legendonly'), row=4, col=1)
+        
+        ###
+        fig.add_trace(go.Scattergl(x=data.index, y=data_ord.traded_qty_signed, 
+                                   line=dict(color='midnightblue'), 
+                            name = 'Signed trade qty', mode='markers', opacity= 0.5), row=5, col=1)
+        
+        fig.update_yaxes(title_text="bid, ask, micro price", row=1, col=1)
+        fig.update_yaxes(title_text="Top Order Book Quantities", row=2, col=1)
+        fig.update_yaxes(title_text="Bid-ask spread", row=3, col=1)
+        fig.update_yaxes(title_text="Intensities per second", row=4, col=1)
+        fig.update_yaxes(title_text="Signed Traded Quantities", row=5, col=1)
+        
+        #fig.update_layout(shapes=[dict(type= 'line',yref= 'paper', y0= 0, y1= tw_metrics.bid_size, xref= 'x', x0= 5, x1= 5)])
+        #fig['data'][2].update(yaxis='y5')
+        #fig['layout']['yaxis5'] = dict(overlaying='y2', anchor='x2', side='right', showgrid=False, title='Trades')
+        file = path_out+self.file_name_long+"_event.html"
+        print('saving html plot to ', file)
+        fig.write_html(file)        
         
     def plot_html_tob_1mintick(self,path_out, start_xaxis = pd.to_timedelta('07:30:00')):
         #layout = self.__plot_html_layout('Bid Price', 'Ask Price', 'Price Time Series')
@@ -1318,11 +1658,9 @@ class ArmadaData_UZModel():
         self.df_uz_stats['Date']=self.processing_date
         
     def __calc_trades(self):
-        # self.df_trades = self.__get_trades_remove_blocktrades()
         self.df_trades = self.__get_trades()
         self.volume = float(self.df_trades.trade_qty.sum())
         self.__collapse_time()
-        # self.n_trades = float(len(self.df_trades))
         self.n_trades = float(len(self.df_trades_by_time))
         self.__collapse_price()
         self.__trades_min_increment()
@@ -1350,7 +1688,7 @@ class ArmadaData_UZModel():
         '''function returns a trades matrix'''
         df_trades = self.df[~self.df['OT']].copy()
         return df_trades
-
+        
     def __get_trades_remove_blocktrades(self):
         '''function returns a trades matrix with no trade_price above or 
         below the bid ask'''
@@ -1438,7 +1776,7 @@ class ArmadaData_UZModel():
         column_ot
         Outputs: Smaller (or equal) DataFrame with unique time, price pairs
         and the values of 'Trade Qty' grouped with sum()'''
-        data_frame = self.df_trades
+        data_frame = self.df_trades.copy()
         data_framecol = data_frame.columns.tolist()
         data_framec = data_frame.copy()
         data_framecl = data_framec.columns.tolist()
@@ -1459,6 +1797,41 @@ class ArmadaData_UZModel():
         df_grouped_at_first = df_grouped_at_first[data_framecol]
         df_grouped_at_first.index.names = ['gindex']
         self.df_trades_by_time = df_grouped_at_first
+        
+        ''' def __collapse_time2(self):
+        collapse_time(data_frame) takes a Data Frame of trades at various
+        times and prices that might have different amounts traded at the same
+        time(s) and price(s) and collapses these trades into these same times
+        and prices, adding the 'Trade Qty' field for each collapsed group.
+        In short: Group trades by time and price, sum(Trade Qty)
+        Inputs: Data Frame from Armada preprocessed by column_datetime and
+        column_ot
+        Outputs: Smaller (or equal) DataFrame with unique time, price pairs
+        and the values of 'Trade Qty' grouped with sum()
+        data_frame = self.df_trades.copy()
+        data_framecol = data_frame.columns.tolist()
+        data_framec = data_frame.copy()
+        data_framecl = data_framec.columns.tolist()
+        data_framecl.remove('trade_qty')
+        df_unique = data_frame.drop_duplicates(subset = ['DateTime', 'trade_price', 'trade_qty'])
+        df_grouped = data_frame[['DateTime','trade_price']].groupby('trade_qty').sum()
+        
+        data_framec['DateTimem'] = data_framec['DateTime'] ==\
+            data_frame['DateTime'].shift()
+        data_framec['Trade Pricem'] = data_framec.trade_price ==\
+            data_frame.trade_price.shift()
+        data_framec['m'] = ~(data_framec['DateTimem']&data_framec['Trade Pricem'])
+        data_framec['nm'] = np.nan
+        data_framec['nm'] = np.where(data_framec['m'],\
+                   data_framec['m'].cumsum()-1, data_framec['nm'])
+        data_framec['nm'].fillna(method='ffill', inplace=True)
+        df_grouped = data_framec[['trade_qty', 'nm']].groupby('nm').sum()
+        df_first_traded = data_framec[data_framecl][data_framec['m']]
+        df_first_traded.index = df_grouped.index
+        df_grouped_at_first = pd.concat([df_first_traded, df_grouped], axis=1)
+        df_grouped_at_first = df_grouped_at_first[data_framecol]
+        df_grouped_at_first.index.names = ['gindex']
+        self.df_trades = df_grouped_at_first   '''
 
     def __collapse_price(self):
         '''collapse_time(data_frame) takes a Data Frame of trades at various

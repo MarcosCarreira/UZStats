@@ -33,8 +33,12 @@ from scipy.optimize import curve_fit
 # %% Armada Class imports
 
 
-from armadaClassMarcos import Armada_Data as ad
-from armadaClassMarcos import ArmadaData_UZModel as uz
+from armadaClassHawkes import Armada_Data as ad
+from armadaClassHawkes import Armada_Lvl1 as al1
+from armadaClassHawkes import ArmadaData_UZModel as uz
+
+# from armadaClassMarcos import Armada_Data as ad
+# from armadaClassMarcos import ArmadaData_UZModel as uz
 # from armadaClassMarcos import Armada_TOB as atob
 
 # %% Othmane imports
@@ -106,8 +110,8 @@ FILE2 = '20180104_6EH8.zip'
 
 # %% Save files when running the examples
 
-SAVECME = True
-SAVEBMF = True
+SAVECME = False
+SAVEBMF = False
 
 # %% Preferred order for labels
 
@@ -354,6 +358,22 @@ def initall(pathin, pathout, file_name, tick_value, min_order_size,
 
 # %% Test init functions
 
+dfDOL_1 = init1(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
+                END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
+
+dfDOL_2_ad = ad(PATHIN, FILE_BMF1, 'BMF')
+dfDOL_2ad = dfDOL_2_ad.df
+dfDOL_2_al1 = al1(dfDOL_2_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
+dfDOL_2 = dfDOL_2_al1.df
+
+
+uz_DOL_1 = uz(dfDOL_2_ad, TS1, START_TIME1, END_TIME1)
+
+uz_DOL_2 = uz(dfDOL_2_al1, TS1, START_TIME1, END_TIME1)
+
+uz_DOL_1.df_uz_stats
+
+uz_DOL_2.df_uz_stats
 
 dfDOL = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
                 END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
