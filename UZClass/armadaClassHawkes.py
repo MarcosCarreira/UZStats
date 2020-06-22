@@ -459,8 +459,7 @@ class Armada_Lvl1(Armada_Data):
 # %% Armada Level 1 fully collapsed class (trade levels)
 
 class Armada_Collapsed(Armada_Lvl1):
-    def __init__(self, Armada_Lvl1, tick_value, min_order_size, dt_shift,
-                 dt_cum_shift):
+    def __init__(self, Armada_Lvl1, tick_value, min_order_size):
         start = timeit.default_timer()
         self.__Armada_Lvl1 = Armada_Lvl1
         self.__exchange = Armada_Lvl1.exchange
@@ -469,14 +468,12 @@ class Armada_Collapsed(Armada_Lvl1):
         self.__file_entire_path = Armada_Lvl1.file_entire_path
         self.__processing_date = Armada_Lvl1.processing_date
         # Define key for groupby
-        print('Define key for groupby')
         self.__df = self.__Armada_Lvl1.df.copy()
         self.__df.loc[:, 'OrderN'] = self.__df['OrderQ'].cumsum()
         self.__df = self.__df[self.__df['OrderN'] > 0].copy()
         self.__df.loc[:, 'OrderN'] = self.__df['OrderN'] * (1 - 2 *
                                                      self.__df['OrderQ'])
         # Group trades (sum qty, count of price levels traded)
-        print('Group trades (sum qty, count of price levels traded')
         dfg = self.__df.copy().groupby(['DateTime', 'OrderN'], sort=False)
         datadfg = dfg.agg(
             {'OrderQ': all, 'bid_1_qty': sum, 'bid_1_price': sum,
@@ -487,7 +484,7 @@ class Armada_Collapsed(Armada_Lvl1):
         datadfg = datadfg.rename(columns={
             'trade_price': 'levels_traded', 'lvl1': 'Level1Q'})
         # Push trades on next order book state
-        print('Push trades on next order book state')
+        print('Pushing trades on next order book state')
         datadfg.loc[:, 'OrderId'] = np.abs(datadfg['OrderN']) +\
             (1 + np.sign(datadfg['OrderN']))/2
         dfagg2 = datadfg.groupby(['OrderId'])
@@ -499,12 +496,10 @@ class Armada_Collapsed(Armada_Lvl1):
                                'ask_traded': any})
         self.__dfg2 = self.__dfg2.reset_index()
         # Normalize amount by the minimum order size (MOS)
-        print('Normalize amount by the minimum order size (MOS)')
         self.__dfg2['bid_1_qty'] = self.__dfg2['bid_1_qty']/min_order_size
         self.__dfg2['ask_1_qty'] = self.__dfg2['ask_1_qty']/min_order_size
         self.__dfg2['trade_qty'] = self.__dfg2['trade_qty']/min_order_size
         # Spread, Midprice , Microprice and Imbalance
-        print('Spread, Midprice , Microprice and Imbalance')
         self.__dfg2['Spread_Ticks'] = (self.__dfg2['ask_1_price'] -
                                     self.__dfg2['bid_1_price']) / tick_value
         self.__dfg2['Midprice'] = (
@@ -569,6 +564,155 @@ class Armada_Collapsed(Armada_Lvl1):
             return self.processing_date + pd.to_timedelta('16:00:00')
         if self.__exchange == 'BMF':
             return self.processing_date + pd.to_timedelta('18:15:00')
+
+
+# %% Armada Level 1 collapsed class prepared for Hawkes
+
+class Armada_Hawkes(Armada_Collapsed):
+    def __init__(self, Armada_Collapsed, dt_shift, dt_cum_shift):
+        start = timeit.default_timer()
+        self.__Armada_Collapsed = Armada_Collapsed
+        self.__exchange = Armada_Collapsed.exchange
+        self.__file_name = Armada_Collapsed.file_name
+        self.__file_name_long = Armada_Collapsed.file_name_long
+        self.__file_entire_path = Armada_Collapsed.file_entire_path
+        self.__processing_date = Armada_Collapsed.processing_date
+        # Changes in top of book (diff)
+        self.__df = self.__Armada_Collapsed.df.copy()
+        self.__df['bid_1_qty_diff'] = self.__df['bid_1_qty'].diff()
+        self.__df['bid_1_price_diff'] = self.__df['bid_1_price'].diff()
+        self.__df['ask_1_price_diff'] = self.__df['ask_1_price'].diff()
+        self.__df['ask_1_qty_diff'] = self.__df['ask_1_qty'].diff()
+        # PriceQ column (was there a price change?)
+        print('Calculating PriceQ column')
+        self.__df['PriceQ'] = (self.__df['bid_1_price_diff'] != 0) |\
+            (self.__df['ask_1_price_diff'] != 0)
+        # ConsQ column (was there a comsumption of liquidity?)
+        # Trades that take out levels but leave an unfilled balance: False
+        print('Calculating ConsQ column')
+        self.__df['ConsQ'] = np.where(
+            self.__df['PriceQ'], ~(
+                (self.__df['bid_1_price_diff'] > 0) |
+                (self.__df['ask_1_price_diff'] < 0)),
+            (self.__df['bid_1_qty_diff'] < 0) |
+            (self.__df['ask_1_qty_diff'] < 0) |
+            (~self.__df['Level1Q']))
+        # AskQ column (was the event on the Ask side?)
+        # Trades that take out levels but leave an unfilled balance: Cons sign
+        print('Calculating AskQ column')
+        self.__df['AskQ'] = np.where(
+            self.__df['Level1Q'], ((self.__df['ask_1_price_diff'] != 0) |
+                                   (self.__df['ask_1_qty_diff'] != 0)),
+            self.__df['ask_traded'])
+        self.__df.at[0, 'PriceQ'] = False
+        self.__df.at[0, 'ConsQ'] = False
+        self.__df.at[0, 'AskQ'] = False
+        # Calculate event size
+        print('Calculating Event Size')
+        self.__df['Event_Size_order'] = np.where(
+            self.__df['AskQ'],
+            np.where(self.__df['ask_1_price_diff'] != 0,
+                     self.__df['ask_1_qty'],
+                     np.abs(self.__df['ask_1_qty_diff'])),
+            np.where(self.__df['bid_1_price_diff'] != 0,
+                     self.__df['bid_1_qty'],
+                     np.abs(self.__df['bid_1_qty_diff'])))
+        self.__df['Event_Size'] = np.where(
+            self.__df['trade_qty'] > 0, self.__df['trade_qty'],
+            self.__df['Event_Size_order'])
+        self.__df['Event_Size'] = self.__df['Event_Size'].fillna(1)
+        # Classify event
+        print('Classifying events')
+        self.__df['event_code'] =\
+            self.__df['AskQ'] * 8 + self.__df['ConsQ'] * 4 +\
+            self.__df['Level1Q'] * 2 + self.__df['PriceQ'] * 1
+        event_dict = {
+            0: 'Start', 1: 'PLb', 2: 'Lb', 3: 'Pb+', 4: 'Mb', 5: 'PbM-',
+            6: 'Cb', 7: 'PbC-', 8: 'Start', 9: 'PLa', 10: 'La', 11: 'Pa-',
+            12: 'Ma', 13: 'PaM+', 14: 'Ca', 15: 'PaC+'}
+        self.__df['Event_detail'] = self.__df['event_code'].map(event_dict)
+        self.__df['Event_detail_Prev'] = self.__df['Event_detail'].copy()\
+            .shift().fillna('La')
+        event_dict_14 = {
+            0: 'L_B', 1: 'DmI_B', 2: 'L_B', 3: 'I_B', 4: 'M_B', 5: 'Dm_B',
+            6: 'C_B', 7: 'Dc_B', 8: 'L_A', 9: 'DmI_A', 10: 'L_A', 11: 'I_A',
+            12: 'M_A', 13: 'Dm_A', 14: 'C_A', 15: 'Dc_A'}
+        self.__df['Event_14'] = self.__df['event_code'].map(event_dict_14)
+        event_dict_consec = {
+            'Ca': False, 'Cb': True, 'La': True, 'Lb': False, 'Ma': False,
+            'Mb': True, 'PLa': False, 'PLb': True, 'Pa-': True, 'PaC+': False,
+            'PaM+': False, 'Pb+': False, 'PbC-': True, 'PbM-': True}
+        print('Calculating Reversion and Hawkes Timestamp')
+        self.__df['Reversion'] =\
+            self.__df['Event_detail'].map(event_dict_consec) ^\
+                self.__df['Event_detail_Prev'].map(event_dict_consec)
+        self.__df['dt0'] = \
+            self.__df['DateTime'] == self.__df['DateTime'].shift()
+        self.__df['ConsTS'] =\
+            self.__df.groupby('DateTime')['dt0'].transform(pd.Series.cumsum)
+        self.__df['TS_Hawkes'] = self.__df['DateTime'] + dt_shift +\
+            dt_cum_shift * self.__df['ConsTS']
+        self.__df['dt'] = self.__df['TS_Hawkes'].diff().dt.total_seconds()
+        print(self.__df['dt'].value_counts().sort_index().head())
+        cols_output1 =\
+            ['DateTime', 'OrderId', 'bid_1_qty', 'bid_1_price', 'ask_1_price',
+             'ask_1_qty', 'trade_qty', 'levels_traded', 'Event_Size',
+             'AskQ', 'ConsQ', 'Level1Q', 'PriceQ', 'Event_detail', 'Event_14',
+             'Reversion', 'TS_Hawkes', 'dt', 'Spread_Ticks', 'Midprice',
+             'Microprice', 'Imbalance', 'Imbal_Sign']
+        self.__df = self.__df[cols_output1]
+        print('Armada_Hawkes finished')
+        stop = timeit.default_timer()
+        print('Time spent on Armada Data Hawkes preparation: ',
+              round(stop - start), ' seconds')
+
+    @property
+    def processing_date(self):
+        return self.get_processing_date()
+
+    @property
+    def file_name(self):
+        return self.__file_name
+
+    @property
+    def file_name_long(self):
+        return self.__file_name[:-4]
+
+    @property
+    def file_entire_path(self):
+        return (self.__file_entire_path)
+
+    @property
+    def exchange(self):
+        return self.__exchange
+
+    @property
+    def df(self):
+        return self.__df
+        
+# %% Public Functions
+
+    def get_processing_date(self):
+        if self.__exchange == 'CME':
+            return pd.to_datetime(self.file_name[0:8], format='%Y%m%d')
+        if self.__exchange == 'BMF':
+            return pd.to_datetime(self.file_name[6:-4], format='%Y%m%d')
+
+    def get_exchange_starting_time(self):
+        if self.__exchange == 'CME':
+            return self.processing_date\
+                                + pd.to_timedelta('00:00:00')
+        if self.__exchange == 'BMF':
+            return self.processing_date\
+                                + pd.to_timedelta('09:00:00')
+
+    def get_exchange_end_time(self):
+        if self.__exchange == 'CME':
+            return self.processing_date + pd.to_timedelta('16:00:00')
+        if self.__exchange == 'BMF':
+            return self.processing_date + pd.to_timedelta('18:15:00')
+
+
 
 # %% Armada UZ Model Output Class
     

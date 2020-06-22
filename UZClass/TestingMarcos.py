@@ -36,6 +36,7 @@ from scipy.optimize import curve_fit
 from armadaClassHawkes import Armada_Data as ad
 from armadaClassHawkes import Armada_Lvl1 as al1
 from armadaClassHawkes import Armada_Collapsed as acol
+from armadaClassHawkes import Armada_Hawkes as ahawk
 from armadaClassHawkes import ArmadaData_UZModel as uz
 
 # from armadaClassMarcos import Armada_Data as ad
@@ -113,7 +114,9 @@ FILE2 = '20180104_6EH8.zip'
 
 dfDOL_ad = ad(PATHIN, FILE_BMF1, 'BMF')
 dfDOL_al1 = al1(dfDOL_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
-dfDOL_coll = acol(dfDOL_al1, TS1, MOSDOL, DTEVSHIFT1, DTCUMADD1)
+dfDOL_coll = acol(dfDOL_al1, TS1, MOSDOL)
+dfDOL_hawk = ahawk(dfDOL_coll, DTEVSHIFT1, DTCUMADD1)
+
 
 # %% Save files when running the examples
 
