@@ -35,6 +35,7 @@ from scipy.optimize import curve_fit
 
 from armadaClassHawkes import Armada_Data as ad
 from armadaClassHawkes import Armada_Lvl1 as al1
+from armadaClassHawkes import Armada_Collapsed as acol
 from armadaClassHawkes import ArmadaData_UZModel as uz
 
 # from armadaClassMarcos import Armada_Data as ad
@@ -107,6 +108,12 @@ FILE_BMF2 = 'WDOG1720170119.csv'
 
 FILE1 = '20180105_6EH8.zip'
 FILE2 = '20180104_6EH8.zip'
+
+# %% Test init functions
+
+dfDOL_ad = ad(PATHIN, FILE_BMF1, 'BMF')
+dfDOL_al1 = al1(dfDOL_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
+dfDOL_coll = acol(dfDOL_al1, TS1, MOSDOL, DTEVSHIFT1, DTCUMADD1)
 
 # %% Save files when running the examples
 
@@ -356,7 +363,7 @@ def initall(pathin, pathout, file_name, tick_value, min_order_size,
 # %% [markdown]
 # End function here
 
-# %% Test init functions
+# %% Test init functions 2
 
 dfDOL_1 = init1(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
                 END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
