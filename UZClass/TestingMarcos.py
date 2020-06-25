@@ -102,26 +102,26 @@ EVENT_WINDOW1 = 1000
 
 # %% BMF file names
 
-FILE_BMF1 = 'DOLG1720170119.csv'
-FILE_BMF2 = 'WDOG1720170119.csv'
+# FILE_BMF1 = 'DOLG1720170119.csv'
+# FILE_BMF2 = 'WDOG1720170119.csv'
 
 # %% CME file names
 
-FILE1 = '20180105_6EH8.zip'
-FILE2 = '20180104_6EH8.zip'
+# FILE1 = '20180105_6EH8.zip'
+# FILE2 = '20180104_6EH8.zip'
 
 # %% Test init functions
 
-dfDOL_ad = ad(PATHIN, FILE_BMF1, 'BMF')
-dfDOL_al1 = al1(dfDOL_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
-dfDOL_coll = acol(dfDOL_al1, TS1, MOSDOL)
-dfDOL_hawk = ahawk(dfDOL_coll, DTEVSHIFT1, DTCUMADD1)
+# dfDOL_ad = ad(PATHIN, FILE_BMF1, 'BMF')
+# dfDOL_al1 = al1(dfDOL_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
+# dfDOL_coll = acol(dfDOL_al1, TS1, MOSDOL)
+# dfDOL_hawk = ahawk(dfDOL_coll, DTEVSHIFT1, DTCUMADD1)
 
 
 # %% Save files when running the examples
 
-SAVECME = False
-SAVEBMF = False
+# SAVECME = False
+# SAVEBMF = False
 
 # %% Preferred order for labels
 
@@ -131,322 +131,68 @@ EV_14_LBLS = ['L_B', 'C_A', 'M_A', 'I_B', 'DmI_A', 'Dm_A', 'Dc_A',
 # %% [markdown]
 # Start function here
 
-# %% New init for Armada TOB - Part 1
+def hawk(pathin, file_name, tick_value, min_order_size, start_time, end_time,
+         file_type='CME', min_dt=MINDTCME, dt_shift=DTEVSHIFTCME,
+         dt_cum_shift=DTCUMADDCME):
+    df_hawk = ahawk(
+        acol(
+            al1(
+                ad(
+                    pathin, file_name, file_type), start_time, end_time,
+                file_type, min_dt), tick_value, min_order_size), dt_shift,
+        dt_cum_shift)
+    return df_hawk.df
+
+# %% Test init functions
 
 
-# Outputs a clean df with trades collapsed by price and Level1 changes only
-
-def init1(pathin, pathout, file_name, tick_value, min_order_size, start_time,
-          end_time, file_type='CME', min_dt=MINDTCME,
-          dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME, save_files=False):
-    data = ad(pathin, file_name, file_type)  # ad=ArmadaData
-    # Select times
-    datadf = data.select_times(pd.to_timedelta(start_time),
-                               pd.to_timedelta(end_time)).df
-    # Add order flags and count
-    datadf['OrderQ'] = datadf['trade_price'].isnull().copy()
-    datadf['OrderN'] = datadf['OrderQ'].copy().cumsum()
-    datadf['last_trade'] = datadf['trade_price'].copy().fillna(method='ffill')
-    # Group trades by time and price
-    datadfg = datadf.groupby(['OrderN', 'DateTime', 'OrderQ', 'last_trade'],
-                             sort=False).sum(min_count=1)
-    # Reset columns from groupby
-    datadfg = datadfg.reset_index()
-    datadfg['trade_price'] = np.where(datadfg['OrderQ'], np.nan,
-                                      datadfg['last_trade'].copy())
-    datadfg = datadfg.drop(columns=['OrderN', 'last_trade'])
-    # Clear trades without book update or sweep not instantaneous - function
-    def clear_invalid_trades(df, dt=min_dt):
-        dfc = df.copy()
-        dfc['Prev_Trade'] = (~dfc['OrderQ']).shift()
-        dfc['Signif_dt'] = dfc['DateTime'].diff().dt.total_seconds() > dt
-        dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt'])).shift(
-            periods=-1, fill_value=False)
-        return dfc[~dfc['Check']].copy()\
-            .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
-    # Clear trades without book update or sweep not instantaneous
-    # Ideally a fixed point iteration, but let's run it 3 times for now
-    datadfg = clear_invalid_trades(datadfg)
-    datadfg = clear_invalid_trades(datadfg)
-    datadfg = clear_invalid_trades(datadfg)
-    # Levels 1 and 2 diff (flag changes in each of the first two levels)
-    def lvldiff(df):
-        dfc = df.copy()
-        dfdiff1 = dfc[['bid_1_qty', 'bid_1_price', 'ask_1_price',
-                       'ask_1_qty']].copy().diff().abs()
-        dfc['lvl1'] = dfdiff1.sum(axis=1) != 0
-        dfprevtrade = ((~(dfc['OrderQ'].copy())).shift(fill_value=True))
-        dfc['lvl2'] = (~dfc['OrderQ']) |\
-            (dfc['OrderQ'] & dfprevtrade) |\
-            (dfc['OrderQ'] & dfc['lvl1'])
-        return dfc
-    # Excluding Level 2 events
-    datadfg = lvldiff(datadfg)
-    datadfg = datadfg[datadfg['lvl2']]
-    datadfg = datadfg.drop(['bid_2_qty', 'bid_2_ord', 'bid_2_price',
-                            'bid_1_ord', 'ask_1_ord', 'ask_2_price',
-                            'ask_2_ord', 'ask_2_qty', 'lvl2'], axis=1)
-    datadfg['bid_traded'] = datadfg['bid_1_price'].copy().fillna(
-        method='ffill') >= datadfg['trade_price']
-    datadfg['ask_traded'] = datadfg['ask_1_price'].copy().fillna(
-        method='ffill') <= datadfg['trade_price']
-    print('init1 finished')
-    if save_files:
-        datadfg.to_csv(pathout+file_name[:-4]+'_df.csv')
-        print('init1 file saved')
-    return datadfg
-
-# %% New init for Armada TOB - Part 2
-
-
-# Outputs df with compressed trade information on the subsequent OB status
-
-def init2(data_frame, pathout, file_name, tick_value, min_order_size,
-          start_time, end_time, file_type='CME', min_dt=MINDTCME,
-          dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME, save_files=False):
-    # Define key for groupby
-    datadf = data_frame.copy()
-    datadf['OrderN'] = datadf['OrderQ'].copy().cumsum()
-    datadf = datadf[datadf['OrderN'] > 0].copy()
-    datadf['OrderN'] = datadf['OrderN']*(1-2*datadf['OrderQ'])
-    # Group trades (sum qty, count of price levels traded)
-    datadfg = datadf.groupby(['DateTime', 'OrderN'], sort=False)
-    dfagg = datadfg.agg({'OrderQ': all, 'bid_1_qty': sum, 'bid_1_price': sum,
-                         'trade_price': 'count', 'trade_qty': sum,
-                         'ask_1_price': sum, 'ask_1_qty': sum, 'lvl1': any,
-                         'bid_traded': any, 'ask_traded': any})
-    dfagg = dfagg.reset_index()
-    dfagg = dfagg.rename(columns={'trade_price': 'levels_traded',
-                                  'lvl1': 'Level1Q'})
-    # Some recheck for invalid trades might be needed here
-    # The complement of the function below should be run fixed-point style
-    # def find_invalid_trades_again(df, dt):
-    # --------------------------------------------------------------------
-    #     dfc = df.copy()
-    #     dfc['Prev_Trade'] = (dfc['OrderN'].shift()) < 0
-    #     dfc['Signif_dt'] = dfc['dt'] > dt
-    #     dfc['Check'] = (dfc['Prev_Trade'] & (dfc['Signif_dt']))
-    #     return dfc[dfc['Check']].copy()\
-    #         .drop(['Prev_Trade', 'Signif_dt', 'Check'], axis=1)
-    # --------------------------------------------------------------------
-    # Push trades on next order book state
-    dfagg['OrderId'] = np.abs(dfagg['OrderN']) +\
-        (1 + np.sign(dfagg['OrderN']))/2
-    # dfstates = dfagg.groupby(['DateTime', 'OrderId']).sum()
-    dfagg2 = dfagg.groupby(['OrderId'])
-    dfstates = dfagg2.agg({'DateTime': 'first', 'bid_1_qty': sum,
-                           'bid_1_price': sum, 'levels_traded': sum,
-                           'trade_qty': sum, 'ask_1_price': sum,
-                           'ask_1_qty': sum, 'Level1Q': any, 'OrderQ': any,
-                           'bid_traded': any, 'ask_traded': any})
-    dfstates = dfstates.reset_index()
-    # dfstates = dfstates.drop(['OrderN', 'OrderQ'], axis=1)
-    # Normalize amount by the minimum order size (MOS)
-    dfstates['bid_1_qty'] = dfstates['bid_1_qty']/min_order_size
-    dfstates['ask_1_qty'] = dfstates['ask_1_qty']/min_order_size
-    dfstates['trade_qty'] = dfstates['trade_qty']/min_order_size
-    # Spread, Midprice , Microprice and Imbalance
-    dfstates['Spread_Ticks'] = (dfstates['ask_1_price'] -
-                                dfstates['bid_1_price']) / tick_value
-    dfstates['Midprice'] = (dfstates['ask_1_price'] + dfstates['bid_1_price']
-                            )/2
-    dfstates['Microprice'] = (dfstates['ask_1_price'] * dfstates['bid_1_qty']
-                              + dfstates['bid_1_price'] *
-                              dfstates['ask_1_qty']) / \
-        (dfstates['bid_1_qty'] + dfstates['ask_1_qty'])
-    dfstates['Imbalance'] = dfstates['bid_1_qty'] / (dfstates['bid_1_qty'] +
-                                                     dfstates['ask_1_qty']) -\
-        1/2
-    dfstates['Imbal_Sign'] = pd.cut(dfstates['Imbalance'],
-                                    [-0.5, -0.2, +0.2, +0.5],
-                                    labels=[-1, 0, 1])
-    # Changes in top of book (diff)
-    dfstates['bid_1_qty_diff'] = dfstates['bid_1_qty'].diff()
-    dfstates['bid_1_price_diff'] = dfstates['bid_1_price'].diff()
-    dfstates['ask_1_price_diff'] = dfstates['ask_1_price'].diff()
-    dfstates['ask_1_qty_diff'] = dfstates['ask_1_qty'].diff()
-    # PriceQ column (was there a price change?)
-    dfstates['PriceQ'] = (dfstates['bid_1_price_diff'] != 0) |\
-        (dfstates['ask_1_price_diff'] != 0)
-    # ConsQ column (was there a comsumption of liquidity?)
-    # Trades that take out levels but leave an unfilled balance: False
-    dfstates['ConsQ'] = np.where(
-        dfstates['PriceQ'], ~((dfstates['bid_1_price_diff'] > 0) |
-                              (dfstates['ask_1_price_diff'] < 0)),
-        (dfstates['bid_1_qty_diff'] < 0) | (dfstates['ask_1_qty_diff'] < 0) |
-        (~dfstates['Level1Q']))
-    # AskQ column (was the event on the Ask side?)
-    # Trades that take out levels but leave an unfilled balance: Cons sign
-    dfstates['AskQ'] = np.where(
-        dfstates['Level1Q'], ((dfstates['ask_1_price_diff'] != 0) |
-                              (dfstates['ask_1_qty_diff'] != 0)),
-        dfstates['ask_traded'])
-    dfstates.at[0, 'PriceQ'] = False
-    dfstates.at[0, 'ConsQ'] = False
-    dfstates.at[0, 'AskQ'] = False
-    # Calculate event size
-    dfstates['Event_Size_order'] = np.where(
-        dfstates['AskQ'],
-        np.where(dfstates['ask_1_price_diff'] != 0,
-                 dfstates['ask_1_qty'], np.abs(dfstates['ask_1_qty_diff'])),
-        np.where(dfstates['bid_1_price_diff'] != 0,
-                 dfstates['bid_1_qty'], np.abs(dfstates['bid_1_qty_diff'])))
-    dfstates['Event_Size'] = np.where(
-        dfstates['trade_qty'] > 0, dfstates['trade_qty'],
-        dfstates['Event_Size_order'])
-    dfstates['Event_Size'] = dfstates['Event_Size'].fillna(1)
-    # Classify state
-    dfstates['event_code'] =\
-        dfstates['AskQ'] * 8 + dfstates['ConsQ'] * 4 +\
-        dfstates['Level1Q'] * 2 + dfstates['PriceQ'] * 1
-    event_dict = {
-        0: 'Start', 1: 'PLb', 2: 'Lb', 3: 'Pb+', 4: 'Mb', 5: 'PbM-', 6: 'Cb',
-        7: 'PbC-', 8: 'Start', 9: 'PLa', 10: 'La', 11: 'Pa-', 12: 'Ma',
-        13: 'PaM+', 14: 'Ca', 15: 'PaC+'}
-    dfstates['Event_detail'] = dfstates['event_code'].map(event_dict)
-    dfstates['Event_detail_Prev'] = dfstates['Event_detail'].copy().shift()\
-        .fillna('La')
-    event_dict_14 = {
-        0: 'L_B', 1: 'DmI_B', 2: 'L_B', 3: 'I_B', 4: 'M_B', 5: 'Dm_B',
-        6: 'C_B', 7: 'Dc_B', 8: 'L_A', 9: 'DmI_A', 10: 'L_A', 11: 'I_A',
-        12: 'M_A', 13: 'Dm_A', 14: 'C_A', 15: 'Dc_A'}
-    dfstates['Event_14'] = dfstates['event_code'].map(event_dict_14)
-    # event_dict_CLM = {
-    #     0: 'La', 1: 'Lb', 2: 'Lb', 3: 'Lb', 4: 'Mb', 5: 'Mb', 6: 'Cb',
-    #     7: 'Cb', 8: 'Lb', 9: 'La', 10: 'La', 11: 'La', 12: 'Ma',
-    #     13: 'Ma', 14: 'Ca', 15: 'Ca'}
-    # dfstates['Event_CLM'] = dfstates['event_code'].map(event_dict_CLM)
-    # dfstates['Event_CLM_Prev'] = dfstates['Event_CLM'].copy().shift()\
-    #     .fillna('La')
-    event_dict_consec = {
-        'Ca': False, 'Cb': True, 'La': True, 'Lb': False, 'Ma': False,
-        'Mb': True, 'PLa': False, 'PLb': True, 'Pa-': True, 'PaC+': False,
-        'PaM+': False, 'Pb+': False, 'PbC-': True, 'PbM-': True}
-    dfstates['Reversion'] = dfstates['Event_detail'].map(event_dict_consec)\
-        ^ dfstates['Event_detail_Prev'].map(event_dict_consec)
-    dfstates['dt0'] = dfstates['DateTime'] == dfstates['DateTime'].shift()
-    dfstates['ConsTS'] =\
-        dfstates.groupby('DateTime')['dt0'].transform(pd.Series.cumsum)
-    dfstates['TS_Hawkes'] = dfstates['DateTime'] + dt_shift +\
-        dt_cum_shift * dfstates['ConsTS']
-    dfstates['dt'] = dfstates['TS_Hawkes'].diff().dt.total_seconds()
-    print(dfstates['dt'].value_counts().sort_index().head())
-    # dfstates['event_code_short'] =\
-    #     dfstates['AskQ'] * 2 + dfstates['ConsQ'] * 1
-    # event_dict_short = {0: 'Ib', 1: 'Cb', 2: 'Ia', 3: 'Ca'}
-    # dfstates['Event'] = dfstates['event_code_short'].map(event_dict_short)
-    if save_files:
-        dfstates.to_csv(pathout+file_name[:-4]+'_df_states.csv')
-        print('init2 file saved')
-    cols_output1 =\
-        ['DateTime', 'OrderId', 'bid_1_qty', 'bid_1_price', 'ask_1_price',
-         'ask_1_qty', 'trade_qty', 'levels_traded', 'Event_Size',
-         'AskQ', 'ConsQ', 'Level1Q', 'PriceQ', 'Event_detail', 'Event_14',
-         'Reversion', 'TS_Hawkes', 'dt', 'Spread_Ticks', 'Midprice',
-         'Microprice', 'Imbalance', 'Imbal_Sign']
-    dfstates = dfstates[cols_output1]
-    print('init2 finished')
-    return dfstates
-
-
-# %% Run all inits
-
-
-def initall(pathin, pathout, file_name, tick_value, min_order_size,
-            start_time, end_time, file_type='CME', min_dt=MINDTCME,
-            dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME, save_files=False):
-    dfinit1 = init1(pathin, pathout, file_name, tick_value, min_order_size,
-                    start_time, end_time, file_type, min_dt, dt_shift,
-                    dt_cum_shift, save_files)
-    dfinit2 = init2(dfinit1, pathout, file_name, tick_value, min_order_size,
-                    start_time, end_time, file_type, min_dt, dt_shift,
-                    dt_cum_shift, save_files)
-    return dfinit2
+df_CME1_hawkdf = hawk(PATHIN, FILE1, TS, MOSCME, START_TIME, END_TIME,
+         file_type='CME', min_dt=MINDTCME, dt_shift=DTEVSHIFTCME,
+         dt_cum_shift=DTCUMADDCME)
 
 # %% [markdown]
 # End function here
 
 # %% Test init functions 2
 
-dfDOL_1 = init1(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
-                END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
 
-dfDOL_2_ad = ad(PATHIN, FILE_BMF1, 'BMF')
-dfDOL_2ad = dfDOL_2_ad.df
-dfDOL_2_al1 = al1(dfDOL_2_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
-dfDOL_2 = dfDOL_2_al1.df
+# dfDOL_2_ad = ad(PATHIN, FILE_BMF1, 'BMF')
+# dfDOL_2ad = dfDOL_2_ad.df
+# dfDOL_2_al1 = al1(dfDOL_2_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
+# dfDOL_2 = dfDOL_2_al1.df
 
-uz_DOL_1 = uz(dfDOL_2_ad, TS1, START_TIME1, END_TIME1)
+# uz_DOL_1 = uz(dfDOL_2_ad, TS1, START_TIME1, END_TIME1)
 
-uz_DOL_2 = uz(dfDOL_2_al1, TS1, START_TIME1, END_TIME1)
+# uz_DOL_2 = uz(dfDOL_2_al1, TS1, START_TIME1, END_TIME1)
 
-uz_DOL_1.df_uz_stats
+# uz_DOL_1.df_uz_stats
 
-uz_DOL_2.df_uz_stats
+# uz_DOL_2.df_uz_stats
 
 
-dfWDO_1 = init1(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSWDO, START_TIME1,
-                END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
+# dfWDO_2_ad = ad(PATHIN, FILE_BMF2, 'BMF')
+# dfWDO_2ad = dfWDO_2_ad.df
+# dfWDO_2_al1 = al1(dfWDO_2_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
+# dfWDO_2 = dfWDO_2_al1.df
 
-dfWDO_2_ad = ad(PATHIN, FILE_BMF2, 'BMF')
-dfWDO_2ad = dfWDO_2_ad.df
-dfWDO_2_al1 = al1(dfWDO_2_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
-dfWDO_2 = dfWDO_2_al1.df
+# uz_WDO_1 = uz(dfWDO_2_ad, TS1, START_TIME1, END_TIME1)
 
-uz_WDO_1 = uz(dfWDO_2_ad, TS1, START_TIME1, END_TIME1)
+# uz_WDO_2 = uz(dfWDO_2_al1, TS1, START_TIME1, END_TIME1)
 
-uz_WDO_2 = uz(dfWDO_2_al1, TS1, START_TIME1, END_TIME1)
+# uz_WDO_1.df_uz_stats
 
-uz_WDO_1.df_uz_stats
-
-uz_WDO_2.df_uz_stats
+# uz_WDO_2.df_uz_stats
 
 
-dfDOL = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
-                END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
-dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSWDO, START_TIME1,
-                END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
+# dfDOL = initall(PATHIN, PATHOUT, FILE_BMF1, TS1, MOSDOL, START_TIME1,
+#                 END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
+# dfWDO = initall(PATHIN, PATHOUT, FILE_BMF2, TS1, MOSWDO, START_TIME1,
+#                 END_TIME1, 'BMF', MINDT1, DTEVSHIFT1, DTCUMADD1, SAVEBMF)
 
-dfCME1 = initall(PATHIN, PATHOUT, FILE1, TS, MOSCME, START_TIME, END_TIME,
-                 'CME', MINDTCME, DTEVSHIFTCME, DTCUMADDCME, SAVECME)
-dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
-                 'CME', MINDTCME, DTEVSHIFTCME, DTCUMADDCME, SAVECME)
-
-# %% Find Starts
-
-
-# dfDOL[dfDOL['Event'] == 'Start']
-
-# %% dt=0
-
-# dfDOL.dt.describe()
-# dfWDO.dt.describe()
-
-# dfCME1.dt.describe()
-# dfCME2.dt.describe()
-
-# dfCME1.dt.value_counts(sort=False)
-
-# dfCME1.DateTime.head()
-
-# dfDOLc = dfDOL.copy()
-# dfDOLc['flag'] = dfDOLc['DateTime'] == dfDOLc['DateTime'].shift()
-# dfDOLc['CondTS'] =\
-#     dfDOLc.groupby('DateTime')['flag'].transform(pd.Series.cumsum)
-
-# dfWDOc = dfWDO.copy()
-# dfWDOc['flag'] = dfWDOc['DateTime'] == dfWDOc['DateTime'].shift()
-# dfWDOc['CondTS'] =\
-#     dfWDOc.groupby('DateTime')['flag'].transform(pd.Series.cumsum)
-
-# dfDOLc['flag'].describe()
-# dfWDOc['flag'].describe()
-
-# dfDOLc['CondTS'].describe()
-# dfWDOc['CondTS'].describe()
-
-# dfDOLc['TS_Hawkes'] = dfDOLc['DateTime'] + DTEVSHIFT1 +\
-#     DTCUMADD1 * dfDOLc['CondTS']
+# dfCME1 = initall(PATHIN, PATHOUT, FILE1, TS, MOSCME, START_TIME, END_TIME,
+#                  'CME', MINDTCME, DTEVSHIFTCME, DTCUMADDCME, SAVECME)
+# dfCME2 = initall(PATHIN, PATHOUT, FILE2, TS, MOSCME, START_TIME, END_TIME,
+#                  'CME', MINDTCME, DTEVSHIFTCME, DTCUMADDCME, SAVECME)
 
 # %% Quantile functions
 
@@ -465,11 +211,6 @@ def q90(array):
 
 # %% Eevent Sizes
 
-
-# dfDOL['Event_Size'].describe()
-# dfWDO['Event_Size'].describe()
-# dfCME1['Event_Size'].describe()
-# dfCME2['Event_Size'].describe()
 
 dfDOL_ES = pd.pivot_table(dfDOL, 'Event_Size', index='Event_14',
                           aggfunc=[np.mean, q10, q30, np.median, q70, q90])
@@ -980,8 +721,10 @@ FILES_WDO = [
     'WDOH1720170222.txt', 'WDOH1720170223.txt']
 
 FILES_CME = [
-    '20180102_6EH8.zip', '20180103_6EH8.zip',
-    '20180104_6EH8.zip', '20180105_6EH8.zip']
+    '20180102_6EH8.zip', '20180103_6EH8.zip', '20180104_6EH8.zip',
+    '20180105_6EH8.zip', '20180108_6EH8.zip', '20180109_6EH8.zip',
+    '20180110_6EH8.zip', '20180111_6EH8.zip', '20180112_6EH8.zip',
+    '20180115_6EH8.zip', '20180118_6EH8.zip', '20180119_6EH8.zip']
 
 # %% Function for lists
 
@@ -990,10 +733,13 @@ def get_hawkes_events_list(
         pathin, pathout, file_list, tick_value, min_order_size, start_time,
         end_time, file_type='CME', min_dt=MINDTCME, dt_shift=DTEVSHIFTCME,
         dt_cum_shift=DTCUMADDCME, save_files=False, plot=False):
-    df_list = [initall(
-        pathin, pathout, file, tick_value, min_order_size, start_time,
-        end_time, file_type, min_dt, dt_shift, dt_cum_shift, save_files)
-        for file in file_list]
+    df_list = [hawk(
+        pathin, file, tick_value, min_order_size, start_time, end_time,
+        file_type, min_dt, dt_shift, dt_cum_shift) for file in file_list]
+    # df_list = [initall(
+    #     pathin, pathout, file, tick_value, min_order_size, start_time,
+    #     end_time, file_type, min_dt, dt_shift, dt_cum_shift, save_files)
+    #     for file in file_list]
     timestamps = [get_event_14_timestamps(df)[0] for df in df_list]
     hawkes_learner = HawkesConditionalLaw(
         claw_method="log", delta_lag=0.1, min_lag=5e-4, max_lag=500,
@@ -1014,10 +760,13 @@ def prepare_hawkes_EM_events_list(
         pathin, pathout, file_list, tick_value, min_order_size, start_time,
         end_time, file_type='CME', min_dt=MINDTCME,
         dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME):
-    df_list = [initall(
-        pathin, pathout, file, tick_value, min_order_size, start_time,
-        end_time, file_type, min_dt, dt_shift, dt_cum_shift, False)
-        for file in file_list]
+    df_list = [hawk(
+        pathin, file, tick_value, min_order_size, start_time, end_time,
+        file_type, min_dt, dt_shift, dt_cum_shift) for file in file_list]
+    # df_list = [initall(
+    #     pathin, pathout, file, tick_value, min_order_size, start_time,
+    #     end_time, file_type, min_dt, dt_shift, dt_cum_shift, False)
+    #     for file in file_list]
     timestamps = [get_event_14_timestamps(df)[0] for df in df_list]
     return timestamps
 
@@ -1029,23 +778,6 @@ def get_hawkes_EM(timestamps, kernel_discretization, baseline_start,
                     tol=tol)
     hkem.fit(timestamps, baseline_start=baseline_start)
     return [hkem.baseline, hkem.kernel, hkem.get_kernel_norms()]
-
-# def get_hawkes_EM_events_list(
-#         pathin, pathout, file_list, tick_value, min_order_size, start_time,
-#         end_time, kernel_support=2, kernel_size=20, n_threads=4, max_iter=100,
-#         verbose=True, tol=1e-5, file_type='CME', min_dt=MINDTCME,
-#         dt_shift=DTEVSHIFTCME, dt_cum_shift=DTCUMADDCME,):
-#     df_list = [initall(
-#         pathin, pathout, file, tick_value, min_order_size, start_time,
-#         end_time, file_type, min_dt, dt_shift, dt_cum_shift, False)
-#         for file in file_list]
-#     timestamps = [get_event_14_timestamps(df)[0] for df in df_list]
-#     hkem = HawkesEM(kernel_support=kernel_support, kernel_size=kernel_size,
-#                   n_threads=n_threads, max_iter=max_iter, verbose=verbose,
-#                   tol=tol)
-#     hkem.fit(timestamps)
-#     return [hkem.baseline, hkem.kernel]
-
 
 # %% Run
 
