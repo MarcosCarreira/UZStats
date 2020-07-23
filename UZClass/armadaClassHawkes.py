@@ -712,6 +712,44 @@ class Armada_Hawkes(Armada_Collapsed):
         if self.__exchange == 'BMF':
             return self.processing_date + pd.to_timedelta('18:15:00')
 
+    def event_size_pivot(self):
+        def q10(array):
+            return np.quantile(array, 0.1)
+        def q30(array):
+            return np.quantile(array, 0.3)
+        def q70(array):
+            return np.quantile(array, 0.7)
+        def q90(array):
+            return np.quantile(array, 0.9)
+        return pd.pivot_table(self.df, 'Event_Size', index='Event_14',
+                          aggfunc=[np.mean, q10, q30, np.median, q70, q90])
+    
+    def describe_DmI(self):
+        mask_A = self.df['Event_14'] == 'DmI_A'
+        piv_A = self.df[mask_A][['bid_1_qty', 'ask_1_qty', 'trade_qty']].describe()
+        piv_A.index.rename('DmI_A', inplace=True)
+        mask_B = self.df['Event_14'] == 'DmI_B'
+        piv_B = self.df[mask_B][['bid_1_qty', 'ask_1_qty', 'trade_qty']].describe()
+        piv_B.index.rename('DmI_B', inplace=True)
+        return [piv_B, piv_A]
+
+    def get_event_14_timestamps(self):
+        data_framec = self.df.copy().iloc[1:][['TS_Hawkes', 'Event_14']]
+        times = data_framec['TS_Hawkes'].copy()
+        start = times.iloc[0]
+        data_framec['Timestamp'] = (times - start).dt.total_seconds().values
+        df_dummies = pd.get_dummies(
+            data_framec.set_index('Timestamp')['Event_14'])
+        df_dummies = df_dummies[EV_14_LBLS]
+        labels = df_dummies.columns.values
+        def get_timestamps_from_dummies(data_frame, col):
+            data_framec = data_frame.copy()
+            data_framec = data_framec[data_framec[col] == 1].copy()
+            return data_framec.index.values
+        list_values = [get_timestamps_from_dummies(df_dummies, col)
+                    for col in labels]
+        return [list_values, labels]
+
 
 
 # %% Armada UZ Model Output Class
