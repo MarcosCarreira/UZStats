@@ -70,27 +70,29 @@ PATHIN = PATHPROJ+'/CLOB_data/'
 PATHOUT = PATHPROJ+'/UZClass/'
 
 # %% CME Constants
-TS = 0.5
-MOSCME = 1
-MINDTCME = 0.0000001
-MAXEVDTCME = 10
-DTEVSHIFTCME = -pd.Timedelta(MINDTCME, 's')*0
-DTCUMADDCME = pd.Timedelta(MINDTCME, 's')/MAXEVDTCME
-START_TIME = pd.to_timedelta('00:00:00')
-END_TIME = pd.to_timedelta('23:59:59')
-EVENT_WINDOW = 1000
+TS_CME = 0.5
+MOS_CME = 1
+LATENCY_CME = 200e-6
+MINDT_CME = 0.0000001
+MAXEVDT_CME = 10
+DTEVSHIFT_CME = -pd.Timedelta(MINDT_CME, 's')*0
+DTCUMADD_CME = pd.Timedelta(MINDT_CME, 's')/MAXEVDT_CME
+START_TIME_CME = pd.to_timedelta('00:00:00')
+END_TIME_CME = pd.to_timedelta('23:59:59')
+# EVENT_WINDOW_CME = 1000
 
 # %% BMF Constants
-TS1 = 0.5
-MOSDOL = 5
-MOSWDO = 1
-MINDT1 = 0.001
-MAXEVDT1 = 40
-DTEVSHIFT1 = -pd.Timedelta(MINDT1, 's')/2
-DTCUMADD1 = pd.Timedelta(MINDT1, 's')/MAXEVDT1
-START_TIME1 = pd.to_timedelta('09:00:00')
-END_TIME1 = pd.to_timedelta('18:15:00')
-EVENT_WINDOW1 = 1000
+TS_BMF = 0.5
+MOS_DOL = 5
+MOS_WDO = 1
+LATENCY_BMF = 800e-6
+MINDT_BMF = 0.001
+MAXEVDT_BMF = 40
+DTEVSHIFT_BMF = -pd.Timedelta(MINDT_BMF, 's')/2
+DTCUMADD_BMF = pd.Timedelta(MINDT_BMF, 's')/MAXEVDT_BMF
+START_TIME_BMF = pd.to_timedelta('09:00:00')
+END_TIME_BMF = pd.to_timedelta('18:15:00')
+# EVENT_WINDOW_BMF = 1000
 
 # %% BMF file names
 
@@ -99,15 +101,20 @@ FILE_BMF2 = 'WDOG1720170119.csv'
 
 # %% CME file names
 
-FILE1 = '20180105_6EH8.zip'
-FILE2 = '20180104_6EH8.zip'
+FILE_CME1 = '20180104_6EH8.zip'
+FILE_CME2 = '20180105_6EH8.zip'
 
 # %% Test init functions
 
-dfDOL_ad = ad(PATHIN, FILE_BMF1, 'BMF')
-dfDOL_al1 = al1(dfDOL_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
-dfDOL_coll = acol(dfDOL_al1, TS1, MOSDOL)
-dfDOL_hawk = ahawk(dfDOL_coll, DTEVSHIFT1, DTCUMADD1)
+# dfDOL_ad = ad(PATHIN, FILE_BMF1, 'BMF')
+# dfDOL_al1 = al1(dfDOL_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
+# dfDOL_coll = acol(dfDOL_al1, TS1, MOSDOL)
+# dfDOL_hawk = ahawk(dfDOL_coll, DTEVSHIFT1, DTCUMADD1)
+
+df_ad = ad(PATHIN, FILE_CME1, 'CME')
+df_al1 = al1(df_ad, START_TIME_CME, END_TIME_CME, 'CME', MINDT_CME)
+df_coll = acol(df_al1, TS_CME, MOS_CME)
+df_hawk = ahawk(df_coll, DTEVSHIFT_CME, DTCUMADD_CME)
 
 # %% Preferred order for labels
 
@@ -117,43 +124,15 @@ dfDOL_hawk = ahawk(dfDOL_coll, DTEVSHIFT1, DTCUMADD1)
 
 # %% Test init functions 2
 
-uz_DOL = uz(dfDOL_al1, TS1, START_TIME1, END_TIME1)
+uz_df = uz(df_al1, TS_CME, START_TIME_CME, END_TIME_CME)
 
-uz_DOL_Stats = uz_DOL.df_uz_stats
-
-# %% Quantile functions and event sizes
-
-
-def q10(array):
-    return np.quantile(array, 0.1)
-
-def q30(array):
-    return np.quantile(array, 0.3)
-
-def q70(array):
-    return np.quantile(array, 0.7)
-
-def q90(array):
-    return np.quantile(array, 0.9)
-
-def event_size_pivot(df_hawk):
-    return pd.pivot_table(df_hawk, 'Event_Size', index='Event_14',
-                          aggfunc=[np.mean, q10, q30, np.median, q70, q90])
-
-def describe_DmI(df_hawk):
-    piv_A = df_hawk[df_hawk['Event_14'] == 'DmI_A']\
-        [['bid_1_qty', 'ask_1_qty', 'trade_qty']].describe()
-    piv_A.index.rename('DmI_A', inplace=True)
-    piv_B = df_hawk[df_hawk['Event_14'] == 'DmI_B']\
-        [['bid_1_qty', 'ask_1_qty', 'trade_qty']].describe()
-    piv_B.index.rename('DmI_B', inplace=True)
-    return [piv_B, piv_A]
+uz_stats = uz_df.df_uz_stats
 
 # %% Event Sizes
 
-ev_size_DOL = dfDOL_hawk.event_size_pivot()
+ev_size = df_hawk.event_size_pivot()
 
-dmi_DOL_B, dmi_DOL_A = dfDOL_hawk.describe_DmI()
+dmi_B, dmi_A = df_hawk.describe_DmI()
 
 # %% Intensities - pivots function
 
@@ -322,75 +301,76 @@ def pivots_intensities(data_frame, max_q=20, plot_q=True, title=''):
 
 # pivots_intensities(dfCME2, 25, 'CME 2018-01-04')
 
-# %% Functions for tick application
-
-
-def get_seconds(data_frame):
-    times = data_frame['TS_Hawkes'].copy()
-    start = times.iloc[0]
-    return (times - start).dt.total_seconds().values
-
-
-def get_timestamps_from_dummies(data_frame, col):
-    data_framec = data_frame.copy()
-    data_framec = data_framec[data_framec[col] == 1].copy()
-    return data_framec.index.values
-
-
-def get_event_14_timestamps(data_frame):
-    data_framec = data_frame.copy()
-    data_framec['Timestamp'] = get_seconds(data_framec)
-    df_dummies = pd.get_dummies(
-        data_framec.set_index('Timestamp')['Event_14'])
-    df_dummies = df_dummies[EV_14_LBLS]
-    labels = df_dummies.columns.values
-    list_values = [get_timestamps_from_dummies(df_dummies, col)
-                   for col in labels]
-    return [list_values, labels]
-
 # %% Get timestamps
 
 
-dfDOL_ts, dfDOL_lbls = dfDOL_hawk.get_event_14_timestamps()
+df_ts, df_lbls = df_hawk.get_event_14_timestamps()
 
 # %% Tick - EM estimation 1
 
+T0 = LATENCY_CME
+
 kernel_disc_em_1 =\
     np.concatenate(
-        (np.array([0.000025, 0.00075]),
-         np.linspace(0.001, 0.01, 9, endpoint=False),
-         np.linspace(0.01, 0.1, 9, endpoint=False),
-         np.linspace(0.1, 1.0, 9, endpoint=False),
-         np.linspace(1.0, 5.0, 16+1)))
-kernel_intervals_1 = np.concatenate((np.array([0.000025]),
-                                     np.diff(kernel_disc_em_1 )))
+        (np.array([0., 0.000025,
+                   0.25*T0, 0.5*T0, 0.75*T0, 0.9*T0, T0, 1.25*T0, 1.5*T0]),
+         np.array([0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2, 0.5, 0.75,
+                   1.0, 2.0, 5.0, 10.0])))
+kernel_intervals_1 = np.diff(kernel_disc_em_1)
 
 em_1 = HawkesEM(kernel_discretization=kernel_disc_em_1, max_iter=10000,
-              tol=1e-5, verbose=True)
-em_1.fit(dfDOL_ts)
+                tol=1e-5, verbose=True, n_threads=-1)
+em_1.fit(df_ts)
 em_1_baseline = em_1.baseline
 em_1_kernel = em_1.kernel
 em_1_score = em_1.score()
 
-# plot_hawkes_kernels(em_1)
+# %% Norms
 
-# %% Tick - EM estimation 2
+em_1_norms = em_1.get_kernel_norms()
 
-kernel_disc_em_2 =\
-    np.array([0.000025, 0.00075, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05,
-              0.1, 0.2, 0.5, 1.0, 2.0, 5.0])
-kernel_intervals_2 = np.concatenate((np.array([0.000025]),
-                                     np.diff(kernel_disc_em_2)))
+# %% Percentage of norms before latency
+
+# def mult_dt_em1(x):
+#     return x * kernel_intervals_1
+
+# em_1_kerndt = np.array(list(map(mult_dt_em1, em_1_kernel)))
+
+def norm_em1(x):
+    return np.dot(x, kernel_intervals_1)
+
+em_1_norms_all = np.array(list(map(norm_em1, em_1_kernel)))
+
+kernel_intervals_1_b = kernel_intervals_1 *\
+    np.concatenate((np.zeros(6), np.ones(15)))
+
+def norm_before_em1(x):
+    return np.dot(x, kernel_intervals_1_b)
+
+em_1_norms_before = np.array(list(map(norm_before_em1, em_1_kernel)))
+
+kernel_intervals_1_a = kernel_intervals_1 *\
+    np.concatenate((np.ones(6), np.zeros(15)))
+
+def norm_after_em1(x):
+    return np.dot(x, kernel_intervals_1_a)
+
+em_1_norms_after = np.array(list(map(norm_after_em1, em_1_kernel)))
+
+norm_before = em_1_norms_before / em_1_norms_all
+
+norm_after = em_1_norms_after / em_1_norms_all
+
+norm_check = norm_before + norm_after
 
 
-em_2 = HawkesEM(kernel_discretization=kernel_disc_em_2, max_iter=10000,
-              tol=1e-5, verbose=True)
-em_2.fit(dfDOL_ts)
-em_2_baseline = em_2.baseline
-em_2_kernel = em_2.kernel
-em_2_score = em_2.score()
+# %% Plot Hawkes EM 1
 
-# plot_hawkes_kernels(em_2)
+len(em_1_kernel[0][0])
+
+# %% Plot Hawkes EM 1 - Log
+
+plot_hawkes_kernels(em_1, log_scale=True)
 
 # %% Apply tick - non - parametric
 
