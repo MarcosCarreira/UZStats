@@ -22,6 +22,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import xlwings as xw
 from scipy.optimize import curve_fit
 
 # print(os.getcwd())
@@ -116,6 +117,13 @@ df_al1 = al1(df_ad, START_TIME_CME, END_TIME_CME, 'CME', MINDT_CME)
 df_coll = acol(df_al1, TS_CME, MOS_CME)
 df_hawk = ahawk(df_coll, DTEVSHIFT_CME, DTCUMADD_CME)
 
+# %% Connect
+
+wb = xw.Book('HawkesLatency.xlsx')
+
+# sht = wb.sheets('Simul')
+sht = wb.sheets('CME')
+
 # %% Preferred order for labels
 
 # EV_14_LBLS = ['L_B', 'C_A', 'M_A', 'I_B', 'DmI_A', 'Dm_A', 'Dc_A',
@@ -127,12 +135,115 @@ df_hawk = ahawk(df_coll, DTEVSHIFT_CME, DTCUMADD_CME)
 uz_df = uz(df_al1, TS_CME, START_TIME_CME, END_TIME_CME)
 
 uz_stats = uz_df.df_uz_stats
+sht.range('B2').value = uz_stats.transpose()
 
 # %% Event Sizes
 
 ev_size = df_hawk.event_size_pivot()
+sht.range('F2').value = ev_size
 
 dmi_B, dmi_A = df_hawk.describe_DmI()
+sht.range('N2').value = dmi_B
+sht.range('N12').value = dmi_A
+
+# %% Event counts
+
+trad_window_sec = df_hawk.get_trading_window()
+sht.range('C19').value = trad_window_sec
+
+event_counts = df_hawk.get_event_counts()
+sht.range('X154').value = event_counts
+
+# %% Event pivot tables
+
+pivot_counts = df_hawk.pivot_events(piv_values='dt', aggfunc='count')
+sht.range('E154').value = pivot_counts
+
+pivot_dur_avg = df_hawk.pivot_events(piv_values='dt', aggfunc=np.mean)
+sht.range('E172').value = pivot_dur_avg
+
+pivot_dur_med = df_hawk.pivot_events(piv_values='dt', aggfunc=np.median)
+sht.range('E188').value = pivot_dur_med
+
+pivot_eventsize = df_hawk.pivot_events(piv_values='Event_Size')
+sht.range('E206').value = pivot_eventsize
+
+pivot_imbalance = df_hawk.pivot_prev_events(piv_values='Imbalance')
+sht.range('E224').value = pivot_imbalance
+
+pivot_sprticks = df_hawk.pivot_prev_events(piv_values='Spread_Ticks')
+sht.range('E242').value = pivot_sprticks
+
+# %% Get timestamps
+
+
+df_ts, df_lbls = df_hawk.get_event_timestamps()
+
+# %% Tick - EM estimation 1 - Kernel Discretization
+
+T0 = LATENCY_CME
+
+kernel_disc_em_1 =\
+    np.concatenate(
+        (np.array([0., 0.000025,
+                   0.25*T0, 0.5*T0, 0.75*T0, 0.9*T0, T0, 1.25*T0, 1.5*T0]),
+         np.array([0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2, 0.5, 0.75,
+                   1.0, 2.0, 5.0, 10.0])))
+kernel_intervals_1 = np.diff(kernel_disc_em_1)
+
+# %% Tick - EM estimation 1 - Fit
+
+em_1 = HawkesEM(kernel_discretization=kernel_disc_em_1, max_iter=10000,
+                tol=1e-5, verbose=True, n_threads=-1)
+em_1.fit(df_ts)
+
+# %% Tick - EM estimation 1 - REsults
+
+em_1_baseline = em_1.baseline
+sht.range('C116').value = np.transpose([em_1_baseline])
+
+em_1_kernel = em_1.kernel
+em_1_norms = em_1.get_kernel_norms()
+sht.range('F116').value = em_1_norms
+
+em_1_score = em_1.score()
+
+# %% Percentage of norms before latency
+
+# def mult_dt_em1(x):
+#     return x * kernel_intervals_1
+
+# em_1_kerndt = np.array(list(map(mult_dt_em1, em_1_kernel)))
+
+def norm_em1(x):
+    return np.dot(x, kernel_intervals_1)
+
+em_1_norms_all = np.array(list(map(norm_em1, em_1_kernel)))
+
+kernel_intervals_1_b = kernel_intervals_1 *\
+    np.concatenate((np.zeros(6), np.ones(15)))
+
+def norm_before_em1(x):
+    return np.dot(x, kernel_intervals_1_b)
+
+em_1_norms_before = np.array(list(map(norm_before_em1, em_1_kernel)))
+sht.range('F95').value = em_1_norms_before
+
+kernel_intervals_1_a = kernel_intervals_1 *\
+    np.concatenate((np.ones(6), np.zeros(15)))
+
+def norm_after_em1(x):
+    return np.dot(x, kernel_intervals_1_a)
+
+em_1_norms_after = np.array(list(map(norm_after_em1, em_1_kernel)))
+sht.range('F137').value = em_1_norms_after
+
+norm_before = em_1_norms_before / em_1_norms_all
+
+norm_after = em_1_norms_after / em_1_norms_all
+
+norm_check = norm_before + norm_after
+
 
 # %% Intensities - pivots function
 
@@ -301,69 +412,6 @@ def pivots_intensities(data_frame, max_q=20, plot_q=True, title=''):
 
 # pivots_intensities(dfCME2, 25, 'CME 2018-01-04')
 
-# %% Get timestamps
-
-
-df_ts, df_lbls = df_hawk.get_event_14_timestamps()
-
-# %% Tick - EM estimation 1
-
-T0 = LATENCY_CME
-
-kernel_disc_em_1 =\
-    np.concatenate(
-        (np.array([0., 0.000025,
-                   0.25*T0, 0.5*T0, 0.75*T0, 0.9*T0, T0, 1.25*T0, 1.5*T0]),
-         np.array([0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2, 0.5, 0.75,
-                   1.0, 2.0, 5.0, 10.0])))
-kernel_intervals_1 = np.diff(kernel_disc_em_1)
-
-em_1 = HawkesEM(kernel_discretization=kernel_disc_em_1, max_iter=10000,
-                tol=1e-5, verbose=True, n_threads=-1)
-em_1.fit(df_ts)
-em_1_baseline = em_1.baseline
-em_1_kernel = em_1.kernel
-em_1_score = em_1.score()
-
-# %% Norms
-
-em_1_norms = em_1.get_kernel_norms()
-
-# %% Percentage of norms before latency
-
-# def mult_dt_em1(x):
-#     return x * kernel_intervals_1
-
-# em_1_kerndt = np.array(list(map(mult_dt_em1, em_1_kernel)))
-
-def norm_em1(x):
-    return np.dot(x, kernel_intervals_1)
-
-em_1_norms_all = np.array(list(map(norm_em1, em_1_kernel)))
-
-kernel_intervals_1_b = kernel_intervals_1 *\
-    np.concatenate((np.zeros(6), np.ones(15)))
-
-def norm_before_em1(x):
-    return np.dot(x, kernel_intervals_1_b)
-
-em_1_norms_before = np.array(list(map(norm_before_em1, em_1_kernel)))
-
-kernel_intervals_1_a = kernel_intervals_1 *\
-    np.concatenate((np.ones(6), np.zeros(15)))
-
-def norm_after_em1(x):
-    return np.dot(x, kernel_intervals_1_a)
-
-em_1_norms_after = np.array(list(map(norm_after_em1, em_1_kernel)))
-
-norm_before = em_1_norms_before / em_1_norms_all
-
-norm_after = em_1_norms_after / em_1_norms_all
-
-norm_check = norm_before + norm_after
-
-
 # %% Plot Hawkes EM 1
 
 len(em_1_kernel[0][0])
@@ -411,43 +459,6 @@ pd.DataFrame(hawkes_event_DOL[3], columns=EV_14_LBLS, index=EV_14_LBLS)\
     .to_csv(PATHOUT+'df_norms_DOL.csv')
 pd.DataFrame(hawkes_event_WDO[3], columns=EV_14_LBLS, index=EV_14_LBLS)\
     .to_csv(PATHOUT+'df_norms_WDO.csv')
-
-# %% Estimation definitions
-
-
-kernel_size = 40
-max_iter = 1000
-kernel_support = 2
-tol = 0.00001
-
-# %% Estimation
-
-[len(ts) for ts in dfDOL_ts]
-
-n_threads = 4
-
-em = HawkesEM(kernel_support=kernel_support, kernel_size=kernel_size,
-              n_threads=n_threads, max_iter=max_iter, verbose=True,
-              tol=tol)
-em.fit(dfWDO_ts)
-
-em_baseline = em.baseline
-em_kernel = em.kernel
-
-# %% Plot
-
-# fig = plot_hawkes_kernels(em, support=kernel_support)
-
-# %% Attributes
-
-
-print(em.n_nodes)
-print(em.baseline)
-print(em.n_realizations)
-print(em.kernel)
-
-pd.Series(em.kernel[0, 1],
-          index=np.linspace(0, kernel_support, kernel_size)).plot()
 
 # %% Several days
 

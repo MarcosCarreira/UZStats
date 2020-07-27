@@ -637,7 +637,7 @@ class Armada_Hawkes(Armada_Collapsed):
             0: 'L_B', 1: 'DmI_B', 2: 'L_B', 3: 'I_B', 4: 'M_B', 5: 'Dm_B',
             6: 'C_B', 7: 'Dc_B', 8: 'L_A', 9: 'DmI_A', 10: 'L_A', 11: 'I_A',
             12: 'M_A', 13: 'Dm_A', 14: 'C_A', 15: 'Dc_A'}
-        self.__df['Event_14'] = self.__df['event_code'].map(event_dict_14)
+        self.__df['Event'] = self.__df['event_code'].map(event_dict_14)
         event_dict_consec = {
             'Ca': False, 'Cb': True, 'La': True, 'Lb': False, 'Ma': False,
             'Mb': True, 'PLa': False, 'PLb': True, 'Pa-': True, 'PaC+': False,
@@ -657,7 +657,7 @@ class Armada_Hawkes(Armada_Collapsed):
         cols_output1 =\
             ['DateTime', 'OrderId', 'bid_1_qty', 'bid_1_price', 'ask_1_price',
              'ask_1_qty', 'trade_qty', 'levels_traded', 'Event_Size',
-             'AskQ', 'ConsQ', 'Level1Q', 'PriceQ', 'Event_detail', 'Event_14',
+             'AskQ', 'ConsQ', 'Level1Q', 'PriceQ', 'Event_detail', 'Event',
              'Reversion', 'TS_Hawkes', 'dt', 'Spread_Ticks', 'Midprice',
              'Microprice', 'Imbalance', 'Imbal_Sign']
         self.__df = self.__df[cols_output1]
@@ -721,25 +721,25 @@ class Armada_Hawkes(Armada_Collapsed):
             return np.quantile(array, 0.7)
         def q90(array):
             return np.quantile(array, 0.9)
-        return pd.pivot_table(self.df, 'Event_Size', index='Event_14',
+        return pd.pivot_table(self.df, 'Event_Size', index='Event',
                           aggfunc=[np.mean, q10, q30, np.median, q70, q90])
     
     def describe_DmI(self):
-        mask_A = self.df['Event_14'] == 'DmI_A'
+        mask_A = self.df['Event'] == 'DmI_A'
         piv_A = self.df[mask_A][['bid_1_qty', 'ask_1_qty', 'trade_qty']].describe()
         piv_A.index.rename('DmI_A', inplace=True)
-        mask_B = self.df['Event_14'] == 'DmI_B'
+        mask_B = self.df['Event'] == 'DmI_B'
         piv_B = self.df[mask_B][['bid_1_qty', 'ask_1_qty', 'trade_qty']].describe()
         piv_B.index.rename('DmI_B', inplace=True)
         return [piv_B, piv_A]
 
-    def get_event_14_timestamps(self):
-        data_framec = self.df.copy().iloc[1:][['TS_Hawkes', 'Event_14']]
+    def get_event_timestamps(self):
+        data_framec = self.df.copy().iloc[1:][['TS_Hawkes', 'Event']]
         times = data_framec['TS_Hawkes'].copy()
         start = times.iloc[0]
         data_framec['Timestamp'] = (times - start).dt.total_seconds().values
         df_dummies = pd.get_dummies(
-            data_framec.set_index('Timestamp')['Event_14'])
+            data_framec.set_index('Timestamp')['Event'])
         df_dummies = df_dummies[EV_14_LBLS]
         labels = df_dummies.columns.values
         def get_timestamps_from_dummies(data_frame, col):
@@ -750,7 +750,33 @@ class Armada_Hawkes(Armada_Collapsed):
                     for col in labels]
         return [list_values, labels]
 
+    def get_trading_window(self):
+        times = self.df['DateTime'].copy()
+        start = times.iloc[0]
+        end = times.iloc[-1]
+        return (end - start).total_seconds()
 
+    def get_event_counts(self):
+        return self.df['Event'].value_counts()[EV_14_LBLS]
+
+    def pivot_events(self, piv_values='dt', aggfunc=np.mean, margins=False):
+        # Options for values: 'dt'
+        dfc = self.df[['Event', piv_values]].copy()
+        dfc['Previous_Event'] = dfc['Event'].shift(+1).values
+        return pd.pivot_table(dfc, values=piv_values, columns=['Previous_Event'],
+                              index='Event', aggfunc=aggfunc, margins=margins)\
+            [EV_14_LBLS].reindex(EV_14_LBLS)
+
+    def pivot_prev_events(self, piv_values='Imbalance',
+                          aggfunc=np.mean, margins=False):
+        # Options for values: 'Imbalance', 'Event_Size', 'Spread_Ticks'
+        dfc = self.df[['Event', piv_values]].copy()
+        dfc['Previous_Event'] = dfc['Event'].shift(+1).values
+        dfc['Previous_Values'] = dfc[piv_values].shift(+1).values
+        return pd.pivot_table(dfc, values='Previous_Values',
+                              columns=['Previous_Event'], index='Event',
+                              aggfunc=aggfunc, margins=margins)\
+            [EV_14_LBLS].reindex(EV_14_LBLS)
 
 # %% Armada UZ Model Output Class
     
