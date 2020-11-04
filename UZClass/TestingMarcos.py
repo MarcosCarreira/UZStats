@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ---
 # jupyter:
 #   jupytext:
@@ -6,7 +7,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.4.2
+#       jupytext_version: 1.6.0
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -24,7 +25,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import xlwings as xw
 from scipy.optimize import curve_fit
+import scipy.stats as st
 
+import datetime as dtt
 # print(os.getcwd())
 
 # %% Armada Class imports
@@ -39,6 +42,13 @@ from armadaClassHawkes import ArmadaData_UZModel as uz
 # from armadaClassMarcos import Armada_Data as ad
 # from armadaClassMarcos import ArmadaData_UZModel as uz
 # from armadaClassMarcos import Armada_TOB as atob
+
+# %%
+print(os.getcwd())
+
+# %% Import uz
+
+import uz as uz2
 
 # %% Tick Imports
 
@@ -107,15 +117,23 @@ FILE_CME2 = '20180105_6EH8.zip'
 
 # %% Test init functions
 
-# dfDOL_ad = ad(PATHIN, FILE_BMF1, 'BMF')
-# dfDOL_al1 = al1(dfDOL_ad, START_TIME1, END_TIME1, 'BMF', MINDT1)
-# dfDOL_coll = acol(dfDOL_al1, TS1, MOSDOL)
-# dfDOL_hawk = ahawk(dfDOL_coll, DTEVSHIFT1, DTCUMADD1)
+dfDOL_ad = ad(PATHIN, FILE_BMF1, 'BMF')
+dfDOL_al1 = al1(dfDOL_ad, START_TIME_BMF, END_TIME_BMF, 'BMF', MINDT_BMF)
+# dfDOL_coll = acol(dfDOL_al1, TS_BMF, MOS_DOL)
+# dfDOL_hawk = ahawk(dfDOL_coll, DTEVSHIFT_BMF, DTCUMADD_BMF)
+
+dfWDO_ad = ad(PATHIN, FILE_BMF2, 'BMF')
+dfWDO_al1 = al1(dfWDO_ad, START_TIME_BMF, END_TIME_BMF, 'BMF', MINDT_BMF)
+# dfWDO_coll = acol(dfWDO_al1, TS_BMF, MOS_WDO)
+# dfWDO_hawk = ahawk(dfWDO_coll, DTEVSHIFT_BMF, DTCUMADD_BMF)
 
 df_ad = ad(PATHIN, FILE_CME1, 'CME')
 df_al1 = al1(df_ad, START_TIME_CME, END_TIME_CME, 'CME', MINDT_CME)
-df_coll = acol(df_al1, TS_CME, MOS_CME)
-df_hawk = ahawk(df_coll, DTEVSHIFT_CME, DTCUMADD_CME)
+# df_coll = acol(df_al1, TS_CME, MOS_CME)
+# df_hawk = ahawk(df_coll, DTEVSHIFT_CME, DTCUMADD_CME)
+
+df2_ad = ad(PATHIN, FILE_CME2, 'CME')
+df2_al1 = al1(df2_ad, START_TIME_CME, END_TIME_CME, 'CME', MINDT_CME)
 
 # %% Connect
 
@@ -133,9 +151,257 @@ sht = wb.sheets('CME')
 # %% Test init functions 2
 
 uz_df = uz(df_al1, TS_CME, START_TIME_CME, END_TIME_CME)
+uz_df2 = uz(df2_al1, TS_CME, START_TIME_CME, END_TIME_CME)
 
-uz_stats = uz_df.df_uz_stats
-sht.range('B2').value = uz_stats.transpose()
+uz_dfDOL = uz(dfDOL_al1, TS_BMF, START_TIME_BMF, END_TIME_BMF)
+uz_dfWDO = uz(dfWDO_al1, TS_BMF, START_TIME_BMF, END_TIME_BMF)
+
+# uz_stats = uz_df.df_uz_stats
+# sht.range('B2').value = uz_stats.transpose()
+
+
+# %% Create list
+
+
+def df_to_list(df, α, hours, mint=0.001):
+    test_list = []
+    for j in range(len(df)):
+        row = df.iloc[j]
+        if pd.isna(row['sign']):
+            ud = 0
+        else:
+            ud = int(row['sign'])
+        al = int(row['Al'])
+        if pd.isna(row['Li']):
+            k = 0
+        else:
+            k = int(row['Li'])
+        s = row['trade_price']
+        α = α
+        t = max(row['dtTj'].total_seconds(), mint) / (hours * 3600)
+        new_row = [[ud, al, k, s, α, t]]
+        test_list = test_list + new_row
+    return test_list
+
+
+# %% Test BUZ
+
+dftestDOL = uz_dfDOL.df_trades_adduz.copy()
+
+
+# %% Describe durations
+
+# dftestDOL['dtTj'].value_counts()
+
+
+# %% Convert data
+
+list_DOL = df_to_list(dftestDOL, TS_BMF, 9.25)
+
+# %% Define grid
+
+ηrng = np.concatenate((np.arange(0.05, 0.60 + 0.01, 0.01),
+                       np.array([0.70, 0.80, 1.0, 1.5, 2.0])))
+σrng = np.concatenate((np.arange(0.001, 0.030 + 0.001, 0.001),
+                       np.array([0.035, 0.040, 0.050, 0.075, 0.100])))
+μrng = np.arange(-0.50, +0.50 + 0.02, 0.02)
+
+
+# %% Define priors - functions
+
+def prior_lognorm(param_rng, shape, loc, scale):
+    prior_vals = np.array([st.lognorm.pdf(x, shape, loc, scale)
+                           for x in param_rng])
+    return prior_vals / np.sum(prior_vals)
+
+def prior_norm(param_rng, loc, scale):
+    prior_vals = np.array([st.norm.pdf(x, loc, scale) for x in param_rng])
+    return prior_vals / np.sum(prior_vals)
+
+# %% Define priors
+
+η0 = prior_lognorm(ηrng, 1, 0, 0.4)
+σ0 = prior_lognorm(σrng, 1.25, 0, 0.02)
+μ0 = prior_norm(μrng, 0, 0.05)
+
+ηs = {ηrng[j]: η0[j] for j in range(len(ηrng))}
+σs = {σrng[j]: σ0[j] for j in range(len(σrng))}
+μs = {μrng[j]: μ0[j] for j in range(len(μrng))}
+
+# %% Define Process
+
+proc = uz2.Process(ηs, σs, μs)
+
+# %% Initial price
+
+proc.init_px(list_DOL[0])
+proc.plot_marginals
+
+# %% 1st price change
+
+print('start')
+currentDT1 = dtt.datetime.now()
+print (str(currentDT1))
+
+proc.init_px_chg(list_DOL[1])
+
+print('end')
+currentDT2 = dtt.datetime.now()
+print (str(currentDT2))
+
+print (str(currentDT2 - currentDT1))
+
+proc.plot_marginals
+
+# %% 2nd price change
+
+print('start')
+currentDT1 = dtt.datetime.now()
+print (str(currentDT1))
+
+proc.update_with_counts(list_DOL[2])
+
+print('end')
+currentDT2 = dtt.datetime.now()
+print (str(currentDT2))
+
+print (str(currentDT2 - currentDT1))
+
+proc.plot_marginals
+
+
+# %%
+
+uz2.nprobmw(1, -1, 3237.0, 0.5, 0.5, 0.001, 0.0, 2e-5)
+
+
+# %% Test fit CME 1
+
+dftest = uz_df.df_trades_adduz.copy()
+
+dftest['Ptj'] = dftest['trade_price'].copy()
+dftest['dtj'] = dftest['dtTj'].copy().dt.total_seconds()
+dftest['Co'] = dftest['Co'] == 1
+dftest['Al'] = dftest['Al'] == 1
+dftest['seconds'] = (dftest['DateTime'] - dftest['DateTime'].iloc[0])\
+    .dt.total_seconds()
+dftest.set_index('seconds', inplace=True)
+
+# dftest[['DateTime', 'trade_price']].set_index('DateTime').plot()
+
+fitcme = uz2.fit_trio(dftest, TS_CME, 16, λ=1, show_charts=False)
+
+dfroll, dfcum = uz2.stats_window(dftest, TS_CME, 16, λ=1, window_min=15,
+                                 time_step_min=1)
+
+# %% Test fit CME 2
+
+df2test = uz_df2.df_trades_adduz.copy()
+
+df2test['Ptj'] = df2test['trade_price'].copy()
+df2test['dtj'] = df2test['dtTj'].copy().dt.total_seconds()
+df2test['Co'] = df2test['Co'] == 1
+df2test['Al'] = df2test['Al'] == 1
+df2test['seconds'] = (df2test['DateTime'] - df2test['DateTime'].iloc[0])\
+    .dt.total_seconds()
+df2test.set_index('seconds', inplace=True)
+
+# df2test[['DateTime', 'trade_price']].set_index('DateTime').plot()
+
+fitcme2 = uz2.fit_trio(df2test, TS_CME, 16, λ=1, show_charts=False)
+
+df2roll, df2cum = uz2.stats_window(df2test, TS_CME, 16, λ=1, window_min=15,
+                                   time_step_min=1)
+
+# %% Test fit BM&F DOL
+
+dftestDOL = uz_dfDOL.df_trades_adduz.copy()
+
+dftestDOL['Ptj'] = dftestDOL['trade_price'].copy()
+dftestDOL['dtj'] = dftestDOL['dtTj'].copy().dt.total_seconds()
+dftestDOL['Co'] = dftestDOL['Co'] == 1
+dftestDOL['Al'] = dftestDOL['Al'] == 1
+dftestDOL['seconds'] = (dftestDOL['DateTime'] - dftestDOL['DateTime'].iloc[0])\
+    .dt.total_seconds()
+dftestDOL.set_index('seconds', inplace=True)
+
+# dftestDOL[['DateTime', 'trade_price']].set_index('DateTime').plot()
+
+fitdol = uz2.fit_trio(dftestDOL, TS_BMF, 9.25, λ=1, show_charts=False)
+
+dfrollDOL, dfcumDOL = uz2.stats_window(dftestDOL, TS_BMF, 9.25, λ=1,
+                                       window_min=15, time_step_min=1)
+
+# %% Test fit BM&F WDO
+
+dftestWDO = uz_dfWDO.df_trades_adduz.copy()
+
+dftestWDO['Ptj'] = dftestWDO['trade_price'].copy()
+dftestWDO['dtj'] = dftestWDO['dtTj'].copy().dt.total_seconds()
+dftestWDO['Co'] = dftestWDO['Co'] == 1
+dftestWDO['Al'] = dftestWDO['Al'] == 1
+dftestWDO['seconds'] = (dftestWDO['DateTime'] - dftestWDO['DateTime'].iloc[0])\
+    .dt.total_seconds()
+dftestWDO.set_index('seconds', inplace=True)
+
+# dftestWDO[['DateTime', 'trade_price']].set_index('DateTime').plot()
+
+fitwdo = uz2.fit_trio(dftestWDO, TS_BMF, 9.25, λ=1, show_charts=False)
+
+dfrollWDO, dfcumWDO = uz2.stats_window(dftestWDO, TS_BMF, 9.25, λ=1,
+                                       window_min=15, time_step_min=1)
+
+# %% Plot for data
+
+def plot_stats(data_roll, data_cum, title):
+    fig, axs = plt.subplots(4, 2, figsize=(18, 18))
+    fig.suptitle(title, y=0.90)
+    
+    data_index = data_roll.index
+
+    axs[0, 0].plot(data_roll[['η', 'H']])
+    axs[0, 0].legend(['η', 'H'])
+    axs[0, 0].set_title('η and H - Rolling')
+    axs[0, 1].plot(data_cum[['η', 'H']])
+    axs[0, 1].legend(['η', 'H'])
+    axs[0, 1].set_title('η and H - Cumulative')
+    
+    axs[1, 0].plot(data_roll[['σ', 'σXe']])
+    axs[1, 0].set_title('σ and σXe - Rolling')
+    axs[1, 0].legend(['σ', 'σXe'])
+    axs[1, 1].plot(data_cum[['σ', 'σXe']])
+    axs[1, 1].legend(['σ', 'σXe'])
+    axs[1, 1].set_title('σ and σXe - Cumulative')
+    
+    axs[2, 0].plot(data_roll[['μ']])
+    axs[2, 0].legend(['μ'])
+    axs[2, 0].set_title('μ - Rolling')
+    axs[2, 1].plot(data_cum[['μ']])
+    axs[2, 1].legend(['μ'])
+    axs[2, 1].set_title('μ - Cumulative')
+    
+    axs[3, 0].plot(data_roll[['f_Al_Up', 'f_Co_Up', 'f_Al_Down', 'f_Co_Down']])
+    axs[3, 0].legend(['f_Al_Up', 'f_Co_Up', 'f_Al_Down', 'f_Co_Down'])
+    axs[3, 0].set_title('Frequencies - Rolling')
+    axs[3, 1].plot(data_cum[['f_Al_Up', 'f_Co_Up', 'f_Al_Down', 'f_Co_Down']])
+    axs[3, 1].legend(['f_Al_Up', 'f_Co_Up', 'f_Al_Down', 'f_Co_Down'])
+    axs[3, 1].set_title('Frequencies - Cumulative')
+
+# %% Plot CME 1
+
+plot_stats(dfroll, dfcum, 'CME 20180104')
+
+# %% Plot CME 2
+
+plot_stats(df2roll, df2cum, 'CME 20180105')
+
+# %% Plot BMF DOL
+
+plot_stats(dfrollDOL, dfcumDOL, 'DOL 20170119')
+
+# %% Plot BMF WDO
+
+plot_stats(dfrollWDO, dfcumWDO, 'WDO 20170119')
 
 # %% Event Sizes
 
@@ -197,7 +463,7 @@ em_1 = HawkesEM(kernel_discretization=kernel_disc_em_1, max_iter=10000,
                 tol=1e-5, verbose=True, n_threads=-1)
 em_1.fit(df_ts)
 
-# %% Tick - EM estimation 1 - REsults
+# %% Tick - EM estimation 1 - Results
 
 em_1_baseline = em_1.baseline
 sht.range('C116').value = np.transpose([em_1_baseline])

@@ -150,7 +150,7 @@ class Armada_Data():
         data_framec = self.__df.copy()
         data_framec['Date'] = pd.to_datetime(data_framec['Date'],\
             format="%m/%d/%Y")
-        data_framec['Time'] = pd.to_timedelta(data_framec['Time'], unit='ns')
+        data_framec['Time'] = pd.to_timedelta(data_framec['Time']) #  , unit='ns')
         data_framec['DateTime'] = data_framec['Date'] + data_framec['Time']
         self.__df = data_framec
 
