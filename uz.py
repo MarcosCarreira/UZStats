@@ -3,19 +3,21 @@
 # Marcos Costa Santos Carreira
 # École Polytechnique - CMAP
 
-# Imports
+# %% Imports
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from functools import partial
+import scipy.stats as st
+from scipy.special import kv
 from scipy import optimize
 import numba as numba
 from math import erfc
 
-# Basic path functions
+# %% Basic path functions
 
-# Random vector
+# %% Random vector
 
 def frndn(nsteps=1, seed=None):
     '''frndn(nsteps=1, seed=None) returns a NumPy array of normally
@@ -23,7 +25,7 @@ def frndn(nsteps=1, seed=None):
     np.random.seed(seed)
     return np.random.randn(nsteps)
 
-# Monte Carlo Path
+# %% Monte Carlo Path
 
 def MCPath(psdrnd, vol=0.015, S0=100., t=1., drift=0.):
     '''MCPath(psdrnd, vol, S0, t, drift) returns a MC Path
@@ -37,7 +39,7 @@ def MCPath(psdrnd, vol=0.015, S0=100., t=1., drift=0.):
     path = np.insert(S0*np.exp(acclogret),0,S0)
     return path
 
-# Times range
+# %% Times range
 
 def atrange(nsteps=1, t=1.0):
     '''atrange(nsteps=1, t=1.0) returns a NumPy array for a time series
@@ -45,7 +47,7 @@ def atrange(nsteps=1, t=1.0):
     tsindex = np.arange(nsteps+1)*t/nsteps
     return tsindex
 
-# Riffle
+# %% Riffle
 
 def riffle(a, b):
     c = np.empty((a.size + b.size,), dtype=a.dtype)
@@ -53,7 +55,7 @@ def riffle(a, b):
     c[1::2] = b
     return c
 
-# Brownian Bridge - next iteration
+# %% Brownian Bridge - next iteration
 
 def nextBBpath(trange, nrange, vol, indk, wk):
     '''nextBBpath(trange, nrange, vol, indk, wk) returns
@@ -75,7 +77,7 @@ def nextBBpath(trange, nrange, vol, indk, wk):
     wkk1 = riffle(wk, wk1)
     return [indkk1, wkk1]
 
-# Brownian Bridge - all iterations
+# %% Brownian Bridge - all iterations
 
 def mcBBPaths(psdrnd, vol=0.015, S0=100., ST=100., t=1.):
     '''mcBBPath(psdrnd, vol, S0, ST, t) returns all MC BB 
@@ -99,7 +101,7 @@ def mcBBPaths(psdrnd, vol=0.015, S0=100., ST=100., t=1.):
         runlist[j][1] = S0*np.exp(runlist[j][1])
     return runlist
 
-# Brownian Bridge - final path
+# %% Brownian Bridge - final path
 
 def mcBBPath(psdrnd, vol=0.015, S0=100., ST=100., t=1.):
     '''mcBBPath(psdrnd, vol, S0, ST, t) returns the final
@@ -123,7 +125,7 @@ def mcBBPath(psdrnd, vol=0.015, S0=100., ST=100., t=1.):
     return pd.Series(runlist[0][1], index=runlist[0][0])
 
 
-# Brownian Bridge - final path as array of prices
+# %% Brownian Bridge - final path as array of prices
 
 def mcBBPathS(psdrnd, vol=0.015, S0=100., ST=100., t=1.):
     '''mcBBPathS(psdrnd, vol, S0, ST, t) returns the final
@@ -144,7 +146,7 @@ def mcBBPathS(psdrnd, vol=0.015, S0=100., ST=100., t=1.):
         runlist = [newpts]
     return S0*np.exp(runlist[0][1])
 
-# Discretization functions
+# %% Discretization functions
 
 # Increment (in ticks) on last traded price
 # alpha: Tick value
@@ -160,7 +162,7 @@ def Li(alpha, eta, Pt, xt1):
     Lt = max(0, np.int(np.floor(abs(xt1 - Pt) / alpha + 0.5 - eta)))
     return Lt
 
-# Updating the last traded price
+# %% Updating the last traded price
 
 @numba.jit(nopython=True)
 def updtrpr(alpha,eta,Pt,xt1):
@@ -170,7 +172,7 @@ def updtrpr(alpha,eta,Pt,xt1):
     parameter eta'''
     return Pt+Li(alpha,eta,Pt,xt1)*np.sign(xt1 - Pt)*alpha
 
-# Calculation of the traded prices given the efficient prices
+# %% Calculation of the traded prices given the efficient prices
 
 @numba.jit(nopython=True)
 def trprpath(alpha,eta,path):
@@ -187,7 +189,22 @@ def trprpath(alpha,eta,path):
     # return trpath.transpose()[0]
     return trpath
 
-# Durations, changes and effective prices
+@numba.jit(nopython=True)
+def trprpathk(alpha, eta, path):
+    '''trprpathk(alpha, eta, path) returns the last traded price P(t)
+    path given the efficient price X(t) path, the tick value alpha 
+    and the parameter eta'''
+    trpath=path.copy()
+    # this is much more efficient than appending the values
+    for k in range(1, len(trpath)):
+		# Assuming X(0) is a valid transaction price
+        trpath[k] = updtrpr(alpha[k-1], eta[k-1], trpath[k-1], path[k])
+        # trpath[k-1] was already changed from X to P
+        # It's path-dependent (P(t) depends on P(t-1))
+    # return trpath.transpose()[0]
+    return trpath
+
+# %% Durations, changes and effective prices
 
 def diff_prices_df_X(tmseries, alpha, eta):
     '''diff_prices_df_X(tmseries, alpha, eta) returns a data frame
@@ -256,9 +273,9 @@ def dur(S, alpha, eta, vol):
     eta and volatility vol'''
     return 2*eta*(alpha/(S*vol))**2
 
-# Processing
+# %% Processing
 
-# Traded price paths
+# %% Traded price paths
 
 def read_trd_path(pathf, j, vol, alpha, eta, filename='trdpaths'):
     return pd.read_hdf(pathf+filename+'_'+str(j)+'.h5')\
@@ -268,7 +285,7 @@ def read_trd_path_drift(pathf, j, vol, mu, alpha, eta, filename='mutrdpaths'):
     return pd.read_csv(pathf+filename+'_'+str(j)+'_'+str(vol)+'_'+str(mu)+\
         '_'+str(alpha)+'_'+str(eta)+'.csv', header=None)[0]
 
-# Reduce to price changes
+# %% Reduce to price changes
 
 def loop_px_ch(pathf, npaths, vollist, alphalist, etalist, filename='trdpxs',\
     filenamein='trdpaths'):
@@ -301,9 +318,9 @@ def read_px_path_drift(pathf, j, vol, mu, alpha, eta, filename='trdpxs'):
     return pd.read_csv(pathf+filename+'_'+str(j)+'_'+str(v)+'_'+str(float(mu))+'_'+\
         str(a)+'_'+str(e)+'.csv')
 
-# Statistics and estimations
+# %% Statistics and estimations
 
-# UZ statistics
+# %% UZ statistics
 
 def uz_coal_byk(data_frame_trades):
     '''uz_coal_byk(data_frame_trades) returns the uncertainty zones
@@ -323,7 +340,7 @@ def uz_coal_byk(data_frame_trades):
     data_frame_k.reset_index(drop=True, inplace=True)
     return data_frame_k
 
-# Realized volatility
+# %% Realized volatility
 
 def rlzvollog(prices):
     """rlzvollog(prices) calculates the realized volatility of 
@@ -331,7 +348,7 @@ def rlzvollog(prices):
     pxs = np.log(prices/prices.shift(1))
     return np.sqrt(np.sum(pxs*pxs))
 
-# UZ statistics and durations
+# %% UZ statistics and durations
 
 def stats_trpath(j, vol, alpha, eta, dt, tpath):
     path_stats = uz_coal_byk(tpath)
@@ -395,27 +412,57 @@ def pathaestats(df,j,v,dtosec):
     dfst['dalpha']=dfst['chgavg']-dfst['alpha']
     return dfst
 
-# Barrier CDF - Numba, within epsilon (while)
+# %% Limit of conditional CDFs - Numba
+
+# def isign(x):
+#     return (x > 0) - (x < 0)
 
 @numba.jit(nopython=True)
-def nprobw(ud, s0, s, α, η, σ, μ, t):
+def probc(ud, sud, s, α, η, σ, μ):
+    ω = μ - 0.5 * (σ ** 2)
+    x0 = np.log(s + sud * (0.5 - η) * α)
+    b1 = np.log(s + ud * (0.5 + η) * α)
+    b2 = np.log(s - ud * (0.5 + η) * α)
+    if ω == 0:
+        return (b2 - x0) / (b2 - b1)
+    else:
+        ke = 2 * np.abs(ω) * ud / (σ ** 2)
+        e0 = (1 - np.sign(ω) * ud) * ω * (b1 - x0) / (σ ** 2)
+        return np.exp(e0) * (1 - np.exp(ke * (b2 - x0))) / (1 - np.exp(ke * (b2 - b1)))
+
+# %% Limit probabilities of Markov Chain
+
+def four_ps(s, α, η, σ, μ):
+    pT_Al_Up = max(0, probc(+1, +1, s, α, η, σ, μ))
+    pT_Al_Down = max(0, probc(-1, -1, s, α, η, σ, μ))
+    p1_Al_Up = max(1e-20, (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down))
+    p1_Co_Up = max(1e-20, (pT_Al_Up * (1 - pT_Al_Down)) / (pT_Al_Up + pT_Al_Down))
+    p1_Al_Down = max(1e-20, (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down))
+    p1_Co_Down = max(1e-20, ((1 - pT_Al_Up) * pT_Al_Down) / (pT_Al_Up + pT_Al_Down))
+    return (p1_Al_Up, p1_Al_Down, p1_Co_Up, p1_Co_Down)
+
+# %% Conditional CDFs (unscaled) - Numba, within epsilon (while)
+
+@numba.jit(nopython=True)
+def cdftc(ud, sud, s, α, η, σ, μ, t):
     if t == 0:
         ans = 0
     else:
         ω = μ - 0.5 * σ ** 2
-        x0 = np.log(s0)
-        bu = np.log(s + (0.5 + η) * α)
-        bd = np.log(s - (0.5 + η) * α)
-        bpm = bu * (1 + ud) / 2 + bd * (1 - ud) / 2
-        bmp = bu * (1 - ud) / 2 + bd * (1 + ud) / 2
+        x0 = np.log(s + sud * (0.5 - η) * α)
+        b1 = np.log(s + ud * (0.5 + η) * α)
+        b2 = np.log(s - ud * (0.5 + η) * α)
+        y1 = ud * (x0 - b1)
+        z1 = ud * (2 * b2 - b1 - x0)
         tyzn = 0
         n = 0
         tyznn = 1
-        eps=1e-10
+        eps=1e-16
         while tyznn > eps:
             n += 1
-            yn = ud * (2 * (n - 1) * bmp - (2 * n - 1) * bpm + x0)
-            zn = ud * (2 * n * bmp - (2 * n - 1) * bpm - x0)
+            dyzn = ud * 2 * (n - 1) * (b2 - b1)
+            yn = dyzn + y1
+            zn = dyzn + z1
             tyznn =\
                 (np.exp(ω * yn / (σ ** 2)) * erfc(
                 -(yn + ω * t) / (σ * np.sqrt(2 * t))) -
@@ -426,76 +473,1039 @@ def nprobw(ud, s0, s, α, η, σ, μ, t):
                 np.exp(-ω * zn / (σ ** 2)) * erfc(
                 -(zn - ω * t) / (σ * np.sqrt(2 * t)))) / 2
             tyzn += tyznn
-        ans = np.exp(ω * (bpm - x0) / (σ ** 2)) * tyzn
+        ans = np.exp(ω * (b1 - x0) / (σ ** 2)) * tyzn
     return ans
 
-# Define t_from_p (for inverse CDF)
-def t_from_p(s0, s, α, η, σ, μ, p):
-    '''t_from_p(p, s0, s, α, η, σ, μ) solves the equation
-    Pup(t) + Pdown(t) = p; so for a random p such that 0 <= p <= 1 we find
-    the expected time of a price change'''
-    mprobtup = partial(nprobw, 1, s0, s, α, η, σ, μ)
-    mprobtdown = partial(nprobw, -1, s0, s, α, η, σ, μ)
-    def groot(t):
-        return np.round(mprobtup(t) + mprobtdown(t) - p, decimals=6)
-    sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
-    return sol.root
+# %% Adjusted conditional CDFs
 
-# Define t_from_pud (for inverse CDF)
-def t_from_pud(s0, s, α, η, σ, μ, ud, p):
-    '''t_from_pud(p, s0, s, α, η, σ, μ) solves the equation
-    Pup(t) / Pup(1) (or Pdown(t) / Pdown(1))  = p;
+@numba.jit(nopython=True)
+def cdftT(ud, sud, s, α, η, σ, μ, t):
+    if t == 0:
+        return 0
+    else:
+        return cdftc(ud, sud, s, α, η, σ, μ, t) / probc(ud, sud, s, α, η, σ, μ)
+
+# %% Conditional PDFs (unscaled):
+
+@numba.jit(nopython=True)
+def pdftc(ud, sud, s, α, η, σ, μ, t, δt=0.0001):
+    if t == 0:
+        return 0
+    else:
+        pc = probc(ud, sud, s, α, η, σ, μ)
+        if pc == 0:
+            return 0
+        else:
+            return ((cdftc(ud, sud, s, α, η, σ, μ, t * (1 + δt)) -
+                    cdftc(ud, sud, s, α, η, σ, μ, t * (1 - δt))) /
+                    (2 * t * δt * pc))
+
+# %% Inverse CDF
+
+def t_from_p(ud, sud, s, α, η, σ, μ, p):
+    '''t_from_p(ud, sud, s, α, η, σ, μ) solves the equation
+    Pup(t) / Pup(inf) (or Pdown(t) / Pdown(inf))  = p;
     so for a random p such that 0 <= p <= 1 we find
     the expected time of a price change for the sign given'''
-    mprobt = partial(nprobw, ud, s0, s, α, η, σ, μ)
-    mprobtT = nprobw(ud, s0, s, α, η, σ, μ, 1)
-    if mprobtT == 0:
-        print('mprobtT == 0')
-        print((s0, s, α, η, σ, μ, ud, p))
+    cdft = partial(cdftc, ud, sud, s, α, η, σ, μ)
+    cdfinf = probc(ud, sud, s, α, η, σ, μ)
+    if cdfinf == 0:
+        print('probc == 0')
+        print((ud, sud, s, α, η, σ, μ))
     def groot(t):
-        return np.round(mprobt(t)/mprobtT - p, decimals=6)
+        return np.round(cdft(t)/cdfinf - p, decimals=8)
     sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
     return sol.root
 
-# Define CDF
-def cdf(s0, s, α, η, σ, μ, npts=100+1):
-    grid = np.linspace(0., 0.999, npts)
-    pts = pd.Series(grid, index=[t_from_p(s0, s, α, η, σ, μ, p)
-                                 for p in grid])
-    pts.index.name = 't'
-    pts.name = 'CDF(t)'
-    return pts
+# %% Multinomial Likelihood
 
-# Define CDFs
-def cdfs(s0, s, α, η, σ, μ, npts=100):
-    grid = np.linspace(0, 0.999, npts)
-    ts = [t_from_p(s0, s, α, η, σ, μ, p) for p in grid]
-    up = [nprobw(+1, s0, s, α, η, σ, μ, t) for t in ts]
-    up = np.minimum(up, grid)
-    pts = pd.DataFrame({'CDF(t)': grid, 'Up': up, 'Down': grid - up},
-                       index=ts)
-    pts.index.name = 't'
-    return pts
+@numba.jit(nopython=True)
+def multinom_likel(prior, hist):
+    log1 = np.sum(np.array([np.log(y) for y in range(1, np.sum(hist) + 1)]))
+    log2 = np.sum(np.array([np.sum(np.array([np.log(y) for y in range(1, xj + 1)])) for xj in hist]))
+    log3 = np.sum(np.array([hist[j] * np.log(prior[j]) for j in range(len(prior))]))
+    return np.exp(log1 - log2 + log3)
 
-# Define Quantiles
-def pquant(s, α, η, σ, μ, sup, ud, lg=0., ug=0.999, npts=100+1):
-    grid = np.linspace(lg, ug, npts)
-    prev_s = s + sup * (0.5 - η) * α
-    ts = [t_from_pud(prev_s, s, α, η, σ, μ, ud, p) for p in grid]
-    pts = pd.Series(grid, index=ts)
-    pts.index.name = 't'
-    pts.name = str((sup, ud))
-    return pts
+# %% Barrier CDF - Numba, within epsilon (while)
 
-# Define Quantiles - inverted
-def pquantinv(s, α, η, σ, μ, sup, ud, lg=0., ug=0.999, npts=100+1):
-    grid = np.linspace(lg, ug, npts)
-    prev_s = s + sup * (0.5 - η) * α
-    ts = [t_from_pud(prev_s, s, α, η, σ, μ, ud, p) for p in grid]
-    pts = pd.Series(ts, index=grid)
-    pts.index.name = 'q'
-    pts.name = str((sup, ud))
-    return pts
+# @numba.jit(nopython=True)
+# def nprobw(ud, s0, s, α, η, σ, μ, t):
+#     if t == 0:
+#         ans = 0
+#     else:
+#         ω = μ - 0.5 * σ ** 2
+#         x0 = np.log(s0)
+#         bu = np.log(s + (0.5 + η) * α)
+#         bd = np.log(s - (0.5 + η) * α)
+#         bpm = bu * (1 + ud) / 2 + bd * (1 - ud) / 2
+#         bmp = bu * (1 - ud) / 2 + bd * (1 + ud) / 2
+#         tyzn = 0
+#         n = 0
+#         tyznn = 1
+#         eps=1e-16
+#         while tyznn > eps:
+#             n += 1
+#             yn = ud * (2 * (n - 1) * bmp - (2 * n - 1) * bpm + x0)
+#             zn = ud * (2 * n * bmp - (2 * n - 1) * bpm - x0)
+#             tyznn =\
+#                 (np.exp(ω * yn / (σ ** 2)) * erfc(
+#                 -(yn + ω * t) / (σ * np.sqrt(2 * t))) -
+#                 np.exp(ω * zn / (σ ** 2)) * erfc(
+#                 -(zn + ω * t) / (σ * np.sqrt(2 * t))) +
+#                 np.exp(-ω * yn / (σ ** 2)) * erfc(
+#                 -(yn - ω * t) / (σ * np.sqrt(2 * t))) -
+#                 np.exp(-ω * zn / (σ ** 2)) * erfc(
+#                 -(zn - ω * t) / (σ * np.sqrt(2 * t)))) / 2
+#             tyzn += tyznn
+#         ans = np.exp(ω * (bpm - x0) / (σ ** 2)) * tyzn
+#     return ans
+
+# @numba.jit(nopython=True)
+# def nprobsw(ud, sud, s, α, η, σ, μ, ts):
+#     s0 = s + sud * (0.5 - η) * α
+#     return np.array([nprobw(ud, s0, s, α, η, σ, μ, t) for t in ts])
+
+# %% Barrier PDF - Numba, within epsilon (while), not normalized
+
+# @numba.jit(nopython=True)
+# def nprobmw(ud, sud, s, α, η, σ, μ, t, δt=0.0001):
+#     if t == 0:
+#         return 0
+#     else:
+#         s0 = s + sud * (0.5 - η) * α
+#         if nprobw(ud, s0, s, α, η, σ, μ, 1) == 0:
+#             return 0
+#         else:
+#             return ((nprobw(ud, s0, s, α, η, σ, μ, t * (1 + δt)) -
+#                     nprobw(ud, s0, s, α, η, σ, μ, t * (1 - δt))) /
+#                     (2 * t * δt * nprobw(ud, s0, s, α, η, σ, μ, 1)))
+
+# @numba.jit(nopython=True)
+# def nprobmsw(ud, sud, s, α, η, σ, μ, ts, δt=0.0001):
+#     s0 = s + sud * (0.5 - η) * α
+#     return np.array([nprobmw(ud, s0, s, α, η, σ, μ, t, δt) for t in ts])
+
+# %% Define t_from_p (for inverse CDF)
+# def t_from_p(ud, sud, s, α, η, σ, μ, p):
+#     '''t_from_p(ud, sud, s, α, η, σ, μ) solves the equation
+#     Pup(t) / Pup(1) (or Pdown(t) / Pdown(1))  = p;
+#     so for a random p such that 0 <= p <= 1 we find
+#     the expected time of a price change for the sign given'''
+#     s0 = s + sud * (0.5 - η) * α
+#     T = 1
+#     mprobt = partial(nprobw, ud, s0, s, α, η, σ, μ)
+#     mprobtT = nprobw(ud, s0, s, α, η, σ, μ, T)
+#     if mprobtT == 0:
+#         print('mprobtT == 0')
+#         print((ud, sud, s0, s, α, η, σ, μ))
+#     def groot(t):
+#         return np.round(mprobt(t)/mprobtT - p, decimals=6)
+#     sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
+#     return sol.root
+
+# def t_from_ps(ud, sud, s, α, η, σ, μ, ps):
+#     '''t_from_p(ud, s0, s, α, η, σ, μ) solves the equation
+#     Pup(t) / Pup(1) (or Pdown(t) / Pdown(1))  = p;
+#     so for a random p such that 0 <= p <= 1 we find
+#     the expected time of a price change for the sign given'''
+#     s0 = s + sud * (0.5 - η) * α
+#     T = 1
+#     mprobt = partial(nprobw, ud, s0, s, α, η, σ, μ)
+#     mprobtT = nprobw(ud, s0, s, α, η, σ, μ, T)
+#     if mprobtT == 0:
+#         print('mprobtT == 0')
+#         print((ud, sud, s0, s, α, η, σ, μ))
+#     ts = []
+#     for p in ps:
+#         def groot(t):
+#             return np.round(mprobt(t)/mprobtT - p, decimals=6)
+#         sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
+#         ts = ts + [sol.root]
+#     return np.array(ts)
+
+# %% Class for bayesian estimation
+
+class Process():
+    
+    def __init__(self, ηs, σs, μs, roll_window=20, update_freq=20):
+        self.__ηs = list(ηs.keys())
+        self.__σs = list(σs.keys())
+        self.__μs = list(μs.keys())
+        self.__rw = roll_window
+        self.__uf = update_freq
+        self.__ηv = np.array(list(ηs.values()))
+        self.__σv = np.array(list(σs.values()))
+        self.__μv = np.array(list(μs.values()))
+        self.__ηn = len(ηs)
+        self.__σn = len(σs)
+        self.__μn = len(μs)
+        self.__j = 0
+        self.__durs = pd.Series(dtype=float)
+        self.__pxs = pd.Series(dtype=float)
+        self.__ticks = pd.Series(dtype=float)
+        self.__signs = pd.Series(dtype=int)
+        self.__ks = pd.Series(dtype=int)
+        self.__Al_Up = pd.Series(dtype=int)
+        self.__Co_Up = pd.Series(dtype=int)
+        self.__Al_Down = pd.Series(dtype=int)
+        self.__Co_Down = pd.Series(dtype=int)
+        self.__probs = np.multiply.outer(
+            self.__ηv, np.multiply.outer(
+                self.__σv, self.__μv))
+        self.__probs_μ = self.__probs.view()
+        self.__likel = self.__probs.view()
+        self.__likel_μ = self.__probs.view()
+        self.__four_ps_μ = np.multiply.outer(np.array([1, 1, 1, 1]),
+            np.multiply.outer(self.__ηv,
+            np.multiply.outer(self.__σv, self.__μv)))
+        self.__prob_size = self.__ηn * self.__σn * self.__μn
+        self.__prob_floor = 1e-5 / (self.__ηn * self.__σn * self.__μn)
+        self.__count = [0, [0, 0, 0, 0]]
+        self.__count_roll = [0, [0, 0, 0, 0]]
+        self.__ηm = pd.Series(dtype=float)
+        self.__σm = pd.Series(dtype=float)
+        self.__μm = pd.Series(dtype=float)
+        self.__FIG_SIZE_1 = (9, 12)
+        self.__Y_FIG_1 = 0.96
+
+        
+    @property
+    def display(self):
+        return [self.__count, self.__count_roll]
+
+    @property
+    def show_probs(self):
+        return self.__probs
+
+    def __calc_four_ps(self):
+        s = self.__pxs.loc[self.__j - 1]
+        α = self.__ticks.loc[self.__j - 1]
+        for ηi in range(self.__ηn):
+            η = self.__ηs[ηi]
+            for σi in range(self.__σn):
+                σ = self.__σs[σi]
+                for μi in range(self.__μn):
+                    μ = self.__μs[μi]
+                    self.__four_ps_μ[0, ηi, σi, μi], self.__four_ps_μ[1, ηi, σi, μi],\
+                        self.__four_ps_μ[2, ηi, σi, μi], self.__four_ps_μ[3, ηi, σi, μi] = four_ps(s, α, η, σ, μ)
+
+    @property
+    def show_marginals(self):
+        ηmrg = pd.Series(np.sum(self.__probs, axis=(1, 2)), index=self.__ηs)
+        σmrg = pd.Series(np.sum(self.__probs, axis=(0, 2)), index=self.__σs)
+        μmrg = pd.Series(np.sum(self.__probs, axis=(0, 1)), index=self.__μs)  
+        return [ηmrg, σmrg, μmrg]      
+
+    @property
+    def marginals_means(self):
+        return [self.__ηm, self.__σm, self.__μm]      
+
+    @property
+    def plot_marginals(self):   
+        fig, axs = plt.subplots(3, 1, figsize=self.__FIG_SIZE_1)
+        fig.suptitle('Marginals: ' + str(self.__count[0]) +
+            ' \n [Al_Up, Al_Down, Co_Up, Co_Down] : \n ' +
+            str(self.__count[1]), y=self.__Y_FIG_1)
+        axs[0].plot(self.__ηs, np.sum(self.__probs, axis=(1, 2)), color = 'b', marker='o')
+        axs[0].set_title('η = ' + '{:.3f}'.format(np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))))
+        axs[1].plot(self.__σs, np.sum(self.__probs, axis=(0, 2)), color = 'b', marker='o')
+        axs[1].set_title('σ = ' + '{:.5f}'.format(np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))))
+        axs[2].plot(self.__μs, np.sum(self.__probs, axis=(0, 1)), color = 'b', marker='o')
+        axs[2].set_title('μ = ' + '{:.3e}'.format(np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))))
+ 
+    @property
+    def plot_marginals_μ(self):   
+        fig, axs = plt.subplots(3, 1, figsize=self.__FIG_SIZE_1)
+        fig.suptitle('Marginals for μ update: ' + str(self.__count_roll[0]) +
+            ' \n [Al_Up, Al_Down, Co_Up, Co_Down] : \n ' +
+            str(self.__count_roll[1]), y=self.__Y_FIG_1)
+        axs[0].plot(self.__ηs, np.sum(self.__probs_μ, axis=(1, 2)), color = 'b', marker='o')
+        axs[0].set_title('η = ' + '{:.3f}'.format(np.dot(self.__ηs, np.sum(self.__probs_μ, axis=(1, 2)))))
+        axs[1].plot(self.__σs, np.sum(self.__probs_μ, axis=(0, 2)), color = 'b', marker='o')
+        axs[1].set_title('σ = ' + '{:.5f}'.format(np.dot(self.__σs, np.sum(self.__probs_μ, axis=(0, 2)))))
+        axs[2].plot(self.__μs, np.sum(self.__probs_μ, axis=(0, 1)), color = 'b', marker='o')
+        axs[2].set_title('μ = ' + '{:.3e}'.format(np.dot(self.__μs, np.sum(self.__probs_μ, axis=(0, 1)))))
+
+    # @property
+    # def plot_four_ps(self):   
+    #     fig, axs = plt.subplots(4, 3, figsize=(12, 15))
+    #     fig.suptitle('Asymptotic Probs', y=0.92)
+    #     axs[0, 0].plot(self.__ηs, np.mean(self.__four_ps_μ[0], axis=(1, 2)), color = 'b', marker='o')
+    #     axs[0, 0].set_title('η -> Al_Up')
+    #     axs[0, 1].plot(self.__σs, np.mean(self.__four_ps_μ[0], axis=(0, 2)), color = 'b', marker='o')
+    #     axs[0, 1].set_title('σ -> Al_Up')
+    #     axs[0, 2].plot(self.__μs, np.mean(self.__four_ps_μ[0], axis=(0, 1)), color = 'b', marker='o')
+    #     axs[0, 2].set_title('μ -> Al_Up')
+    #     axs[1, 0].plot(self.__ηs, np.mean(self.__four_ps_μ[1], axis=(1, 2)), color = 'b', marker='o')
+    #     axs[1, 0].set_title('η -> Al_Down')
+    #     axs[1, 1].plot(self.__σs, np.mean(self.__four_ps_μ[1], axis=(0, 2)), color = 'b', marker='o')
+    #     axs[1, 1].set_title('σ -> Al_Down')
+    #     axs[1, 2].plot(self.__μs, np.mean(self.__four_ps_μ[1], axis=(0, 1)), color = 'b', marker='o')
+    #     axs[1, 2].set_title('μ -> Al_Down')
+    #     axs[2, 0].plot(self.__ηs, np.mean(self.__four_ps_μ[2], axis=(1, 2)), color = 'b', marker='o')
+    #     axs[2, 0].set_title('η -> Co_Up')
+    #     axs[2, 1].plot(self.__σs, np.mean(self.__four_ps_μ[2], axis=(0, 2)), color = 'b', marker='o')
+    #     axs[2, 1].set_title('σ -> Co_Up')
+    #     axs[2, 2].plot(self.__μs, np.mean(self.__four_ps_μ[2], axis=(0, 1)), color = 'b', marker='o')
+    #     axs[2, 2].set_title('μ -> Co_Up')
+    #     axs[3, 0].plot(self.__ηs, np.mean(self.__four_ps_μ[3], axis=(1, 2)), color = 'b', marker='o')
+    #     axs[3, 0].set_title('η -> Co_Down')
+    #     axs[3, 1].plot(self.__σs, np.mean(self.__four_ps_μ[3], axis=(0, 2)), color = 'b', marker='o')
+    #     axs[3, 1].set_title('σ -> Co_Down')
+    #     axs[3, 2].plot(self.__μs, np.mean(self.__four_ps_μ[3], axis=(0, 1)), color = 'b', marker='o')
+    #     axs[3, 2].set_title('μ -> Co_Down')
+
+    # @property
+    # def plot_marginals_means(self):   
+    #     fig, axs = plt.subplots(3, 1, figsize=self.__FIG_SIZE_1)
+    #     fig.suptitle('Marginals (means): ' + str(self.__count_roll[0]) +
+    #         ' \n [Al_Up, Al_Down, Co_Up, Co_Down] : \n ' +
+    #         str(self.__count_roll[1]), y=self.__Y_FIG_1)
+    #     axs[0].plot(self.__ηm.index, self.__ηm.values, color = 'r', marker='o')
+    #     axs[0].set_title('η = ' + '{:.3f}'.format(np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))))
+    #     axs[1].plot(self.__σm.index, self.__σm.values, color = 'r', marker='o')
+    #     axs[1].set_title('σ = ' + '{:.5f}'.format(np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))))
+    #     axs[2].plot(self.__μm.index, self.__μm.values, color = 'r', marker='o')
+    #     axs[2].set_title('μ = ' + '{:.3e}'.format(np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))))
+
+    @property
+    def plot_marginals_means(self):   
+        fig, axs = plt.subplots(3, 1, figsize=self.__FIG_SIZE_1)
+        fig.suptitle('Marginals (means): ' + str(self.__count[0]) +
+            ' \n [Al_Up, Al_Down, Co_Up, Co_Down] : \n ' +
+            str(self.__count[1]), y=self.__Y_FIG_1)
+        axs[0].plot(self.__durs.cumsum().values, self.__ηm.values, color = 'r', marker='o', drawstyle='steps-post')
+        axs[0].set_title('η = ' + '{:.3f}'.format(np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))))
+        axs[1].plot(self.__durs.cumsum().values, self.__σm.values, color = 'r', marker='o', drawstyle='steps-post')
+        axs[1].set_title('σ = ' + '{:.5f}'.format(np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))))
+        axs[2].plot(self.__durs.cumsum().values, self.__μm.values, color = 'r', marker='o', drawstyle='steps-post')
+        axs[2].set_title('μ = ' + '{:.3e}'.format(np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))))
+
+    # def __calc_update_freq(self):
+    #     s = self.__pxs.iloc[-1]
+    #     α = self.__ticks.iloc[-1]
+    #     ηmrg = pd.Series(np.sum(self.__probs, axis=(1, 2)), index=self.__ηs)
+    #     σmrg = pd.Series(np.sum(self.__probs, axis=(0, 2)), index=self.__σs)
+    #     μmrg = pd.Series(np.sum(self.__probs, axis=(0, 1)), index=self.__μs)
+    #     likel_μ = []
+    #     η = self.__ηm.iloc[-1]
+    #     σ = self.__σm.iloc[-1]
+    #     for μi in range(self.__μn):
+    #         μ = self.__μs[μi]
+    #         # Use counts to update μ assuming average values for η and σ
+    #         new_likel = np.exp(4 + 0.25 * min(self.__count_roll[0])) *\
+    #             multinom_likel(four_ps(s, α, η, σ, μ), np.array(self.__count[1]))
+    #         likel_μ = likel_μ + [new_likel]
+    #     μmrg_μ = μmrg.values * np.array(likel_μ)
+    #     μmrg_μ = μmrg_μ / np.sum(μmrg_μ)
+    #     self.__probs_μ = np.multiply.outer(
+    #         ηmrg.values, np.multiply.outer(
+    #             σmrg.values, μmrg_μ))
+    #     self.__probs_μ = self.__probs_μ / np.sum(self.__probs_μ)
+
+    def calc_update_freq(self):
+        s = self.__pxs.iloc[-1]
+        α = self.__ticks.iloc[-1]
+        for ηi in range(self.__ηn):
+            η = self.__ηs[ηi]
+            for σi in range(self.__σn):
+                σ = self.__σs[σi]
+                for μi in range(self.__μn):
+                    μ = self.__μs[μi]
+                    # Use counts to update μ
+                    self.__likel_μ[ηi, σi, μi] = np.exp(0.25 * min(self.__count_roll[0])) *\
+                        multinom_likel(four_ps(s, α, η, σ, μ), np.array(self.__count_roll[1]))
+                    self.__probs_μ[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] * self.__likel_μ[ηi, σi, μi]
+        self.__probs_μ = self.__probs_μ / np.sum(self.__probs_μ)
+
+    def __calc_update_freq(self):
+        s = self.__pxs.iloc[-1]
+        α = self.__ticks.iloc[-1]
+        for ηi in range(self.__ηn):
+            η = self.__ηs[ηi]
+            for σi in range(self.__σn):
+                σ = self.__σs[σi]
+                for μi in range(self.__μn):
+                    μ = self.__μs[μi]
+                    # Use counts to update μ
+                    self.__likel_μ[ηi, σi, μi] = np.exp(0.25 * min(self.__count_roll[0])) *\
+                        multinom_likel(four_ps(s, α, η, σ, μ), np.array(self.__count_roll[1]))
+                    self.__probs_μ[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] * self.__likel_μ[ηi, σi, μi]
+        self.__probs_μ = self.__probs_μ / np.sum(self.__probs_μ)
+
+    def update_freq(self):
+        self.__probs = self.__probs_μ.view()
+        self.__ηm.iloc[-1] = np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))
+        self.__σm.iloc[-1] = np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))
+        self.__μm.iloc[-1] = np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))
+
+    def __update_freq(self):
+        self.__probs = self.__probs_μ.view()
+        self.__ηm.iloc[-1] = np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))
+        self.__σm.iloc[-1] = np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))
+        self.__μm.iloc[-1] = np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))
+
+    def init_px(self, trade):
+        ud, al, k, s, α, t = trade
+        self.__durs.loc[0] = 0
+        self.__pxs.loc[0] = s
+        self.__ticks.loc[0] = α
+        self.__ηm.loc[0] = np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))
+        self.__σm.loc[0] = np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))
+        self.__μm.loc[0] = np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))
+        self.__j += 1
+        self.__calc_four_ps()
+        
+    def init_px_chg(self, trade):
+        ud, al, k, s, α, t = trade
+        self.__durs.loc[self.__j] = t
+        # s0 = self.__pxs.loc[self.__j - 1]
+        self.__pxs.loc[self.__j] = s
+        self.__ticks.loc[self.__j] = α
+        self.__signs.loc[self.__j] = ud
+        self.__ks.loc[self.__j] = k
+        self.__Al_Up.loc[self.__j] = 0
+        self.__Co_Up.loc[self.__j] = 0
+        self.__Al_Down.loc[self.__j] = 0
+        self.__Co_Down.loc[self.__j] = 0
+        self.__count = [self.__j, [0, 0, 0, 0]]
+        # Use duration to update η, σ, μ, assumes continuation
+        for ηi in range(self.__ηn):
+            η = self.__ηs[ηi]
+            for σi in range(self.__σn):
+                σ = self.__σs[σi]
+                for μi in range(self.__μn):
+                    μ = self.__μs[μi]
+                    αk = k * α
+                    ηk = η / k
+                    # Use durations to update η, σ, μ
+                    self.__probs[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] *\
+                        pdftc(ud, -ud, self.__pxs.loc[self.__j - 1], αk, ηk, σ, μ, t)  # continuation: sud -> -ud
+        self.__probs = self.__probs / np.sum(self.__probs)
+        self.__ηm.loc[self.__j] = np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))
+        self.__σm.loc[self.__j] = np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))
+        self.__μm.loc[self.__j] = np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))
+        self.__j += 1
+                
+    def update_with_counts(self, trade):
+        ud, al, k, s, α, t = trade
+        co = 1 - al
+        sud = ud * (2 * al - 1)
+        self.__durs.loc[self.__j] = t
+        # s0 = self.__pxs.loc[self.__j - 1]
+        self.__pxs.loc[self.__j] = s
+        self.__ticks.loc[self.__j] = α
+        self.__signs.loc[self.__j] = ud
+        self.__ks.loc[self.__j] = k
+        self.__Al_Up.loc[self.__j] = self.__Al_Up.loc[self.__j - 1]\
+            + al * (1 + ud) // 2
+        self.__Co_Up.loc[self.__j] = self.__Co_Up.loc[self.__j - 1]\
+            + k * co * (1 + ud) // 2 + (k - 1) * al * (1 + ud) // 2
+        self.__Al_Down.loc[self.__j] = self.__Al_Down.loc[self.__j - 1]\
+            + al * (1 - ud) // 2
+        self.__Co_Down.loc[self.__j] = self.__Co_Down.loc[self.__j - 1]\
+            + k * co * (1 - ud) // 2 + (k - 1) * al * (1 - ud) // 2
+        self.__count = [self.__j,
+            [self.__Al_Up.loc[self.__j], self.__Al_Down.loc[self.__j],
+            self.__Co_Up.loc[self.__j], self.__Co_Down.loc[self.__j]]]
+        # Make a rolling count as well, use it for better μ estimation
+        self.__count_roll = [[self.__j, self.__rw],
+            [self.__Al_Up.loc[self.__j] - self.__Al_Up.loc[max(1, self.__j - self.__rw)],
+            self.__Al_Down.loc[self.__j] - self.__Al_Down.loc[max(1, self.__j - self.__rw)],
+            self.__Co_Up.loc[self.__j] - self.__Co_Up.loc[max(1, self.__j - self.__rw)],
+            self.__Co_Down.loc[self.__j] - self.__Co_Down.loc[max(1, self.__j - self.__rw)]]]
+        for ηi in range(self.__ηn):
+            η = self.__ηs[ηi]
+            for σi in range(self.__σn):
+                σ = self.__σs[σi]
+                for μi in range(self.__μn):
+                    μ = self.__μs[μi]
+                    if al == 1:  # Alternation
+                        αk = α
+                        ηk = η + (k - 1) / 2
+                    else:  # Continuation
+                        αk = k * α
+                        ηk = η / k
+                    # Use durations to update η, σ, μ at every step
+                    # Use counts to update η, σ, μ  every update_freq steps
+                    # if (self.__j % self.__uf) == 0:
+                    #     self.__likel[ηi, σi, μi] = pdftc(ud, sud, self.__pxs.loc[self.__j - 1], αk, ηk, σ, μ, t) *\
+                    #         np.exp(0.25 * min(self.__count_roll[0])) * multinom_likel(four_ps(s, α, η, σ, μ), np.array(self.__count_roll[1]))
+                    # else:
+                    #     self.__likel[ηi, σi, μi] = pdftc(ud, sud, self.__pxs.loc[self.__j - 1], αk, ηk, σ, μ, t)
+                    # self.__probs[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] * self.__likel[ηi, σi, μi]   
+                    self.__likel[ηi, σi, μi] = pdftc(ud, sud, self.__pxs.loc[self.__j - 1], αk, ηk, σ, μ, t)  # new
+                    self.__probs[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] * self.__likel[ηi, σi, μi]  # new
+        self.__probs = self.__probs / np.sum(self.__probs)
+        self.__ηm.loc[self.__j] = np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))
+        self.__σm.loc[self.__j] = np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))
+        self.__μm.loc[self.__j] = np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))
+        if (self.__j % self.__uf) == 0:
+            self.__calc_update_freq()
+            self.__update_freq()
+        self.__j += 1
+
+
+# %% Default quantile definitions
+lq = 0.10
+uq = 0.90
+npts = 9
+qtls_def = np.linspace(lq, uq, npts)
+
+# %% QQ Plot
+
+λ0 = 1
+
+def qq_plots(data, α, η, σ, μ, hours, λ=λ0, qtls=qtls_def):
+    pxs = data['Ptj'].values[:-1]
+    dts = data['dtj'].values[1:]
+    s = np.dot(pxs, dts)/np.sum(dts)
+    data_Up = data[data['sign'] == +1]
+    data_Down = data[data['sign'] == -1]
+    data_Al = data[data['Al']]
+    data_Co = data[data['Co']]
+    data_Al_Up = data_Up[data_Up['Al']]
+    data_Co_Up = data_Up[data_Up['Co']]
+    data_Al_Down = data_Down[data_Down['Al']]
+    data_Co_Down = data_Down[data_Down['Co']]
+    n = len(data) - 2
+    n_Al = len(data_Al) / n
+    n_Co = len(data_Co) / n
+    n_Al_Up = len(data_Al_Up) / n
+    n_Co_Up = len(data_Co_Up) / n
+    n_Al_Down = len(data_Al_Down) / n
+    n_Co_Down = len(data_Co_Down) / n
+    h = (n_Co) / (2 * n_Al)
+    rvp = rlzvollog(data['Ptj']) * np.sqrt((hours * 3600) / data['dtj'].sum())
+    rvxe = rvp * np.sqrt(2 * h)
+
+    data_Al_Up_qtls = data_Al_Up['dtj'].quantile(qtls).values
+    data_Co_Up_qtls = data_Co_Up['dtj'].quantile(qtls).values
+    data_Al_Down_qtls = data_Al_Down['dtj'].quantile(qtls).values
+    data_Co_Down_qtls = data_Co_Down['dtj'].quantile(qtls).values
+
+    param_Al_Up_qtls = t_from_ps(+1, +1, s, α, η, σ, μ, qtls) * hours * 3600
+    param_Co_Up_qtls = t_from_ps(+1, -1, s, α, η, σ, μ, qtls) * hours * 3600
+    param_Al_Down_qtls = t_from_ps(-1, -1, s, α, η, σ, μ, qtls) * hours * 3600
+    param_Co_Down_qtls = t_from_ps(-1, +1, s, α, η, σ, μ, qtls) * hours * 3600
+
+    pT_Al_Up = nprobw(+1, s + (+1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+    pT_Co_Up = nprobw(+1, s + (-1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+    pT_Al_Down = nprobw(-1, s + (-1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+    pT_Co_Down = nprobw(-1, s + (+1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+
+    qtls_Al_Up_params = nprobsw(+1, +1, s, α, η, σ, μ, data_Al_Up_qtls / (hours * 3600)) / pT_Al_Up
+    qtls_Co_Up_params = nprobsw(+1, -1, s, α, η, σ, μ, data_Co_Up_qtls / (hours * 3600)) / pT_Co_Up
+    qtls_Al_Down_params = nprobsw(-1, -1, s, α, η, σ, μ, data_Al_Down_qtls / (hours * 3600)) / pT_Al_Down
+    qtls_Co_Down_params = nprobsw(-1, +1, s, α, η, σ, μ, data_Co_Down_qtls / (hours * 3600)) / pT_Co_Down
+
+    print(pd.DataFrame({'Al_Up': np.round(qtls_Al_Up_params, 2), 'Co_Up': np.round(qtls_Co_Up_params, 2),
+                        'Al_Down': np.round(qtls_Al_Down_params, 2), 'Co_Down': np.round(qtls_Co_Down_params, 2)},
+                        index=qtls))
+
+    weight_Al_Up = (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down)
+    weight_Co_Up = (pT_Al_Up * (1 - pT_Al_Down)) / (pT_Al_Up + pT_Al_Down)
+    weight_Al_Down = (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down)
+    weight_Co_Down = ((1 - pT_Al_Up) * pT_Al_Down) / (pT_Al_Up + pT_Al_Down)
+
+    dist_Al_Up = np.linalg.norm(qtls_Al_Up_params - qtls)
+    dist_Co_Up = np.linalg.norm(qtls_Co_Up_params - qtls)
+    dist_Al_Down = np.linalg.norm(qtls_Al_Down_params - qtls)
+    dist_Co_Down = np.linalg.norm(qtls_Co_Down_params - qtls)
+
+
+    dists_fw = np.linalg.norm(np.array([weight_Al_Up, weight_Co_Up, weight_Al_Down, weight_Co_Down]) -
+        np.array([n_Al_Up, n_Co_Up, n_Al_Down, n_Co_Down]))
+
+    dists = n_Al_Up * dist_Al_Up + n_Co_Up * dist_Co_Up\
+        + n_Al_Down * dist_Al_Down + n_Co_Down * dist_Co_Down + dists_fw
+
+    fig, axs = plt.subplots(2, 2, figsize=(11, 11))
+    fig.suptitle('η= ' + str(np.round(η,3)) + ' , σ= ' + '{:.3e}'.format(σ) + ' , μ= ' + '{:.3e}'.format(μ)
+        + ' , H= ' + str(np.round(h, 3))+ ' , σXe= ' + '{:.3e}'.format(rvxe)
+        + ' , Σdists= ' + '{:.2e}'.format(dists) + ' , λ= ' + '{:.2e}'.format(λ))
+    # fig =  plt.figure(figsize=(8,8))
+    axs[0, 0].plot(param_Al_Up_qtls, data_Al_Up_qtls, color = 'r', marker='o')
+    axs[0, 0].plot(param_Al_Up_qtls, param_Al_Up_qtls, color='b', marker='+')
+    axs[0, 0].set_title('Al_Up: f= ' + '{:.1%}'.format(n_Al_Up)\
+        + ' , w= ' + '{:.1%}'.format(weight_Al_Up) + ' , dist= ' + '{:.2e}'.format(dist_Al_Up))
+    # fig =  plt.figure(figsize=(8,8))
+    axs[1, 0].plot(param_Co_Up_qtls, data_Co_Up_qtls, color = 'r', marker='o')
+    axs[1, 0].plot(param_Co_Up_qtls, param_Co_Up_qtls, color='b', marker='+')
+    axs[1, 0].set_title('Co_Up: f= ' + '{:.1%}'.format(n_Co_Up)\
+        + ' , w= ' + '{:.1%}'.format(weight_Co_Up) + ' , dist= ' + '{:.2e}'.format(dist_Co_Up))
+    # fig =  plt.figure(figsize=(8,8))
+    axs[1, 1].plot(param_Al_Down_qtls, data_Al_Down_qtls, color = 'r', marker='o')
+    axs[1, 1].plot(param_Al_Down_qtls, param_Al_Down_qtls, color='b', marker='+')
+    axs[1, 1].set_title('Al_Down: f= ' + '{:.1%}'.format(n_Al_Down)\
+        + ' , w= ' + '{:.1%}'.format(weight_Al_Down) + ' , dist= ' +  '{:.2e}'.format(dist_Al_Down))
+    # fig =  plt.figure(figsize=(8,8))
+    axs[0, 1].plot(param_Co_Down_qtls, data_Co_Down_qtls, color = 'r', marker='o')
+    axs[0, 1].plot(param_Co_Down_qtls, param_Co_Down_qtls, color='b', marker='+')
+    axs[0, 1].set_title('Co_Down: f= ' + '{:.1%}'.format(n_Co_Down)\
+        + ' , w= ' + '{:.1%}'.format(weight_Co_Down) + ' , dist= ' +  '{:.2e}'.format(dist_Co_Down))
+    for ax in axs.flat:
+        ax.set(xlabel='Parametric', ylabel='Data')
+    for ax in axs.flat:
+        ax.label_outer()
+
+# %% Fit trio
+
+def fit_trio(data, α, hours, λ=λ0, show_charts=False, qtls=qtls_def):
+    pxs = data['Ptj'].values[:-1]
+    dts = data['dtj'].values[1:]
+    s = np.dot(pxs, dts)/np.sum(dts)
+    data_Up = data[data['sign'] == +1]
+    data_Down = data[data['sign'] == -1]
+    data_Al = data[data['Al']]
+    data_Co = data[data['Co']]
+    data_Al_Up = data_Up[data_Up['Al']]
+    data_Co_Up = data_Up[data_Up['Co']]
+    data_Al_Down = data_Down[data_Down['Al']]
+    data_Co_Down = data_Down[data_Down['Co']]
+    n = len(data) - 2
+    n_Al = len(data_Al) / n
+    n_Co = len(data_Co) / n
+    n_Al_Up = len(data_Al_Up) / n
+    n_Co_Up = len(data_Co_Up) / n
+    n_Al_Down = len(data_Al_Down) / n
+    n_Co_Down = len(data_Co_Down) / n
+    h = (n_Co) / (2 * n_Al)
+    rvp = rlzvollog(data['Ptj']) * np.sqrt((hours * 3600) / data['dtj'].sum())
+    rvxe = rvp * np.sqrt(2 * h)
+
+    data_Al_Up_qtls = data_Al_Up['dtj'].quantile(qtls).values
+    data_Co_Up_qtls = data_Co_Up['dtj'].quantile(qtls).values
+    data_Al_Down_qtls = data_Al_Down['dtj'].quantile(qtls).values
+    data_Co_Down_qtls = data_Co_Down['dtj'].quantile(qtls).values
+
+    def dist_trio(x): #  x = [η, σ, μ];
+        η = x[0]
+        σ = x[1]
+        μ = x[2]
+
+        pT_Al_Up = nprobw(+1, s + (+1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+        pT_Co_Up = nprobw(+1, s + (-1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+        pT_Al_Down = nprobw(-1, s + (-1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+        pT_Co_Down = nprobw(-1, s + (+1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+
+        qtls_Al_Up_params = nprobsw(+1, +1, s, α, η, σ, μ, data_Al_Up_qtls / (hours * 3600)) / pT_Al_Up
+        qtls_Co_Up_params = nprobsw(+1, -1, s, α, η, σ, μ, data_Co_Up_qtls / (hours * 3600)) / pT_Co_Up
+        qtls_Al_Down_params = nprobsw(-1, -1, s, α, η, σ, μ, data_Al_Down_qtls / (hours * 3600)) / pT_Al_Down
+        qtls_Co_Down_params = nprobsw(-1, +1, s, α, η, σ, μ, data_Co_Down_qtls / (hours * 3600)) / pT_Co_Down
+
+        weight_Al_Up = (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down)
+        weight_Co_Up = (pT_Al_Up * (1 - pT_Al_Down)) / (pT_Al_Up + pT_Al_Down)
+        weight_Al_Down = (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down)
+        weight_Co_Down = ((1 - pT_Al_Up) * pT_Al_Down) / (pT_Al_Up + pT_Al_Down)
+
+        dist_Al_Up = np.linalg.norm(qtls_Al_Up_params - qtls)
+        dist_Co_Up = np.linalg.norm(qtls_Co_Up_params - qtls)
+        dist_Al_Down = np.linalg.norm(qtls_Al_Down_params - qtls)
+        dist_Co_Down = np.linalg.norm(qtls_Co_Down_params - qtls)
+
+        dists_fw = np.linalg.norm(np.array([weight_Al_Up, weight_Co_Up, weight_Al_Down, weight_Co_Down]) -
+            np.array([n_Al_Up, n_Co_Up, n_Al_Down, n_Co_Down]))
+
+        dists = n_Al_Up * dist_Al_Up + n_Co_Up * dist_Co_Up\
+            + n_Al_Down * dist_Al_Down + n_Co_Down * dist_Co_Down + dists_fw * λ
+
+        return dists
+
+
+    x0 = np.array([h, rvxe, 0.])
+    fit_pt = optimize.minimize(fun=dist_trio, x0=x0, method='Nelder-Mead', tol=1e-6,
+                                options={'disp': False, 'maxiter': 2000, 'adaptive': True})
+    # bounds_DE = [(0, 0.5), (1e-6, 4), (-100, +100)]
+    # fit_pt = optimize.differential_evolution(dist_trio, bounds=bounds_DE, popsize=50, tol=1e-2, disp=True)
+    η, σ, μ = fit_pt.x
+    dists = fit_pt.fun
+
+    pT_Al_Up = nprobw(+1, s + (+1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+    pT_Co_Up = nprobw(+1, s + (-1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+    pT_Al_Down = nprobw(-1, s + (-1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+    pT_Co_Down = nprobw(-1, s + (+1) * (0.5 - η) * α, s, α, η, σ, μ, 1)
+
+    qtls_Al_Up_params = nprobsw(+1, +1, s, α, η, σ, μ, data_Al_Up_qtls / (hours * 3600)) / pT_Al_Up
+    qtls_Co_Up_params = nprobsw(+1, -1, s, α, η, σ, μ, data_Co_Up_qtls / (hours * 3600)) / pT_Co_Up
+    qtls_Al_Down_params = nprobsw(-1, -1, s, α, η, σ, μ, data_Al_Down_qtls / (hours * 3600)) / pT_Al_Down
+    qtls_Co_Down_params = nprobsw(-1, +1, s, α, η, σ, μ, data_Co_Down_qtls / (hours * 3600)) / pT_Co_Down
+
+    param_Al_Up_qtls = t_from_ps(+1, +1, s, α, η, σ, μ, qtls) * hours * 3600
+    param_Co_Up_qtls = t_from_ps(+1, -1, s, α, η, σ, μ, qtls) * hours * 3600
+    param_Al_Down_qtls = t_from_ps(-1, -1, s, α, η, σ, μ, qtls) * hours * 3600
+    param_Co_Down_qtls = t_from_ps(-1, +1, s, α, η, σ, μ, qtls) * hours * 3600
+
+    weight_Al_Up = (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down)
+    weight_Co_Up = (pT_Al_Up * (1 - pT_Al_Down)) / (pT_Al_Up + pT_Al_Down)
+    weight_Al_Down = (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down)
+    weight_Co_Down = ((1 - pT_Al_Up) * pT_Al_Down) / (pT_Al_Up + pT_Al_Down)
+
+    dist_Al_Up = np.linalg.norm(qtls_Al_Up_params - qtls)
+    dist_Co_Up = np.linalg.norm(qtls_Co_Up_params - qtls)
+    dist_Al_Down = np.linalg.norm(qtls_Al_Down_params - qtls)
+    dist_Co_Down = np.linalg.norm(qtls_Co_Down_params - qtls)
+
+    if show_charts:
+
+        fig, axs = plt.subplots(2, 2, figsize=(11, 11))
+        fig.suptitle('H= ' + str(np.round(h, 3)) + ' , σXe= ' + '{:.3e}'.format(rvxe)
+            + ' , η= ' + str(np.round(η, 3))+ ' , σ= ' + '{:.3e}'.format(σ) + ' , μ= ' + '{:.3e}'.format(μ)
+            + ' , Σdists= ' + '{:.2e}'.format(dists) + ' , λ= ' + '{:.2e}'.format(λ))
+        # fig =  plt.figure(figsize=(8,8))
+        axs[0, 0].plot(param_Al_Up_qtls, data_Al_Up_qtls, color = 'r', marker='o')
+        axs[0, 0].plot(param_Al_Up_qtls, param_Al_Up_qtls, color='b', marker='+')
+        axs[0, 0].set_title('Al_Up: f= ' + '{:.1%}'.format(n_Al_Up)\
+            + ' , w= ' + '{:.1%}'.format(weight_Al_Up) + ' , dist= ' + '{:.2e}'.format(dist_Al_Up))
+        # fig =  plt.figure(figsize=(8,8))
+        axs[1, 0].plot(param_Co_Up_qtls, data_Co_Up_qtls, color = 'r', marker='o')
+        axs[1, 0].plot(param_Co_Up_qtls, param_Co_Up_qtls, color='b', marker='+')
+        axs[1, 0].set_title('Co_Up: f= ' + '{:.1%}'.format(n_Co_Up)\
+            + ' , w= ' + '{:.1%}'.format(weight_Co_Up) + ' , dist= ' + '{:.2e}'.format(dist_Co_Up))
+        # fig =  plt.figure(figsize=(8,8))
+        axs[1, 1].plot(param_Al_Down_qtls, data_Al_Down_qtls, color = 'r', marker='o')
+        axs[1, 1].plot(param_Al_Down_qtls, param_Al_Down_qtls, color='b', marker='+')
+        axs[1, 1].set_title('Al_Down: f= ' + '{:.1%}'.format(n_Al_Down)\
+            + ' , w= ' + '{:.1%}'.format(weight_Al_Down) + ' , dist= ' +  '{:.2e}'.format(dist_Al_Down))
+        # fig =  plt.figure(figsize=(8,8))
+        axs[0, 1].plot(param_Co_Down_qtls, data_Co_Down_qtls, color = 'r', marker='o')
+        axs[0, 1].plot(param_Co_Down_qtls, param_Co_Down_qtls, color='b', marker='+')
+        axs[0, 1].set_title('Co_Down: f= ' + '{:.1%}'.format(n_Co_Down)\
+            + ' , w= ' + '{:.1%}'.format(weight_Co_Down) + ' , dist= ' +  '{:.2e}'.format(dist_Co_Down))
+        for ax in axs.flat:
+            ax.set(xlabel='Parametric', ylabel='Data')
+        for ax in axs.flat:
+            ax.label_outer()
+
+    results = pd.Series([h, rvxe, η, σ, μ, dists,
+        n_Al_Up, weight_Al_Up, dist_Al_Up, n_Co_Up, weight_Co_Up, dist_Co_Up,
+        n_Al_Down, weight_Al_Down, dist_Al_Down, n_Co_Down, weight_Co_Down, dist_Co_Down],
+        index=['H', 'σXe', 'η', 'σ', 'μ', 'Σdists',
+         'f_Al_Up', 'w_Al_Up', 'd_Al_Up', 'f_Co_Up', 'w_Co_Up', 'd_Co_Up',
+          'f_Al_Down', 'w_Al_Down', 'd_Al_Down', 'f_Co_Down', 'w_Co_Down', 'd_Co_Down'])
+
+    return results
+
+# %% Stats window and plottting
+
+min_window = 15
+min_step = 1
+
+def stats_window(data, α, hours, λ=λ0, window_min=min_window, time_step_min=min_step):
+    min_range = range(min_window, int(hours * 60) + min_step, min_step)
+    path_roll_min = [fit_trio(data.loc[((m - min_window) * 60):(m * 60)], α, hours, λ) for m in min_range]
+    df_stats_roll = pd.concat(path_roll_min, axis=1).transpose()
+    df_stats_roll.index = np.array(min_range) / 60
+    path_cum_min = [fit_trio(data.loc[:(m * 60)], α, hours, λ) for m in min_range]
+    df_stats_cum = pd.concat(path_cum_min, axis=1).transpose()
+    df_stats_cum.index = np.array(min_range) / 60
+    return [df_stats_roll, df_stats_cum]
+
+def plot_stats(data_roll, data_cum, eta_ts, vol_ts, mu_ts, tmrst, hours, window_min=min_window):
+    fig, axs = plt.subplots(4, 2, figsize=(18, 24))
+    fig.suptitle('Window = ' + str(window_min) + 'min, t = ', y=0.90)
+    
+    data_index = data_roll.index
+    
+    eta_ts_ds = pd.Series(eta_ts, index=tmrst[:-1] * hours).loc[min_window / 60:]
+    eta_plot = pd.Series([np.mean(eta_ts_ds.loc[t - 1e-5:t + 1e-5].values) for t in data_index],
+                        index=data_index)
+    vol_ts_ds = pd.Series(vol_ts, index=tmrst[:-1] * hours).loc[min_window / 60:]
+    vol_plot = pd.Series([np.mean(vol_ts_ds.loc[t - 1e-5:t + 1e-5].values) for t in data_index],
+                        index=data_index)
+    mu_ts_ds = pd.Series(mu_ts, index=tmrst[:-1] * hours).loc[min_window / 60:]
+    mu_plot = pd.Series([np.mean(mu_ts_ds.loc[t - 1e-5:t + 1e-5].values) for t in data_index],
+                        index=data_index)
+    
+    axs[0, 0].plot(data_roll[['η', 'H']])
+    axs[0, 0].plot(eta_plot, color='k')
+    axs[0, 0].legend(['η', 'H'])
+    axs[0, 0].set_title('η and H - Rolling')
+    axs[0, 1].plot(data_cum[['η', 'H']])
+    axs[0, 1].plot(eta_plot, color='k')
+    axs[0, 1].legend(['η', 'H'])
+    axs[0, 1].set_title('η and H - Cumulative')
+    
+    axs[1, 0].plot(data_roll[['σ', 'σXe']])
+    axs[1, 0].plot(vol_plot, color='k')
+    axs[1, 0].set_title('σ and σXe - Rolling')
+    axs[1, 0].legend(['σ', 'σXe'])
+    axs[1, 1].plot(data_cum[['σ', 'σXe']])
+    axs[1, 1].plot(vol_plot, color='k')
+    axs[1, 1].legend(['σ', 'σXe'])
+    axs[1, 1].set_title('σ and σXe - Cumulative')
+    
+    axs[2, 0].plot(data_roll[['μ']])
+    axs[2, 0].plot(mu_plot, color='k')
+    axs[2, 0].legend(['μ'])
+    axs[2, 0].set_title('μ - Rolling')
+    axs[2, 1].plot(data_cum[['μ']])
+    axs[2, 1].plot(mu_plot, color='k')
+    axs[2, 1].legend(['μ'])
+    axs[2, 1].set_title('μ - Cumulative')
+    
+    axs[3, 0].plot(data_roll[['f_Al_Up', 'f_Co_Up', 'f_Al_Down', 'f_Co_Down']])
+    axs[3, 0].plot(eta_plot, color='k')
+    axs[3, 0].legend(['f_Al_Up', 'f_Co_Up', 'f_Al_Down', 'f_Co_Down'])
+    axs[3, 0].set_title('Frequencies - Rolling')
+    axs[3, 1].plot(data_cum[['f_Al_Up', 'f_Co_Up', 'f_Al_Down', 'f_Co_Down']])
+    axs[3, 1].plot(eta_plot, color='k')
+    axs[3, 1].legend(['f_Al_Up', 'f_Co_Up', 'f_Al_Down', 'f_Co_Down'])
+    axs[3, 1].set_title('Frequencies - Cumulative')
+
+# def invprob(ud, sud, s, α, η, σ, μ, qtls=qtls_def, print_flag=False):
+#     '''invprob(ud, s0, s, α, η, σ, μ, n) solves the equation
+#     Pup(t) / Pup(1) (or Pdown(t) / Pdown(1))  = p;
+#     so for a random p such that 0 <= p <= 1 we find
+#     the expected time of a price change for the sign given'''
+#     cont_flag =  - ud * sud
+#     s0 = s + sud * (0.5 - η) * α
+#     adjη = np.abs(ud + sud) * η + np.abs(ud - sud) / 2
+#     scl = ((α / s) / σ)**2
+#     adj = adjη * scl
+#     mprobt = partial(nprobw, ud, s0, s, α, η, σ, μ)
+#     mprobt1 = mprobt(1)
+#     ts = []
+#     for q in qtls:
+#         def groot(t):
+#             return np.round(mprobt(t)/mprobt1 - q, decimals=6)
+#         sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
+#         tp = sol.root
+#         ts = ts + [tp]
+#     ts = np.array(ts)
+#     x0 = np.array([-0.5, 1., 1.])
+#     def gig(x): #  x = [p, b, scale]; loc=0
+#         return np.array([st.geninvgauss.cdf(t, x[0], x[1], 0, x[2] * adj) for t in ts])
+#     def dist_gig(x):
+#         return np.linalg.norm(qtls - gig(x))
+#     fit_gig = optimize.minimize(fun=dist_gig, x0=x0, method='Nelder-Mead',
+#                                 options={'disp': print_flag, 'maxiter': 2000, 'adaptive': True})
+# #     bounds_DE = [(-1, 1), (1e-6, 4), (0.1, 10)]
+# #     fit_gig_DE = optimize.differential_evolution(dist_gig, bounds=bounds_DE, popsize=50, tol=1e-2, disp=print_flag)
+#     p, b, scale_adj = fit_gig.x
+#     scale = scale_adj * adj
+#     dist = fit_gig.fun
+#     mean = scale * kv(1 + scale, b) / kv(scale, b)
+#     adj_mean = mean / scl
+#     fit_qtls = np.array([st.geninvgauss.ppf(q, p, b, 0, scale) for q in qtls])
+#     if print_flag:
+#         print(pd.DataFrame({'From P': ts, 'GIG': fit_qtls}, index=qtls))
+#     return pd.Series([ud, sud, cont_flag, s0, s, α, η, σ, μ, scl, adj, dist, p, b, scale, scale_adj, mean, adj_mean],
+#                         index=['ud', 'sud', 'Co/Al', 's0', 's', 'α', 'η', 'σ', 'μ', 'scl', 'adj', 'dist', 'p', 'b', 'scale', 'scale_adj', 'mean', 'mean_scl'])
+
+
+# def invprobgig(ud, sud, s, α, p, b, scale, qtls=qtls_def, print_flag=False):
+#     '''invprob(ud, s0, s, α, η, σ, μ, n) solves the equation
+#     Pup(t) / Pup(1) (or Pdown(t) / Pdown(1))  = p;
+#     so for a random p such that 0 <= p <= 1 we find
+#     the expected time of a price change for the sign given'''
+#     fit_qtls = np.array([st.geninvgauss.ppf(q, p, b, 0, scale) for q in qtls])
+#     def pft(x): #  x = [η, σ, μ];
+#         return np.array([nprobw(ud, s + sud * (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], t) /
+#                          nprobw(ud, s + sud * (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1) for t in fit_qtls])
+#     def dist_gig(x):
+#         return np.linalg.norm(qtls - pft(x))
+#     x0 = np.array([0.3, 0.01, 0.])
+#     fit_gig = optimize.minimize(fun=dist_gig, x0=x0, method='Nelder-Mead',
+#                                 options={'disp': print_flag, 'maxiter': 2000, 'adaptive': True})
+# #     bounds_DE = [(-1, 1), (1e-6, 4), (0.1, 10)]
+# #     fit_gig_DE = optimize.differential_evolution(dist_gig, bounds=bounds_DE, popsize=50, tol=1e-2, disp=print_flag)
+#     η, σ, μ = fit_gig.x
+#     cont_flag =  - ud * sud
+#     s0 = s + sud * (0.5 - η) * α
+#     scl = ((α / s) / σ)**2
+#     adjη = np.abs(ud + sud) * η + np.abs(ud - sud) / 2
+#     adj = adjη * scl 
+#     scale_adj = scale / adj
+#     dist = fit_gig.fun
+#     mean = scale * kv(1 + scale, b) / kv(scale, b)
+#     adj_mean = mean / scl
+#     if print_flag:
+#         mprobt = partial(nprobw, ud, s0, s, α, η, σ, μ)
+#         mprobt1 = mprobt(1)
+#         ts = []
+#         for q in qtls:
+#             def groot(t):
+#                 return np.round(mprobt(t)/mprobt1 - q, decimals=6)
+#             sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
+#             tp = sol.root
+#             ts = ts + [tp]
+#         ts = np.array(ts)
+#         print(pd.DataFrame({'From P': ts, 'GIG': fit_qtls}, index=qtls))
+#     return pd.Series([ud, sud, cont_flag, s0, s, α, η, σ, μ, scl, adj, dist, p, b, scale, scale_adj, mean, adj_mean],
+#                         index=['ud', 'sud', 'Co/Al', 's0', 's', 'α', 'η', 'σ', 'μ', 'scl', 'adj', 'dist', 'p', 'b', 'scale', 'scale_adj', 'mean', 'mean_scl'])
+
+# def param_from_data(data, α, qtls=qtls_def, print_flag=False):
+#     pxs = data['Ptj'].values[:-1]
+#     dts = data['dtj'].values[1:]
+#     s = np.dot(pxs, dts)/np.sum(dts)
+#     data_Up = data[data['sign'] == +1]
+#     data_Down = data[data['sign'] == -1]
+#     data_Al = data[data['Al']]
+#     data_Co = data[data['Co']]
+#     data_Al_Up = data_Up[data_Up['Al']]
+#     data_Co_Up = data_Up[data_Up['Co']]
+#     data_Al_Down = data_Down[data_Down['Al']]
+#     data_Co_Down = data_Down[data_Down['Co']]
+#     n = len(data) - 2
+#     n_Al = len(data_Al) / n
+#     n_Co = len(data_Co) / n
+#     n_Al_Up = len(data_Al_Up) / n
+#     n_Co_Up = len(data_Co_Up) / n
+#     n_Al_Down = len(data_Al_Down) / n
+#     n_Co_Down = len(data_Co_Down) / n
+#     h = (n_Co) / (2 * n_Al)
+#     rvp = rlzvollog(data['Ptj']) * np.sqrt((hours * 3600) / data['dtj'].sum())
+#     rvxe = rvp * np.sqrt(2 * h)
+
+#     data_Al_Up_qtls = data_Al_Up['dtj'].quantile(qtls).values
+#     data_Co_Up_qtls = data_Co_Up['dtj'].quantile(qtls).values
+#     data_Al_Down_qtls = data_Al_Down['dtj'].quantile(qtls).values
+#     data_Co_Down_qtls = data_Co_Down['dtj'].quantile(qtls).values
+
+
+#     cont_flag =  - ud * sud
+#     s0 = s + sud * (0.5 - η) * α
+#     adjη = np.abs(ud + sud) * η + np.abs(ud - sud) / 2
+#     scl = ((α / s) / σ)**2
+#     adj = adjη * scl
+#     mprobt = partial(nprobw, ud, s0, s, α, η, σ, μ)
+#     mprobt1 = mprobt(1)
+#     ts = []
+#     for q in qtls:
+#         def groot(t):
+#             return np.round(mprobt(t)/mprobt1 - q, decimals=6)
+#         sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
+#         tp = sol.root
+#         ts = ts + [tp]
+#     ts = np.array(ts)
+#     x0 = np.array([-0.5, 1., 1.])
+#     def gig(x): #  x = [p, b, scale]; loc=0
+#         return np.array([st.geninvgauss.cdf(t, x[0], x[1], 0, x[2] * adj) for t in ts])
+#     def dist_gig(x):
+#         return np.linalg.norm(qtls - gig(x))
+#     fit_gig = optimize.minimize(fun=dist_gig, x0=x0, method='Nelder-Mead',
+#                                 options={'disp': print_flag, 'maxiter': 2000, 'adaptive': True})
+# #     bounds_DE = [(-1, 1), (1e-6, 4), (0.1, 10)]
+# #     fit_gig_DE = optimize.differential_evolution(dist_gig, bounds=bounds_DE, popsize=50, tol=1e-2, disp=print_flag)
+#     p, b, scale_adj = fit_gig.x
+#     scale = scale_adj * adj
+#     dist = fit_gig.fun
+#     mean = scale * kv(1 + scale, b) / kv(scale, b)
+#     adj_mean = mean / scl
+#     fit_qtls = np.array([st.geninvgauss.ppf(q, p, b, 0, scale) for q in qtls])
+#     if print_flag:
+#         print(pd.DataFrame({'From P': ts, 'GIG': fit_qtls}, index=qtls))
+#     return pd.Series([ud, sud, cont_flag, s0, s, α, η, σ, μ, scl, adj, dist, p, b, scale, scale_adj, mean, adj_mean],
+#                         index=['ud', 'sud', 'Co/Al', 's0', 's', 'α', 'η', 'σ', 'μ', 'scl', 'adj', 'dist', 'p', 'b', 'scale', 'scale_adj', 'mean', 'mean_scl'])
+
+# def get_fit(data, ud, sud, α, hours, qtls=qtls_def):
+#     p, b, loc, scale = st.geninvgauss.fit(data['dtj'].values / (hours * 3600), floc=0)
+#     pxs = data['Ptj'].values[:-1]
+#     dts = data['dtj'].values[1:]
+#     s = np.dot(pxs, dts)/np.sum(dts)
+#     pt_df = invprobgig(ud, sud, s, α, p, b, scale, qtls=qtls)
+#     return pt_df
+
+# def get_fits_all(data, α, hours, qtls=qtls_def):
+#     pxs = data['Ptj'].values[:-1]
+#     dts = data['dtj'].values[1:]
+#     s = np.dot(pxs, dts)/np.sum(dts)
+#     data_Up = data[data['sign'] == +1]
+#     data_Down = data[data['sign'] == -1]
+#     data_Al_Up = data_Up[data_Up['Al']]
+#     data_Co_Up = data_Up[data_Up['Co']]
+#     data_Al_Down = data_Down[data_Down['Al']]
+#     data_Co_Down = data_Down[data_Down['Co']]
+#     n = len(data) - 2
+#     n_Al_Up = len(data_Al_Up) / n
+#     n_Co_Up = len(data_Co_Up) / n
+#     n_Al_Down = len(data_Al_Down) / n
+#     n_Co_Down = len(data_Co_Down) / n
+#     fit_Al_Up = get_fit(data_Al_Up, +1, +1, α, hours, qtls)[['η', 'σ', 'μ']]
+#     fit_Al_Up.index = ['η_Al_Up', 'σ_Al_Up', 'μ_Al_Up']
+#     fit_Co_Up = get_fit(data_Co_Up, +1, -1, α, hours, qtls)[['η', 'σ', 'μ']]
+#     fit_Co_Up.index = ['η_Co_Up', 'σ_Co_Up', 'μ_Co_Up']
+#     fit_Al_Down = get_fit(data_Al_Down, -1, -1, α, hours, qtls)[['η', 'σ', 'μ']]
+#     fit_Al_Down.index = ['η_Al_Down', 'σ_Al_Down', 'μ_Al_Down']
+#     fit_Co_Down = get_fit(data_Co_Down, -1, +1, α, hours, qtls)[['η', 'σ', 'μ']]
+#     fit_Co_Down.index = ['η_Co_Down', 'σ_Co_Down', 'μ_Co_Down']
+#     h = (n_Co_Up + n_Co_Down) / (2 * (n_Al_Up + n_Al_Down))
+#     rvp = rlzvollog(data['Ptj']) * np.sqrt((hours * 3600) / data['dtj'].sum())
+#     rvxe = rvp * np.sqrt(2 * h)
+#     ser_stats = pd.Series([n_Al_Up, n_Co_Up, n_Al_Down, n_Co_Down, h, rvp, rvxe],
+#         index=['n_Al_Up', 'n_Co_Up', 'n_Al_Down', 'n_Co_Down', 'H', 'σP', 'σXe'])
+#     return pd.concat([fit_Al_Up, fit_Co_Up, fit_Al_Down, fit_Co_Down, ser_stats])
+
+# -----------------------------
+
+# # Define t_from_p (for inverse CDF)
+# def t_from_p(s0, s, α, η, σ, μ, p):
+#     '''t_from_p(p, s0, s, α, η, σ, μ) solves the equation
+#     Pup(t) + Pdown(t) = p; so for a random p such that 0 <= p <= 1 we find
+#     the expected time of a price change'''
+#     mprobtup = partial(nprobw, 1, s0, s, α, η, σ, μ)
+#     mprobtdown = partial(nprobw, -1, s0, s, α, η, σ, μ)
+#     def groot(t):
+#         return np.round(mprobtup(t) + mprobtdown(t) - p, decimals=6)
+#     sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
+#     return sol.root
+
+# Define t_from_pud (for inverse CDF)
+# def t_from_pud(s0, s, α, η, σ, μ, ud, p):
+#     '''t_from_pud(p, s0, s, α, η, σ, μ) solves the equation
+#     Pup(t) / Pup(1) (or Pdown(t) / Pdown(1))  = p;
+#     so for a random p such that 0 <= p <= 1 we find
+#     the expected time of a price change for the sign given'''
+#     mprobt = partial(nprobw, ud, s0, s, α, η, σ, μ)
+#     mprobtT = nprobw(ud, s0, s, α, η, σ, μ, 1)
+#     if mprobtT == 0:
+#         print('mprobtT == 0')
+#         print((s0, s, α, η, σ, μ, ud, p))
+#     def groot(t):
+#         return np.round(mprobt(t)/mprobtT - p, decimals=6)
+#     sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
+#     return sol.root
+
+# # Define CDF
+# def cdf(s0, s, α, η, σ, μ, npts=100+1):
+#     grid = np.linspace(0., 0.999, npts)
+#     pts = pd.Series(grid, index=[t_from_p(s0, s, α, η, σ, μ, p)
+#                                  for p in grid])
+#     pts.index.name = 't'
+#     pts.name = 'CDF(t)'
+#     return pts
+
+# # Define CDFs
+# def cdfs(s0, s, α, η, σ, μ, npts=100):
+#     grid = np.linspace(0, 0.999, npts)
+#     ts = [t_from_p(s0, s, α, η, σ, μ, p) for p in grid]
+#     up = [nprobw(+1, s0, s, α, η, σ, μ, t) for t in ts]
+#     up = np.minimum(up, grid)
+#     pts = pd.DataFrame({'CDF(t)': grid, 'Up': up, 'Down': grid - up},
+#                        index=ts)
+#     pts.index.name = 't'
+#     return pts
+
+# # Define Quantiles
+# def pquant(s, α, η, σ, μ, sup, ud, lg=0., ug=0.999, npts=100+1):
+#     grid = np.linspace(lg, ug, npts)
+#     prev_s = s + sup * (0.5 - η) * α
+#     ts = [t_from_pud(prev_s, s, α, η, σ, μ, ud, p) for p in grid]
+#     pts = pd.Series(grid, index=ts)
+#     pts.index.name = 't'
+#     pts.name = str((sup, ud))
+#     return pts
+
+# # Define Quantiles - inverted
+# def pquantinv(s, α, η, σ, μ, sup, ud, lg=0., ug=0.999, npts=100+1):
+#     grid = np.linspace(lg, ug, npts)
+#     prev_s = s + sup * (0.5 - η) * α
+#     ts = [t_from_pud(prev_s, s, α, η, σ, μ, ud, p) for p in grid]
+#     pts = pd.Series(ts, index=grid)
+#     pts.index.name = 'q'
+#     pts.name = str((sup, ud))
+#     return pts
 
 # Define up_down
 def up_down(s0, s, α, η, σ, μ, t, p):
@@ -534,283 +1544,3 @@ def simul(s, α, η, σ, μ, T):
     df.set_index('t', inplace=True)
     return df
 
-# Default quantile definitions
-lq = 0.10
-uq = 0.90
-npts = 9
-
-# Default bounds
-ηmin = 0.01
-ηmax = 0.5
-σmin = 0.0005
-σmax = 0.1
-μmin = -1.0
-μmax = +1.0
-
-# Defaults minimization
-popsize=15
-tol=1e-4
-
-# Default λ
-λreg = 0
-
-# Quantiles durations from time series
-def acup_qtl(df, lq=lq, uq=uq, npts=npts):
-    df_aup = df[(df['sign'] == +1) & (df['Al'])]['dtj']
-    df_cup = df[(df['sign'] == +1) & (df['Co'])]['dtj']
-    df_ado = df[(df['sign'] == -1) & (df['Al'])]['dtj']
-    df_cdo = df[(df['sign'] == -1) & (df['Co'])]['dtj']
-    df_a = df[df['Al']]['dtj']
-    df_c = df[df['Co']]['dtj']
-    df_a_c = df['dtj'].copy()
-    qtl_rng = np.linspace(lq, uq, npts)
-    df_aupq = df_aup.quantile(qtl_rng).reset_index().set_index('dtj')
-    df_cupq = df_cup.quantile(qtl_rng).reset_index().set_index('dtj')
-    df_adoq = df_ado.quantile(qtl_rng).reset_index().set_index('dtj')
-    df_cdoq = df_cdo.quantile(qtl_rng).reset_index().set_index('dtj')
-    df_aq = df_a.quantile(qtl_rng).reset_index().set_index('dtj')
-    df_cq = df_c.quantile(qtl_rng).reset_index().set_index('dtj')
-    df_a_cq = df_a_c.quantile(qtl_rng).reset_index().set_index('dtj')
-    df_aupq.name = 'p_Al_Up'
-    df_cupq.name = 'p_Co_Up'
-    df_adoq.name = 'p_Al_Do'
-    df_cdoq.name = 'p_Co_Do'
-    df_aq.name = 't_Al'
-    df_cq.name = 't_Co'
-    df_a_cq.name = 't_Al_Co'
-    return [df_aupq, df_cupq, df_adoq, df_cdoq,  df_aq, df_cq, df_a_cq]
-
-# Quantiles durations from time series - inverted
-def acup_qtlinv(df, lq=lq, uq=uq, npts=npts):
-    df_aup = df[(df['sign'] == +1) & (df['Al'])]['dtj']
-    df_cup = df[(df['sign'] == +1) & (df['Co'])]['dtj']
-    df_ado = df[(df['sign'] == -1) & (df['Al'])]['dtj']
-    df_cdo = df[(df['sign'] == -1) & (df['Co'])]['dtj']
-    df_a = df[df['Al']]['dtj']
-    df_c = df[df['Co']]['dtj']
-    df_a_c = df['dtj'].copy()
-    qtl_rng = np.linspace(lq, uq, npts)
-    df_aupq = df_aup.quantile(qtl_rng)
-    df_cupq = df_cup.quantile(qtl_rng)
-    df_adoq = df_ado.quantile(qtl_rng)
-    df_cdoq = df_cdo.quantile(qtl_rng)
-    df_aq = df_a.quantile(qtl_rng)
-    df_cq = df_c.quantile(qtl_rng)
-    df_a_cq = df_a_c.quantile(qtl_rng)
-    df_aupq.name = 't_Al_Up'
-    df_cupq.name = 't_Co_Up'
-    df_adoq.name = 't_Al_Do'
-    df_cdoq.name = 't_Co_Do'
-    df_aq.name = 't_Al'
-    df_cq.name = 't_Co'
-    df_a_cq.name = 't_Al_Co'
-    return [df_aupq, df_cupq, df_adoq, df_cdoq, df_aq, df_cq, df_a_cq]
-
-def qq_plots(df_data, s, α, η, σ, μ, hours, lq=lq, uq=uq, npts=npts):
-    dfq_data = pd.concat(acup_qtlinv(df_data, lq, uq, npts), axis=1)
-    dfq_param = pd.concat([
-        pquantinv(s, α, η, σ, μ, +1, +1, lq, uq, npts),
-        pquantinv(s, α, η, σ, μ, -1, +1, lq, uq, npts),
-        pquantinv(s, α, η, σ, μ, -1, -1, lq, uq, npts),
-        pquantinv(s, α, η, σ, μ, +1, -1, lq, uq, npts)], axis=1)*hours*3600
-    fig =  plt.figure(figsize=(8,8))
-    fig.suptitle('Al_Up')
-    plt.plot(dfq_param['(1, 1)'], dfq_data['t_Al_Up'], color = 'r', marker='o')
-    plt.plot(dfq_param['(1, 1)'], dfq_param['(1, 1)'], color='b')
-    fig =  plt.figure(figsize=(8,8))
-    fig.suptitle('Co_Up')
-    plt.plot(dfq_param['(-1, 1)'], dfq_data['t_Co_Up'], color = 'r', marker='o')
-    plt.plot(dfq_param['(-1, 1)'], dfq_param['(-1, 1)'], color='b')
-    fig =  plt.figure(figsize=(8,8))
-    fig.suptitle('Al_Down')
-    plt.plot(dfq_param['(-1, -1)'], dfq_data['t_Al_Do'], color = 'r', marker='o')
-    plt.plot(dfq_param['(-1, -1)'], dfq_param['(-1, -1)'], color='b')
-    fig =  plt.figure(figsize=(8,8))
-    fig.suptitle('Co_Down')
-    plt.plot(dfq_param['(1, -1)'], dfq_data['t_Co_Do'], color = 'r', marker='o')
-    plt.plot(dfq_param['(1, -1)'], dfq_param['(1, -1)'], color='b')
-
-def distance_dur(df_data, s, α, η, σ, μ, hours, lq=lq, uq=uq, npts=npts):
-    n_aup = df_data[df_data['sign'] == +1]['Al'].sum() / len(df_data)
-    n_cup = df_data[df_data['sign'] == +1]['Co'].sum() / len(df_data)
-    n_ado = df_data[df_data['sign'] == -1]['Al'].sum() / len(df_data)
-    n_cdo = df_data[df_data['sign'] == -1]['Co'].sum() / len(df_data)
-    # print((n_cup + n_cdo) / (2 * (n_aup + n_ado)))
-    dfq_data = pd.concat(acup_qtlinv(df_data, lq, uq, npts), axis=1)
-    dfq_param = pd.concat([
-        pquantinv(s, α, η, σ, μ, +1, +1, lq, uq, npts),
-        pquantinv(s, α, η, σ, μ, -1, +1, lq, uq, npts),
-        pquantinv(s, α, η, σ, μ, -1, -1, lq, uq, npts),
-        pquantinv(s, α, η, σ, μ, +1, -1, lq, uq, npts)], axis=1)\
-            * hours * 3600
-    dist_Al_Up = np.linalg.norm(dfq_param['(1, 1)'] - dfq_data['t_Al_Up'])
-    dist_Co_Up = np.linalg.norm(dfq_param['(-1, 1)'] - dfq_data['t_Co_Up'])
-    dist_Al_Do = np.linalg.norm(dfq_param['(-1, -1)'] - dfq_data['t_Al_Do'])
-    dist_Co_Do = np.linalg.norm(dfq_param['(1, -1)'] - dfq_data['t_Co_Do'])
-    # print(np.array([n_aup, dist_Al_Up, n_cup, dist_Co_Up,
-    #     n_ado, dist_Al_Do, n_cdo, dist_Co_Do]))
-    return np.dot([n_aup, n_cup, n_ado, n_cdo],
-        [dist_Al_Up, dist_Co_Up, dist_Al_Do, dist_Co_Do])
-
-# def minde_dist(df_data, s, α, hours, λ=λreg, popsize=popsize, tol=tol, print_res=False,
-#     ηmin=ηmin, ηmax=ηmax, σmin=σmin, σmax=σmax, μmin=μmin, μmax=μmax,
-#     lq=lq, uq=uq, npts=npts):
-#     n_aup = df_data[df_data['sign'] == +1]['Al'].sum() / len(df_data)
-#     n_cup = df_data[df_data['sign'] == +1]['Co'].sum() / len(df_data)
-#     n_ado = df_data[df_data['sign'] == -1]['Al'].sum() / len(df_data)
-#     n_cdo = df_data[df_data['sign'] == -1]['Co'].sum() / len(df_data)
-#     h = (n_cup + n_cdo) / (2 * (n_aup + n_ado))
-#     pmax = df_data['Ptj'].max()
-#     pmin = df_data['Ptj'].min()
-#     tmax = df_data['Ptj'].idxmax() / (hours * 3600)
-#     tmin = df_data['Ptj'].idxmin() / (hours * 3600)
-#     μm = ((pmax - pmin) / s) / (tmax - tmin)
-#     μmin0 = max(μmin, -np.abs(μm))
-#     μmax0 = min(μmax, +np.abs(μm))
-#     rvp = rlzvollog(df_data['Ptj']) * np.sqrt((hours * 3600) / df_data['dtj'].sum())
-#     rvxe = rvp * np.sqrt(2 * h)
-#     dfq_data = pd.concat(acup_qtlinv(df_data, lq, uq, npts), axis=1)
-#     def sum_dist(x): #  x = [η, σ, μ]
-#         dfq_param = pd.concat([
-#             pquantinv(s, α, x[0], x[1], x[2], +1, +1, lq, uq, npts),
-#             pquantinv(s, α, x[0], x[1], x[2], -1, +1, lq, uq, npts),
-#             pquantinv(s, α, x[0], x[1], x[2], -1, -1, lq, uq, npts),
-#             pquantinv(s, α, x[0], x[1], x[2], +1, -1, lq, uq, npts)], axis=1)\
-#                 * hours * 3600
-#         dist_Al_Up = np.linalg.norm(dfq_param['(1, 1)'] - dfq_data['t_Al_Up'])
-#         dist_Co_Up = np.linalg.norm(dfq_param['(-1, 1)'] - dfq_data['t_Co_Up'])
-#         dist_Al_Do = np.linalg.norm(dfq_param['(-1, -1)'] - dfq_data['t_Al_Do'])
-#         dist_Co_Do = np.linalg.norm(dfq_param['(1, -1)'] - dfq_data['t_Co_Do'])
-#         return np.dot([n_aup, n_cup, n_ado, n_cdo],
-#             [dist_Al_Up, dist_Co_Up, dist_Al_Do, dist_Co_Do]) + λ * abs(x[2])
-#     bounds = [(ηmin, ηmax), (σmin, σmax), (μmin0, μmax0)]
-#     resg = optimize.differential_evolution(sum_dist, bounds, popsize=popsize, tol=tol)
-#     if print_res:
-#         print(resg)
-#     return [h, resg.x[0], resg.x[1], rvxe, rvp, resg.x[2], μm, resg.fun]
-
-def multfit_dist(df_data, s, α, hours, index_m, λ=λreg, popsize=popsize, tol=tol,
-    ηmin=ηmin, ηmax=ηmax, σmin=σmin, σmax=σmax, μmin=μmin, μmax=μmax,
-    lq=lq, uq=uq, npts=npts):
-    n_Al_Co = df_data['Al'].sum() + df_data['Co'].sum()
-    n_aup = df_data[df_data['sign'] == +1]['Al'].sum() / n_Al_Co
-    n_cup = df_data[df_data['sign'] == +1]['Co'].sum() / n_Al_Co
-    n_ado = df_data[df_data['sign'] == -1]['Al'].sum() / n_Al_Co
-    n_cdo = df_data[df_data['sign'] == -1]['Co'].sum() / n_Al_Co
-    n_a = df_data['Al'].sum() / n_Al_Co
-    n_c = df_data['Co'].sum() / n_Al_Co
-    h = n_c / (2 * n_a)
-    pmax = df_data['Ptj'].max()
-    pmin = df_data['Ptj'].min()
-    tmax = df_data['Ptj'].idxmax() / (hours * 3600)
-    tmin = df_data['Ptj'].idxmin() / (hours * 3600)
-    μm = ((pmax - pmin) / s) / (tmax - tmin)
-    μmin0 = max(μmin, -np.abs(μm))
-    μmax0 = min(μmax, +np.abs(μm))
-    bounds = [(ηmin, ηmax), (σmin, σmax), (μmin0, μmax0)]
-    rvp = rlzvollog(df_data['Ptj']) * np.sqrt((hours * 3600) / df_data['dtj'].sum())
-    rvxe = rvp * np.sqrt(2 * h)
-    dfq_data = pd.concat(acup_qtlinv(df_data, lq, uq, npts), axis=1)
-    def dist_Al_Up(x): #  x = [η, σ, μ]
-        P_Al_Up = nprobw(+1, s + (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        P_Al_Do = nprobw(-1, s - (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        weight = (P_Al_Up * P_Al_Do) / (P_Al_Up + P_Al_Do)
-        dfq_param = pquantinv(s, α, x[0], x[1], x[2], +1, +1, lq, uq, npts)\
-            * hours * 3600
-        return np.linalg.norm(weight * dfq_param - n_aup * dfq_data['t_Al_Up'])\
-            + λ * abs(x[2])
-    def dist_Co_Up(x):
-        P_Al_Up = nprobw(+1, s + (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        P_Al_Do = nprobw(-1, s - (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        weight = (P_Al_Up * (1 - P_Al_Do)) / (P_Al_Up + P_Al_Do)
-        dfq_param = pquantinv(s, α, x[0], x[1], x[2], -1, +1, lq, uq, npts)\
-            * hours * 3600
-        return np.linalg.norm(weight * dfq_param - n_cup * dfq_data['t_Co_Up'])\
-            + λ * abs(x[2])
-    def dist_Al_Do(x):
-        P_Al_Up = nprobw(+1, s + (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        P_Al_Do = nprobw(-1, s - (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        weight = (P_Al_Up * P_Al_Do) / (P_Al_Up + P_Al_Do)
-        dfq_param = pquantinv(s, α, x[0], x[1], x[2], -1, -1, lq, uq, npts)\
-            * hours * 3600
-        return np.linalg.norm(weight * dfq_param - n_ado * dfq_data['t_Al_Do'])\
-            + λ * abs(x[2])
-    def dist_Co_Do(x):
-        P_Al_Up = nprobw(+1, s + (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        P_Al_Do = nprobw(-1, s - (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        weight = ((1 - P_Al_Up) * P_Al_Do) / (P_Al_Up + P_Al_Do)
-        dfq_param = pquantinv(s, α, x[0], x[1], x[2], +1, -1, lq, uq, npts)\
-            * hours * 3600
-        return np.linalg.norm(weight * dfq_param - n_cdo * dfq_data['t_Co_Do'])\
-            + λ * abs(x[2])
-    def dist_Al(x): #  x = [η, σ, μ]
-        P_Al_Up = nprobw(+1, s + (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        P_Al_Do = nprobw(-1, s - (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        weight_Up = (P_Al_Up * P_Al_Do) / (P_Al_Up + P_Al_Do)
-        weight_Do = (P_Al_Up * P_Al_Do) / (P_Al_Up + P_Al_Do)
-        dfq_param_Up = weight_Up * pquantinv(s, α, x[0], x[1], x[2], +1, +1, lq, uq, npts)\
-            * hours * 3600
-        dfq_param_Do = weight_Do * pquantinv(s, α, x[0], x[1], x[2], -1, -1, lq, uq, npts)\
-            * hours * 3600
-        return np.linalg.norm(dfq_param_Up - n_aup * dfq_data['t_Al_Up']) +\
-            np.linalg.norm(dfq_param_Do - n_ado * dfq_data['t_Al_Do']) + λ * abs(x[2])
-    def dist_Co(x): #  x = [η, σ, μ]
-        P_Al_Up = nprobw(+1, s + (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        P_Al_Do = nprobw(-1, s - (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        weight_Up = (P_Al_Up * (1 - P_Al_Do)) / (P_Al_Up + P_Al_Do)
-        weight_Do = ((1 - P_Al_Up) * P_Al_Do) / (P_Al_Up + P_Al_Do)
-        dfq_param_Up = weight_Up * pquantinv(s, α, x[0], x[1], x[2], -1, +1, lq, uq, npts)\
-            * hours * 3600
-        dfq_param_Do = weight_Do * pquantinv(s, α, x[0], x[1], x[2], +1, -1, lq, uq, npts)\
-            * hours * 3600
-        return np.linalg.norm(dfq_param_Up - n_cup * dfq_data['t_Co_Up']) +\
-            np.linalg.norm(dfq_param_Do - n_cdo * dfq_data['t_Co_Do']) + λ * abs(x[2])
-    def dist_Al_Co(x): #  x = [η, σ, μ]
-        P_Al_Up = nprobw(+1, s + (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        P_Al_Do = nprobw(-1, s - (0.5 - x[0]) * α, s, α, x[0], x[1], x[2], 1)
-        weight_Al_Up = (P_Al_Up * P_Al_Do) / (P_Al_Up + P_Al_Do)
-        weight_Co_Up = (P_Al_Up * (1 - P_Al_Do)) / (P_Al_Up + P_Al_Do)
-        weight_Al_Do = (P_Al_Up * P_Al_Do) / (P_Al_Up + P_Al_Do)
-        weight_Co_Do = ((1 - P_Al_Up) * P_Al_Do) / (P_Al_Up + P_Al_Do)
-        dfq_param_Al_Up = weight_Al_Up * pquantinv(s, α, x[0], x[1], x[2], +1, +1, lq, uq, npts)\
-            * hours * 3600
-        dfq_param_Al_Do = weight_Al_Do * pquantinv(s, α, x[0], x[1], x[2], -1, -1, lq, uq, npts)\
-            * hours * 3600
-        dfq_param_Co_Up = weight_Co_Up * pquantinv(s, α, x[0], x[1], x[2], -1, +1, lq, uq, npts)\
-            * hours * 3600
-        dfq_param_Co_Do = weight_Co_Do * pquantinv(s, α, x[0], x[1], x[2], +1, -1, lq, uq, npts)\
-            * hours * 3600
-        return np.linalg.norm(dfq_param_Al_Up - n_aup * dfq_data['t_Al_Up']) +\
-            np.linalg.norm(dfq_param_Al_Do - n_ado * dfq_data['t_Al_Do']) + \
-            np.linalg.norm(dfq_param_Co_Up - n_cup * dfq_data['t_Co_Up']) +\
-            np.linalg.norm(dfq_param_Co_Do - n_cdo * dfq_data['t_Co_Do']) + λ * abs(x[2])
-    fit_Al_Up = optimize.differential_evolution(dist_Al_Up, bounds, popsize=popsize, tol=tol)
-    fit_Co_Up = optimize.differential_evolution(dist_Co_Up, bounds, popsize=popsize, tol=tol)
-    fit_Al_Do = optimize.differential_evolution(dist_Al_Do, bounds, popsize=popsize, tol=tol)
-    fit_Co_Do = optimize.differential_evolution(dist_Co_Do, bounds, popsize=popsize, tol=tol)
-    fit_Al = optimize.differential_evolution(dist_Al, bounds, popsize=popsize, tol=tol)
-    fit_Co = optimize.differential_evolution(dist_Co, bounds, popsize=popsize, tol=tol)
-    fit_Al_Co = optimize.differential_evolution(dist_Al_Co, bounds, popsize=popsize, tol=tol)
-    ans = [n_aup, n_cup, n_ado, n_cdo, n_a, n_c, fit_Al_Co.fun,
-        h, fit_Al_Up.x[0], fit_Co_Up.x[0], fit_Al_Do.x[0], fit_Co_Do.x[0],
-        fit_Al.x[0], fit_Co.x[0], fit_Al_Co.x[0],
-        rvp, rvxe, fit_Al_Up.x[1], fit_Co_Up.x[1], fit_Al_Do.x[1], fit_Co_Do.x[1],
-        fit_Al.x[1], fit_Co.x[1], fit_Al_Co.x[1],
-        μm, fit_Al_Up.x[2], fit_Co_Up.x[2], fit_Al_Do.x[2], fit_Co_Do.x[2],
-        fit_Al.x[2], fit_Co.x[2], fit_Al_Co.x[2]]
-    ans_cols = ['Al_Up', 'Co_Up', 'Al_Do', 'Co_Do', 'Al', 'Co', 'Al_Co_dist',
-                'H', 'Al_Up_η', 'Co_Up_η', 'Al_Do_η', 'Co_Do_η',
-                'Al_η', 'Co_η', 'Al_Co_η',
-                'σP', 'σXe', 'Al_Up_σ', 'Co_Up_σ', 'Al_Do_σ', 'Co_Do_σ',
-                'Al_σ', 'Co_σ', 'Al_Co_σ',
-                'μmax', 'Al_Up_μ', 'Co_Up_μ', 'Al_Do_μ', 'Co_Do_μ',
-                'Al_μ', 'Co_μ',  'Al_Co_μ']
-    return pd.DataFrame([ans], columns=ans_cols, index=[index_m])
-
-# Cumulative H
-def cum_H(df):
-    dfc = df.copy()
-    dfc['Cum_Al'] = dfc['Al'].cumsum()
-    dfc['Cum_Co'] = dfc['Co'].cumsum()
-    dfc['H'] = dfc['Cum_Co'] / (2 * dfc['Cum_Al'])
-    return dfc['H']

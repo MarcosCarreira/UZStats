@@ -1,0 +1,4255 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass beamer
+\begin_preamble
+\usetheme{Darmstadt}
+%\usetheme{Frankfurt}
+% or ...
+
+\setbeamercovered{transparent}
+\end_preamble
+\use_default_options false
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "palatino" "default"
+\font_sans "lmss" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize 10
+\spacing single
+\use_hyperref false
+\papersize default
+\use_geometry true
+\use_package amsmath 2
+\use_package amssymb 2
+\use_package cancel 1
+\use_package esint 0
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 0
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 2
+\tocdepth 2
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+The Right Kind of Volatility
+\end_layout
+
+\begin_layout Author
+Marcos Costa Santos Carreira
+\end_layout
+
+\begin_layout Institute
+CMAP - Ecole Polytechnique
+\end_layout
+
+\begin_layout Date
+QuantMinds - everywhere, 04-Nov-2020
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status collapsed
+
+\begin_layout Plain Layout
+The following causes the table of contents to be shown at the beginning
+ of every subsection.
+ Delete this, if you do not want it.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+AtBeginSubsection[]{
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+  
+\backslash
+frame<beamer>{ 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+    %
+\backslash
+frametitle{Outline}   
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+    
+\backslash
+tableofcontents[currentsection,currentsubsection] 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+  }
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+If you wish to uncover everything in a step-wise fashion, uncomment the
+ following command:
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+%
+\backslash
+beamerdefaultoverlayspecification{<+->}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Contents
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset CommandInset toc
+LatexCommand tableofcontents
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status collapsed
+
+\begin_layout Plain Layout
+Structuring a talk is a difficult task and the following structure may not
+ be suitable.
+ Here are some rules that apply for this solution: 
+\end_layout
+
+\begin_layout Itemize
+Exactly two or three sections (other than the summary).
+ 
+\end_layout
+
+\begin_layout Itemize
+At *most* three subsections per section.
+ 
+\end_layout
+
+\begin_layout Itemize
+Talk about 30s to 2min per frame.
+ So there should be between about 15 and 30 frames, all told.
+\end_layout
+
+\begin_layout Itemize
+A conference audience is likely to know very little of what you are going
+ to talk about.
+ So *simplify*! 
+\end_layout
+
+\begin_layout Itemize
+In a 20min talk, getting the main ideas across is hard enough.
+ Leave out details, even if it means being less precise than you think necessary.
+ 
+\end_layout
+
+\begin_layout Itemize
+If you omit details that are vital to the proof/implementation, just say
+ so once.
+ Everybody will be happy with that.
+ 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Section
+Acknowledgements
+\begin_inset Argument 2
+status open
+
+\begin_layout Plain Layout
+Credits
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Standard causality applies
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+Acknowledgements
+\end_layout
+
+\begin_layout Itemize
+Mathieu Rosenbaum, my PhD advisor and chair of the “Analytics and Models
+ for Regulation” program at École Polytechnique (
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://quantreg.com
+\end_layout
+
+\end_inset
+
+)
+\end_layout
+
+\begin_layout Itemize
+Florian Huchedé (CME), who helped with conceptual discussions (including
+ which kind of results would be interesting and how to communicate them)
+ and practical advice (on code structure and plotly charts)
+\end_layout
+
+\begin_layout Standard
+If this work is good, it's because of them; if it's not good, it's not their
+ fault
+\end_layout
+
+\end_deeper
+\begin_layout Frame
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Uncertainty Zones
+\begin_inset Argument 2
+status open
+
+\begin_layout Plain Layout
+UZ Model
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Uncertainty Zones and ticks
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+UZ had size 
+\begin_inset Formula $2\cdot\eta\cdot\alpha$
+\end_inset
+
+ and is centered at mid-ticks 
+\begin_inset Formula $\left(P_{i}+\frac{\alpha}{2}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename Pics/UZPoints.png
+	lyxscale 50
+	scale 20
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Uncertainty Zones Points; alternations in red, continuations in blue
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:Uncertainty-Zones-Points"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Signed alternations and continuations
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Defining the 4 kinds of moves
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="5" columns="5">
+<features tabularvalignment="middle">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell multicolumn="1" alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Next efficient price
+\end_layout
+
+\end_inset
+</cell>
+<cell multicolumn="2" alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+ud = +1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+ud = -1
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Last trade sign
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Last efficient price
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+\begin_inset Formula $S_{0}+\left(\frac{1}{2}+\eta\right)\cdot\alpha$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+\begin_inset Formula $S_{0}-\left(\frac{1}{2}+\eta\right)\cdot\alpha$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+sud = +1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+\begin_inset Formula $S_{0}+\left(\frac{1}{2}-\eta\right)\cdot\alpha$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Alt Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Cont Down
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+sud = -1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+\begin_inset Formula $S_{0}-\left(\frac{1}{2}-\eta\right)\cdot\alpha$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Cont Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Alt Down
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Estimation in the UZ model
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The efficient price process 
+\begin_inset Formula $X_{t}$
+\end_inset
+
+ is described by:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{dX_{t}}{X_{t}}=\mu_{t}dt+\sigma_{t}dW_{t}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\omega_{t}=\mu_{t}-\frac{1}{2}\sigma_{t}^{2}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+For the 
+\begin_inset Formula $\mu=0$
+\end_inset
+
+ case we have (RR2009):
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\hat{\eta}=\sum_{k}\left(\lambda_{k}\cdot u_{k}\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\lambda_{k}=\frac{N_{k}^{A}+N_{k}^{C}}{\sum_{k}\left(N_{k}^{A}+N_{k}^{C}\right)}
+\]
+
+\end_inset
+
+ and 
+\begin_inset Formula 
+\[
+u_{k}=\frac{k\cdot N_{k}^{C}}{2\cdot N_{k}^{A}}-\left(\frac{k-1}{2}\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Frame
+
+\end_layout
+
+\begin_layout Frame
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Conditional CDFs
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Conditional durations (
+\begin_inset Formula $\Delta t$
+\end_inset
+
+ to next price change) are described by (the sign 
+\begin_inset Formula $\pm$
+\end_inset
+
+ refers to ud):
+\end_layout
+
+\begin_layout Standard
+
+\size footnotesize
+\begin_inset Formula 
+\begin{align*}
+P_{\pm}\left(t\right)= & +e^{\frac{\omega}{\sigma^{2}}\cdot\left(b_{1}-x_{0}\right)}\cdot\sum_{n=1}^{\infty}\left\{ e^{\frac{\omega}{\sigma^{2}}\cdot y_{n}^{\pm}}\cdot N\left(\frac{y_{n}^{\pm}+\omega\cdot t}{\sigma\cdot\sqrt{t}}\right)+e^{-\frac{\omega}{\sigma^{2}}\cdot y_{n}^{\pm}}N\left(\frac{y_{n}^{\pm}-\omega\cdot t}{\sigma\cdot\sqrt{t}}\right)\right\} \\
+ & -e^{\frac{\omega}{\sigma^{2}}\cdot\left(b_{1}-x_{0}\right)}\cdot\sum_{n=1}^{\infty}\left\{ e^{\frac{\omega}{\sigma^{2}}\cdot z_{n}^{\pm}}\cdot N\left(\frac{z_{n}^{\pm}+\omega\cdot t}{\sigma\cdot\sqrt{t}}\right)+e^{-\frac{\omega}{\sigma^{2}}\cdot z_{n}^{\pm}}\cdot N\left(\frac{z_{n}^{\pm}-\omega\cdot t}{\sigma\cdot\sqrt{t}}\right)\right\} 
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+
+\size footnotesize
+\begin_inset Formula $b_{1}=Log[S_{0}+ud\cdot\left(\frac{1}{2}+\eta\right)\cdot\alpha]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+
+\size footnotesize
+\begin_inset Formula $b_{2}=Log[S_{0}-ud\cdot\left(\frac{1}{2}+\eta\right)\cdot\alpha]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+
+\size footnotesize
+\begin_inset Formula $x_{0}=Log[S_{0}+sud\cdot\left(\frac{1}{2}+\eta\right)\cdot\alpha]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+
+\size footnotesize
+\begin_inset Formula $y_{1}=+ud\cdot\left(x_{0}-b_{1}\right)<0$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Itemize
+
+\size footnotesize
+\begin_inset Formula $y_{n}=y_{1}+ud\cdot2\cdot\left(n-1\right)\cdot\left(b_{2}-b_{1}\right)<y_{1}$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Itemize
+
+\size footnotesize
+\begin_inset Formula $z_{n}=y_{n}+ud\cdot2\cdot\left(b_{2}-x_{0}\right)<y_{n}$
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+To infinity ...
+ and beyond
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+The limits for 
+\begin_inset Formula $t\rightarrow\infty$
+\end_inset
+
+ are:
+\end_layout
+
+\begin_layout Standard
+
+\size footnotesize
+\begin_inset Formula 
+\begin{align*}
+P_{\pm}\left(\omega\neq0\right)= & e^{\left(\frac{1-sign[\omega]\cdot ud}{2}\right)\cdot\left(b_{1}-x_{0}\right)}\cdot\left(\frac{1-e^{\left(\frac{2\cdot abs[\omega]\cdot ud}{\sigma^{2}}\right)\cdot\left(b_{2}-x_{0}\right)}}{1-e^{\left(\frac{2\cdot abs[\omega]\cdot ud}{\sigma^{2}}\right)\cdot\left(b_{2}-b_{1}\right)}}\right)\\
+P_{\pm}\left(\omega=0\right)= & \frac{b_{2}-x_{0}}{b_{2}-b_{1}}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+So given the sign of the last trade: 
+\begin_inset Formula $sud_{j}=-ud_{j-1}$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Itemize
+We know 
+\begin_inset Formula $S_{0}+sud\left(\frac{1}{2}-\eta\right)\cdot\alpha$
+\end_inset
+
+ and the probabilities of an up or down move
+\end_layout
+
+\begin_layout Itemize
+And based on which move happens we know the CDF of the durations
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Logistic approximation
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+The formulas from the previous slide for continuations can be approximated
+ by:
+\end_layout
+
+\begin_layout Standard
+
+\size footnotesize
+\begin_inset Formula 
+\begin{align*}
+P_{\pm}^{C}= & \left(\frac{2\cdot\eta}{1+2\cdot\eta}\right)\cdot\left(\frac{2}{1+e^{\left(\mp2\cdot\frac{\mu}{\sigma^{2}}\cdot\frac{\alpha}{S_{0}}\right)}}\right)\\
+P_{\mp}^{A}= & 1-P_{\pm}^{C}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+And average durations can be estimated by defining a scale 
+\begin_inset Formula $\tau$
+\end_inset
+
+: 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\tau=2\cdot\eta\cdot\left(\frac{\alpha}{\sigma\cdot S}\right)^{2}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+For the 
+\begin_inset Formula $\mu=0$
+\end_inset
+
+ case the average conditional durations are:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\tau^{A}=\frac{2+2\cdot\eta}{3}\cdot\tau
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\tau^{C}=\frac{1+4\cdot\eta}{6\cdot\eta}\cdot\tau
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+The trend is not a friend
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+For the 
+\begin_inset Formula $\mu\neq0$
+\end_inset
+
+ case the average duration gets modified (reduced) by a factor that is close
+ to:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+adj_{\tau}=\frac{1}{1+\left(\frac{\mu}{2\sqrt{2}\cdot\sigma}\right)^{2}\cdot\left(\frac{\alpha}{\sigma\cdot S}\right)^{2}}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Later when we use the distribution of the durations for inference we will
+ see that we benefit from looking at the cases where 
+\begin_inset Formula $\mu\neq0$
+\end_inset
+
+ , as 
+\begin_inset Formula $\frac{\partial\left(\tau\cdot adj_{\tau}\right)}{\partial\mu}=0$
+\end_inset
+
+ at 
+\begin_inset Formula $\mu=0$
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Large moves
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Continuations of k ticks:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+P\left(k,\alpha,\eta,t\right)\rightarrow P\left(1,k\cdot\alpha,\frac{\eta}{k},t\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Alternations of k ticks:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+P\left(k,\alpha,\eta,t\right)\rightarrow P\left(1,\alpha,\eta+\left(\frac{k-1}{2}\right),t\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+This is a really good way of dealing with these moves later with the bayesian
+ estimator
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Updated estimator
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+We can write:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\hat{\eta}=\frac{\sum_{k}\left(k\cdot N_{k}^{C}\right)}{2\cdot\sum_{k}\left(N_{k}^{A}\right)}-\sum_{k}\left(\lambda_{k}\cdot\left(\frac{k-1}{2}\right)\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+With
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\lambda_{k}=\frac{N_{k}^{A}}{\sum_{k}\left(N_{k}^{A}\right)}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Or directly:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\hat{\eta}=\frac{\sum_{k}\left(k\cdot N_{k}^{C}\right)-\sum_{k}\left(\left(k-1\right)\cdot N_{k}^{A}\right)}{2\cdot\sum_{k}\left(N_{k}^{A}\right)}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+\begin_inset Quotes eld
+\end_inset
+
+Markov
+\begin_inset Quotes erd
+\end_inset
+
+ chain
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Adding the count of the 4 different events we have a 
+\begin_inset Quotes eld
+\end_inset
+
+Markov
+\begin_inset Quotes erd
+\end_inset
+
+ chain (events are not evenly spaced, probabilities may vary over time):
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="7" columns="7">
+<features tabularvalignment="middle">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Alt Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Alt Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Cont Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Cont Down
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $P_{-}^{A}$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $P_{+}^{C}$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $P_{+}^{A}$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $P_{-}^{C}$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Alt Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Alt Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Cont Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Cont Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Asymptotic probabilities
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+For Up and Down moves: 
+\begin_inset Formula $\rho_{+}=\frac{P_{+}^{A}}{P_{+}^{A}+P_{-}^{A}}$
+\end_inset
+
+ and 
+\begin_inset Formula $\rho_{-}=\frac{P_{-}^{A}}{P_{+}^{A}+P_{-}^{A}}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+For Alternations (this holds well in the data I've seen so far):
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\rho_{+}^{A}=\rho_{-}^{A}=\frac{P_{+}^{A}\cdot P_{-}^{A}}{P_{+}^{A}+P_{-}^{A}}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+For Continuations Up:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\rho_{+}^{C}=\frac{P_{+}^{A}\cdot\left(1-P_{-}^{A}\right)}{P_{+}^{A}+P_{-}^{A}}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+For Continuations Down:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\rho_{-}^{C}=\frac{\left(1-P_{+}^{A}\right)\cdot P_{-}^{A}}{P_{+}^{A}+P_{-}^{A}}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Simulation
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Each price change is determined by a pair of random numbers 
+\begin_inset Formula $\left\{ r_{1},r_{2}\right\} $
+\end_inset
+
+:
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+The first determines whether the next trade is Up or Down given the sign
+ of the last trade: 
+\begin_inset Formula $ud_{j-1}=sud_{j}$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Itemize
+The second determines the duration between price changes:
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{P_{\pm}\left(t\right)}{P_{\pm}}=r_{2}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+The distribution of price changes of more than one tick can be a variable
+ of the (parameters of the) simulation as well
+\end_layout
+
+\begin_layout Itemize
+Not only realistic price changes but realistic durations
+\end_layout
+
+\end_deeper
+\begin_layout Frame
+
+\end_layout
+
+\begin_layout Frame
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Summary of updated UZ model
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Updated UZ model for a more general case 
+\begin_inset Formula $\left(\mu\neq0\right)$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Itemize
+Updated estimator for a better treatment of large moves
+\end_layout
+
+\begin_layout Itemize
+Durations (unconditional and conditional) estimators including 
+\begin_inset Formula $\left(\mu\neq0\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+The count 
+\begin_inset Formula $\frac{N^{C}}{2\cdot N^{A}}$
+\end_inset
+
+ is now equal to 
+\begin_inset Formula $\frac{P_{+}^{A}+P_{-}^{A}}{4\cdot P_{+}^{A}\cdot P_{-}^{A}}-\frac{1}{2}\geq\eta$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Signed alternations and continuations with their own probabilities (and
+ 
+\begin_inset Formula $\rho_{+}^{A}=\rho_{-}^{A}$
+\end_inset
+
+)
+\end_layout
+
+\begin_layout Itemize
+We will use the approximation 
+\begin_inset Formula $\rho_{+}^{C}-\rho_{-}^{C}=2\cdot\eta\cdot\tanh\left(\frac{\mu}{\sigma^{2}}\cdot\frac{\alpha}{S_{0}}\right)$
+\end_inset
+
+ later
+\end_layout
+
+\begin_layout Itemize
+Easy to simulate
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Bayesian Inference for the UZ Model
+\begin_inset Argument 2
+status open
+
+\begin_layout Plain Layout
+BUZ
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Goal of BUZ
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Two different goals: (i) Historical / EOD and (ii) Online (our focus)
+\end_layout
+
+\begin_layout Itemize
+Get a better estimate of intraday changes in 
+\begin_inset Formula $\theta=\left\{ \eta,\sigma,\mu\right\} $
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Captures intraday change in relative tick size (as the price of the asset
+ changes)
+\end_layout
+
+\begin_layout Itemize
+No need for a rolling window to estimate η and σ: react quickly to changes
+\end_layout
+
+\begin_layout Itemize
+Easy to calculate (trades: price changes only)
+\end_layout
+
+\begin_layout Itemize
+Efficient prices estimates (σ and μ) can be combined across different contracts
+ / assets with the same underlying 
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Priors and independence
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Start with lognormal priors for η and σ, uniform priors for μ and assume
+ independence (easier)
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename Priors.jpg
+	scale 23
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Durations
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\theta=\left\{ \eta,\sigma,\mu\right\} :p\left(\theta\;\middle\vert\;x\right)=p\left(x\;\middle\vert\;\theta\right)\cdot p\left(\theta\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Where x is the relevant data for each change in price (tick size, sign and
+ size of the move in ticks, time from previous price change)
+\end_layout
+
+\begin_layout Itemize
+The likelihood 
+\begin_inset Formula $p\left(x\;\middle\vert\;\theta\right)$
+\end_inset
+
+ is given by the pdf corresponding to 
+\begin_inset Formula $P_{\pm}\left(t\right)$
+\end_inset
+
+ as previously defined
+\end_layout
+
+\begin_layout Itemize
+But remember that it won't help much with μ specially around 
+\begin_inset Formula $\mu=0$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+In this particular implementation I discretized the grid quite coarsely
+\end_layout
+
+\begin_layout Itemize
+Different paths for efficient price, same random numbers, parameters change
+ midway through (could do it for tick size as well)
+\end_layout
+
+\begin_layout Itemize
+Base case: 
+\begin_inset Formula $\theta=\left\{ \eta,\sigma,\mu\right\} =\left\{ 0.35,0.01,0\right\} $
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Give me a 
+\begin_inset Quotes eld
+\end_inset
+
+t
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Even the first price change is informative (it gives a good idea of the
+ scale τ)
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename Marginals0_1.jpg
+	scale 23
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+20 questions
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+After 20 price changes things look better:
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename Marginals0_20.jpg
+	scale 23
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename Means0_20.jpg
+	scale 23
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Counts
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+How did we update μ after 20 price changes?
+\end_layout
+
+\begin_layout Itemize
+The likelihood 
+\begin_inset Formula $p\left(x\;\middle\vert\;\theta\right)$
+\end_inset
+
+ is given by the multinomial likelihood:
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+\begin_inset Formula $p\left(\left\{ n_{+}^{A},n_{-}^{A},n_{+}^{C},n_{-}^{C}\right\} \;\middle\vert\;\left\{ \rho_{+}^{A},\rho_{-}^{A},\rho_{+}^{C},\rho_{-}^{C}\right\} \right)=\frac{\left(n_{+}^{A}+n_{-}^{A}+n_{+}^{C}+n_{-}^{C}\right)!}{\left(n_{+}^{A}!\cdot n_{-}^{A}!\cdot n_{+}^{C}!\cdot n_{-}^{C}!\right)}\left(\left(\rho_{+}^{A}\right)^{n_{+}^{A}}\cdot\left(\rho_{-}^{A}\right)^{n_{-}^{A}}\cdot\left(\rho_{+}^{C}\right)^{n_{+}^{C}}\cdot\left(\rho_{-}^{C}\right)^{n_{-}^{C}}\right)$
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Two different goals: (i) Historical / EOD and (ii) Online (our focus)
+\end_layout
+
+\begin_layout Itemize
+For Historical we can get a large window (e.g.
+ n=100) and use the posterior for μ back to recalculate θ (until it doesn't
+ change)
+\end_layout
+
+\begin_layout Itemize
+For Online we try to choose n that is big enough to give us some differentiation
+ but not that big that will take too long to update or that will give us
+ a likelihood too narrow
+\end_layout
+
+\begin_layout Itemize
+We can use n=20 up to n=50; with n=20 we're bound to react too quickly,
+ but updating the probabilities every 20 changes as well should be enough
+ to dissipate transients quite quickly
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Counts - Likelihoods
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+From 
+\begin_inset Formula $\rho_{+}^{C}-\rho_{-}^{C}=2\cdot\eta\cdot\tanh\left(\frac{\mu}{\sigma^{2}}\cdot\frac{\alpha}{S_{0}}\right)$
+\end_inset
+
+ we infer 
+\begin_inset Formula $\hat{\mu}=\frac{\hat{\sigma}^{2}}{\left(\frac{\alpha}{S_{0}}\right)}\cdot\tanh^{-1}\left(\frac{\rho_{+}^{C}-\rho_{-}^{C}}{2\cdot\hat{\eta}}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename Multinomial20.jpeg
+	lyxscale 30
+	scale 23
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename Multinomial50.jpeg
+	lyxscale 30
+	scale 23
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Counts - Likelihoods - Low σ
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+A lower σ gives us better resolution for μ (but worse for η)
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename Multinomial20LV.jpeg
+	lyxscale 30
+	scale 23
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename Multinomial50LV.jpeg
+	lyxscale 30
+	scale 23
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Are we there yet?
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+After 50 price changes things look really good:
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename Marginals0_50.jpg
+	scale 23
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename Means0_50.jpg
+	scale 23
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+No surprises
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+After 15% of the simulated trading day (9 hours long) our posteriors have
+ become quite narrow and the estimates for η and σ are stable:
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename Marginals0_All.jpg
+	scale 23
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename Means0_All.jpg
+	scale 23
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+σ up and down
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+We capture quickly changes in σ (from 0.01 to 0.015 on the left and 0.005 on
+ the right), but increases make μ unstable and decreases make η unstable
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename VolUp.jpg
+	scale 23
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename VolDown.jpg
+	scale 23
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+μ with different σ
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+The higher the ratio 
+\begin_inset Formula $\mu/\sigma^{2}$
+\end_inset
+
+, the better we are in estimating μ (going from 0 to 0.20)
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename TrendUp.jpg
+	scale 23
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename TrendUpVolDown.jpg
+	scale 23
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Low μ; change in η
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+The lower the ratio 
+\begin_inset Formula $\mu/\sigma^{2}$
+\end_inset
+
+, the harder it is to find μ (from 0 to 0.05); lower η (from 0.35 to 0.15)
+ also make μ harder to estimate
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename LowTrend.jpg
+	scale 23
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename EtaLow.jpg
+	scale 23
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+The Uncertainty Principle of the Uncertainty Zones
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+We cannot have good estimates of all 3 parameters η, σ and μ simultaneously
+ 
+\end_layout
+
+\begin_layout Enumerate
+High σ helps with η but worsens μ
+\end_layout
+
+\begin_layout Enumerate
+Low σ helps with μ but worsens η
+\end_layout
+
+\begin_layout Enumerate
+High η helps with μ but worsens σ
+\end_layout
+
+\begin_layout Enumerate
+Low η helps with σ but worsens μ
+\end_layout
+
+\begin_layout Enumerate
+High μ helps with σ but worsens η
+\end_layout
+
+\begin_layout Enumerate
+Low μ helps with η but worsens σ
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Summary of Bayesian UZ estimation
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+Quick to find σ in most cases
+\end_layout
+
+\begin_layout Enumerate
+Nudging μ away from 0 helps, but don't try be overconfident on μ
+\end_layout
+
+\begin_layout Enumerate
+Cannot be excellent in all 3 simultaneously
+\end_layout
+
+\begin_layout Enumerate
+n between 20 and 50 for counts should be good enough for online
+\end_layout
+
+\begin_layout Enumerate
+Combine estimation (σ and μ) across different contracts with the same underlying
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Microstructure interpretations
+\begin_inset Argument 2
+status open
+
+\begin_layout Plain Layout
+Why?
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+What determines η?
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Probabilistic mean reversion parameter (can be higher than 1/2)
+\end_layout
+
+\begin_layout Itemize
+Increases with the dispersion of the distribution of the size of market
+ orders
+\end_layout
+
+\begin_layout Itemize
+Decreases with the increase of the posted amount on the top of the queue
+\end_layout
+
+\begin_layout Itemize
+Decreases with the increase of the probability of a reverting fill of empty
+ places on the top of the queue (reverting fill: keep the previous bid/ask
+ status before cancel/trade)
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Instability and feedbacks
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Agents are always trying to estimate the probabilities of reversion and
+ trending; slow agents rely mainly on price changes, not order book dynamics
+\end_layout
+
+\begin_layout Itemize
+What happens when the formulas:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\rho_{+}^{C}-\rho_{-}^{C}=2\cdot\eta\cdot\tanh\left(\frac{\mu}{\sigma^{2}}\cdot\frac{\alpha}{S_{0}}\right)
+\]
+
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Itemize
+And:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\hat{\mu}=\frac{\hat{\sigma}^{2}}{\left(\frac{\alpha}{S_{0}}\right)}\cdot\tanh^{-1}\left(\frac{\rho_{+}^{C}-\rho_{-}^{C}}{2\cdot\hat{\eta}}\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Feed on each other? And when σ increases (probably increasing η) and makes
+ it harder to estimate μ?
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Where will it end?
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Look at stability (or lack of) in the matrix:
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="7" columns="7">
+<features tabularvalignment="middle">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Alt Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Alt Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Cont Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Cont Down
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $P_{-}^{A}$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $P_{+}^{C}$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $P_{+}^{A}$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $P_{-}^{C}$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Alt Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Alt Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Cont Up
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\size footnotesize
+Cont Down
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Stop the press
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+What can exchanges and regulators do?
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Standard answer: auctions after big (and/or fast) price changes
+\end_layout
+
+\begin_layout Itemize
+Alternative: Increase the tick size
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Each limit order has an original price but it could have a 
+\begin_inset Quotes eld
+\end_inset
+
+rounded
+\begin_inset Quotes erd
+\end_inset
+
+ executable price depending on the prevailing tick size
+\end_layout
+
+\begin_layout Itemize
+You keep price discovery while keeping up with increasing volatility
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Intraday changes in tick today are only dependent on price - why not volatility?
+\end_layout
+
+\end_deeper
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Rough volatility
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Enough about Monte Carlo paths, what about real data?
+\end_layout
+
+\begin_layout Itemize
+Volatility is rough, so who's responsible: σ or μ?
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+\begin_inset Quotes eld
+\end_inset
+
+Drift Burst
+\begin_inset Quotes erd
+\end_inset
+
+: once a week
+\end_layout
+
+\begin_layout Itemize
+So probably σ, but why and how?
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Hawkes process: reactive moves
+\end_layout
+
+\begin_layout Itemize
+Consequence of electronic trading
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+\begin_inset Quotes eld
+\end_inset
+
+Trading: Fast and Slow
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Mixture of two different processes on very different scales
+\end_layout
+
+\begin_layout Itemize
+Classify durations
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Fast should be of the order of magnitude of latencies (we should be able
+ to see this over time) - 
+\end_layout
+
+\begin_layout Itemize
+Slow should behave as above
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Then check if the 
+\begin_inset Quotes eld
+\end_inset
+
+slow
+\begin_inset Quotes erd
+\end_inset
+
+ volatility still fluctuates
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+To do
+\begin_inset Argument 2
+status open
+
+\begin_layout Plain Layout
+To do
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Methods and code
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Improve grid (adaptive, more granularity around means as marginals narrow)
+\end_layout
+
+\begin_layout Itemize
+Adaptive window for count as volatility changes
+\end_layout
+
+\begin_layout Itemize
+Parallelization / memoization of likelihood calculations
+\end_layout
+
+\begin_layout Itemize
+Parallel 
+\begin_inset Quotes eld
+\end_inset
+
+fast
+\begin_inset Quotes erd
+\end_inset
+
+ and 
+\begin_inset Quotes eld
+\end_inset
+
+slow
+\begin_inset Quotes erd
+\end_inset
+
+ processes
+\end_layout
+
+\begin_layout Itemize
+Parallel σ and μ marginals for related assets
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Data and models
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Futures with normal and mini versions (different η and sometimes α, low
+ latency)
+\end_layout
+
+\begin_layout Itemize
+Market shocks (drift burst?)
+\end_layout
+
+\begin_layout Itemize
+Can we separate the 
+\begin_inset Quotes eld
+\end_inset
+
+fast
+\begin_inset Quotes erd
+\end_inset
+
+ and 
+\begin_inset Quotes eld
+\end_inset
+
+slow
+\begin_inset Quotes erd
+\end_inset
+
+ regimes?
+\end_layout
+
+\begin_layout Itemize
+Is the behavior of large moves consistent?
+\end_layout
+
+\begin_layout Itemize
+Link to Queue Reactive model
+\end_layout
+
+\begin_layout Itemize
+Even price level changes are a natural experiment
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Conclusions
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+What this talk was about anyway?
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+Volatility estimation
+\end_layout
+
+\begin_layout Itemize
+Take a great model (UZ) and 
+\color red
+improve it (trends and large moves)
+\end_layout
+
+\begin_layout Itemize
+Use 
+\color red
+durations and counts for bayesian estimation of volatility and trend
+\end_layout
+
+\begin_layout Standard
+Market microstructure
+\end_layout
+
+\begin_layout Itemize
+Generalize 
+\color red
+η as a mean reversion parameter (can be higher than 1/2)
+\end_layout
+
+\begin_layout Itemize
+
+\color red
+Quantify uncertainty
+\color inherit
+ as a driver of 
+\color red
+market-maker behavior
+\end_layout
+
+\begin_layout Itemize
+
+\color red
+Different time scales and possibly different behaviors
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section*
+References
+\end_layout
+
+\begin_layout Frame
+\begin_inset Argument 4
+status open
+
+\begin_layout Plain Layout
+Books, papers
+\end_layout
+
+\end_inset
+
+
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Robert, C.
+ Y.
+ and Rosenbaum, M.
+ (2009): 
+\begin_inset Quotes eld
+\end_inset
+
+Volatility Estimation under Endogenous Microstructure Noise
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Dayri, K.
+ and Rosenbaum, M.
+ (2015), 
+\begin_inset Quotes eld
+\end_inset
+
+Large Tick Assets: Implicit Spread and Optimal Tick Size
+\end_layout
+
+\begin_layout Itemize
+Huang, W., Lehalle, C.-A.
+ and Rosenbaum, M.
+ (2015), 
+\begin_inset Quotes eld
+\end_inset
+
+Simulating and analyzing order book data: The queue-reactive model
+\end_layout
+
+\begin_layout Itemize
+Carreira, M., and Brostowicz, R.
+ (2016): 
+\begin_inset Quotes eld
+\end_inset
+
+Brazilian Derivatives and Securities
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Sidenius, J.
+ (1998), 
+\begin_inset Quotes eld
+\end_inset
+
+Double barrier options: valuation by path counting
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Christensen, K., Oomen, R.
+ and Renò, R.
+ (2016): "The Drift Burst Hypothesis"
+\end_layout
+
+\begin_layout Itemize
+Chaboud, A., Dao, A.
+ and Vega, C.
+ (2019): 
+\begin_inset Quotes eld
+\end_inset
+
+What makes HFTs tick?
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Separator parbreak
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
