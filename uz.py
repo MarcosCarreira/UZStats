@@ -418,27 +418,45 @@ def pathaestats(df,j,v,dtosec):
 #     return (x > 0) - (x < 0)
 
 @numba.jit(nopython=True)
-def probc(ud, sud, s, α, η, σ, μ):
+def probc(ud: int, sud: int, s: float,
+          α: float, η: float, σ: float, μ: float) -> float:
+    '''probc(ud: int, sud: int, s: float, α0: float, η0: float,
+          α: float, η: float, σ: float, μ: float) -> float)
+          returns a float between 0 and 1 corresponding to the
+          limit of P(t) for the given pair ud, sud.
+          ud, sud = (-1, +1)
+          s, α, η, σ: floats > 0
+          μ = float'''
     ω = μ - 0.5 * (σ ** 2)
     x0 = np.log(s + sud * (0.5 - η) * α)
     b1 = np.log(s + ud * (0.5 + η) * α)
     b2 = np.log(s - ud * (0.5 + η) * α)
+#   x0 should be between b1 and b2 (or b2 and b1)
     if ω == 0:
         return (b2 - x0) / (b2 - b1)
     else:
         ke = 2 * np.abs(ω) * ud / (σ ** 2)
-        e0 = (1 - np.sign(ω) * ud) * ω * (b1 - x0) / (σ ** 2)
-        return np.exp(e0) * (1 - np.exp(ke * (b2 - x0))) / (1 - np.exp(ke * (b2 - b1)))
+        if np.exp(ke * (b2 - b1)) == 1:
+            return (b2 - x0) / (b2 - b1)
+        else:
+            e0 = (1 - np.sign(ω) * ud) * ω * (b1 - x0) / (σ ** 2)
+            return np.exp(e0) * (1 - np.exp(ke * (b2 - x0))) / (1 - np.exp(ke * (b2 - b1)))
 
 # %% Limit probabilities of Markov Chain
 
 def four_ps(s, α, η, σ, μ):
     pT_Al_Up = max(0, probc(+1, +1, s, α, η, σ, μ))
     pT_Al_Down = max(0, probc(-1, -1, s, α, η, σ, μ))
-    p1_Al_Up = max(1e-20, (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down))
-    p1_Co_Up = max(1e-20, (pT_Al_Up * (1 - pT_Al_Down)) / (pT_Al_Up + pT_Al_Down))
-    p1_Al_Down = max(1e-20, (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down))
-    p1_Co_Down = max(1e-20, ((1 - pT_Al_Up) * pT_Al_Down) / (pT_Al_Up + pT_Al_Down))
+    if (pT_Al_Up + pT_Al_Down) == 0:
+        p1_Al_Up = 1e-20
+        p1_Al_Down = 1e-20
+        p1_Co_Up = max(1e-20, (1 - pT_Al_Down) / 2)
+        p1_Co_Down = max(1e-20, (1 - pT_Al_Up) / 2)
+    else:
+        p1_Al_Up = max(1e-20, (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down))
+        p1_Al_Down = max(1e-20, (pT_Al_Up * pT_Al_Down) / (pT_Al_Up + pT_Al_Down))
+        p1_Co_Up = max(1e-20, (pT_Al_Up * (1 - pT_Al_Down)) / (pT_Al_Up + pT_Al_Down))
+        p1_Co_Down = max(1e-20, ((1 - pT_Al_Up) * pT_Al_Down) / (pT_Al_Up + pT_Al_Down))
     return (p1_Al_Up, p1_Al_Down, p1_Co_Up, p1_Co_Down)
 
 # %% Conditional CDFs (unscaled) - Numba, within epsilon (while)
@@ -463,17 +481,34 @@ def cdftc(ud, sud, s, α, η, σ, μ, t):
             dyzn = ud * 2 * (n - 1) * (b2 - b1)
             yn = dyzn + y1
             zn = dyzn + z1
-            tyznn =\
-                (np.exp(ω * yn / (σ ** 2)) * erfc(
-                -(yn + ω * t) / (σ * np.sqrt(2 * t))) -
-                np.exp(ω * zn / (σ ** 2)) * erfc(
-                -(zn + ω * t) / (σ * np.sqrt(2 * t))) +
-                np.exp(-ω * yn / (σ ** 2)) * erfc(
-                -(yn - ω * t) / (σ * np.sqrt(2 * t))) -
-                np.exp(-ω * zn / (σ ** 2)) * erfc(
-                -(zn - ω * t) / (σ * np.sqrt(2 * t)))) / 2
+            tyznn = (
+                np.exp( (ω * yn / (σ ** 2)) + 
+                    np.log(
+                        erfc(-(yn + ω * t) / (σ * np.sqrt(2 * t))) -
+                        erfc(-(zn + ω * t) / (σ * np.sqrt(2 * t))) *
+                        np.exp((ω / (σ ** 2)) * ud * 2 * (b2 - x0))
+                    )
+                ) +
+                
+                np.exp( (- ω * yn / (σ ** 2)) + 
+                    np.log(
+                        erfc(-(yn - ω * t) / (σ * np.sqrt(2 * t))) -
+                        erfc(-(zn - ω * t) / (σ * np.sqrt(2 * t))) *
+                        np.exp((- ω / (σ ** 2)) * ud * 2 * (b2 - x0))
+                    )
+                )
+            )/2
+            # tyznn =\
+            #     (np.exp(ω * yn / (σ ** 2)) * erfc(
+            #     -(yn + ω * t) / (σ * np.sqrt(2 * t))) -
+            #     np.exp(ω * zn / (σ ** 2)) * erfc(
+            #     -(zn + ω * t) / (σ * np.sqrt(2 * t))) +
+            #     np.exp(-ω * yn / (σ ** 2)) * erfc(
+            #     -(yn - ω * t) / (σ * np.sqrt(2 * t))) -
+            #     np.exp(-ω * zn / (σ ** 2)) * erfc(
+            #     -(zn - ω * t) / (σ * np.sqrt(2 * t)))) / 2
             tyzn += tyznn
-        ans = np.exp(ω * (b1 - x0) / (σ ** 2)) * tyzn
+        ans = min(probc(ud, sud, s, α, η, σ, μ), np.exp(ω * (b1 - x0) / (σ ** 2)) * tyzn)
     return ans
 
 # %% Adjusted conditional CDFs
@@ -493,7 +528,7 @@ def pdftc(ud, sud, s, α, η, σ, μ, t, δt=0.0001):
         return 0
     else:
         pc = probc(ud, sud, s, α, η, σ, μ)
-        if pc == 0:
+        if t * δt * pc == 0:
             return 0
         else:
             return ((cdftc(ud, sud, s, α, η, σ, μ, t * (1 + δt)) -
@@ -526,108 +561,11 @@ def multinom_likel(prior, hist):
     log3 = np.sum(np.array([hist[j] * np.log(prior[j]) for j in range(len(prior))]))
     return np.exp(log1 - log2 + log3)
 
-# %% Barrier CDF - Numba, within epsilon (while)
-
-# @numba.jit(nopython=True)
-# def nprobw(ud, s0, s, α, η, σ, μ, t):
-#     if t == 0:
-#         ans = 0
-#     else:
-#         ω = μ - 0.5 * σ ** 2
-#         x0 = np.log(s0)
-#         bu = np.log(s + (0.5 + η) * α)
-#         bd = np.log(s - (0.5 + η) * α)
-#         bpm = bu * (1 + ud) / 2 + bd * (1 - ud) / 2
-#         bmp = bu * (1 - ud) / 2 + bd * (1 + ud) / 2
-#         tyzn = 0
-#         n = 0
-#         tyznn = 1
-#         eps=1e-16
-#         while tyznn > eps:
-#             n += 1
-#             yn = ud * (2 * (n - 1) * bmp - (2 * n - 1) * bpm + x0)
-#             zn = ud * (2 * n * bmp - (2 * n - 1) * bpm - x0)
-#             tyznn =\
-#                 (np.exp(ω * yn / (σ ** 2)) * erfc(
-#                 -(yn + ω * t) / (σ * np.sqrt(2 * t))) -
-#                 np.exp(ω * zn / (σ ** 2)) * erfc(
-#                 -(zn + ω * t) / (σ * np.sqrt(2 * t))) +
-#                 np.exp(-ω * yn / (σ ** 2)) * erfc(
-#                 -(yn - ω * t) / (σ * np.sqrt(2 * t))) -
-#                 np.exp(-ω * zn / (σ ** 2)) * erfc(
-#                 -(zn - ω * t) / (σ * np.sqrt(2 * t)))) / 2
-#             tyzn += tyznn
-#         ans = np.exp(ω * (bpm - x0) / (σ ** 2)) * tyzn
-#     return ans
-
-# @numba.jit(nopython=True)
-# def nprobsw(ud, sud, s, α, η, σ, μ, ts):
-#     s0 = s + sud * (0.5 - η) * α
-#     return np.array([nprobw(ud, s0, s, α, η, σ, μ, t) for t in ts])
-
-# %% Barrier PDF - Numba, within epsilon (while), not normalized
-
-# @numba.jit(nopython=True)
-# def nprobmw(ud, sud, s, α, η, σ, μ, t, δt=0.0001):
-#     if t == 0:
-#         return 0
-#     else:
-#         s0 = s + sud * (0.5 - η) * α
-#         if nprobw(ud, s0, s, α, η, σ, μ, 1) == 0:
-#             return 0
-#         else:
-#             return ((nprobw(ud, s0, s, α, η, σ, μ, t * (1 + δt)) -
-#                     nprobw(ud, s0, s, α, η, σ, μ, t * (1 - δt))) /
-#                     (2 * t * δt * nprobw(ud, s0, s, α, η, σ, μ, 1)))
-
-# @numba.jit(nopython=True)
-# def nprobmsw(ud, sud, s, α, η, σ, μ, ts, δt=0.0001):
-#     s0 = s + sud * (0.5 - η) * α
-#     return np.array([nprobmw(ud, s0, s, α, η, σ, μ, t, δt) for t in ts])
-
-# %% Define t_from_p (for inverse CDF)
-# def t_from_p(ud, sud, s, α, η, σ, μ, p):
-#     '''t_from_p(ud, sud, s, α, η, σ, μ) solves the equation
-#     Pup(t) / Pup(1) (or Pdown(t) / Pdown(1))  = p;
-#     so for a random p such that 0 <= p <= 1 we find
-#     the expected time of a price change for the sign given'''
-#     s0 = s + sud * (0.5 - η) * α
-#     T = 1
-#     mprobt = partial(nprobw, ud, s0, s, α, η, σ, μ)
-#     mprobtT = nprobw(ud, s0, s, α, η, σ, μ, T)
-#     if mprobtT == 0:
-#         print('mprobtT == 0')
-#         print((ud, sud, s0, s, α, η, σ, μ))
-#     def groot(t):
-#         return np.round(mprobt(t)/mprobtT - p, decimals=6)
-#     sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
-#     return sol.root
-
-# def t_from_ps(ud, sud, s, α, η, σ, μ, ps):
-#     '''t_from_p(ud, s0, s, α, η, σ, μ) solves the equation
-#     Pup(t) / Pup(1) (or Pdown(t) / Pdown(1))  = p;
-#     so for a random p such that 0 <= p <= 1 we find
-#     the expected time of a price change for the sign given'''
-#     s0 = s + sud * (0.5 - η) * α
-#     T = 1
-#     mprobt = partial(nprobw, ud, s0, s, α, η, σ, μ)
-#     mprobtT = nprobw(ud, s0, s, α, η, σ, μ, T)
-#     if mprobtT == 0:
-#         print('mprobtT == 0')
-#         print((ud, sud, s0, s, α, η, σ, μ))
-#     ts = []
-#     for p in ps:
-#         def groot(t):
-#             return np.round(mprobt(t)/mprobtT - p, decimals=6)
-#         sol = optimize.root_scalar(groot, bracket=[0, 1], method='brentq')
-#         ts = ts + [sol.root]
-#     return np.array(ts)
-
 # %% Class for bayesian estimation
 
 class Process():
     
-    def __init__(self, ηs, σs, μs, roll_window=20, update_freq=20):
+    def __init__(self, ηs, σs, μs, hours=16, cutoff=(5e-3), roll_window=20, update_freq=20):
         self.__ηs = list(ηs.keys())
         self.__σs = list(σs.keys())
         self.__μs = list(μs.keys())
@@ -655,9 +593,6 @@ class Process():
         self.__probs_μ = self.__probs.view()
         self.__likel = self.__probs.view()
         self.__likel_μ = self.__probs.view()
-        self.__four_ps_μ = np.multiply.outer(np.array([1, 1, 1, 1]),
-            np.multiply.outer(self.__ηv,
-            np.multiply.outer(self.__σv, self.__μv)))
         self.__prob_size = self.__ηn * self.__σn * self.__μn
         self.__prob_floor = 1e-5 / (self.__ηn * self.__σn * self.__μn)
         self.__count = [0, [0, 0, 0, 0]]
@@ -665,8 +600,16 @@ class Process():
         self.__ηm = pd.Series(dtype=float)
         self.__σm = pd.Series(dtype=float)
         self.__μm = pd.Series(dtype=float)
+        self.__sumCo = pd.Series(dtype=float)
+        self.__sumAl = pd.Series(dtype=float)
+        self.__sumAlk = pd.Series(dtype=float)
+        self.__sumH = pd.Series(dtype=float)
+        self.__cutoffms = cutoff * 1000
+        self.__mindt = cutoff / (hours * 3600)
+        self.__fast = pd.Series(dtype=float)
         self.__FIG_SIZE_1 = (9, 12)
         self.__Y_FIG_1 = 0.96
+        self.__FIG_SIZE_2 = (9, 16)
 
         
     @property
@@ -677,17 +620,17 @@ class Process():
     def show_probs(self):
         return self.__probs
 
-    def __calc_four_ps(self):
-        s = self.__pxs.loc[self.__j - 1]
-        α = self.__ticks.loc[self.__j - 1]
-        for ηi in range(self.__ηn):
-            η = self.__ηs[ηi]
-            for σi in range(self.__σn):
-                σ = self.__σs[σi]
-                for μi in range(self.__μn):
-                    μ = self.__μs[μi]
-                    self.__four_ps_μ[0, ηi, σi, μi], self.__four_ps_μ[1, ηi, σi, μi],\
-                        self.__four_ps_μ[2, ηi, σi, μi], self.__four_ps_μ[3, ηi, σi, μi] = four_ps(s, α, η, σ, μ)
+    @property
+    def show_sumH(self):
+        return self.__sumH
+
+    @property
+    def show_fast(self):
+        return self.__fast
+
+    @property
+    def show_sumcutoff(self):
+        return np.sum(self.__fast) / len(self.__fast)
 
     @property
     def show_marginals(self):
@@ -726,86 +669,26 @@ class Process():
         axs[2].plot(self.__μs, np.sum(self.__probs_μ, axis=(0, 1)), color = 'b', marker='o')
         axs[2].set_title('μ = ' + '{:.3e}'.format(np.dot(self.__μs, np.sum(self.__probs_μ, axis=(0, 1)))))
 
-    # @property
-    # def plot_four_ps(self):   
-    #     fig, axs = plt.subplots(4, 3, figsize=(12, 15))
-    #     fig.suptitle('Asymptotic Probs', y=0.92)
-    #     axs[0, 0].plot(self.__ηs, np.mean(self.__four_ps_μ[0], axis=(1, 2)), color = 'b', marker='o')
-    #     axs[0, 0].set_title('η -> Al_Up')
-    #     axs[0, 1].plot(self.__σs, np.mean(self.__four_ps_μ[0], axis=(0, 2)), color = 'b', marker='o')
-    #     axs[0, 1].set_title('σ -> Al_Up')
-    #     axs[0, 2].plot(self.__μs, np.mean(self.__four_ps_μ[0], axis=(0, 1)), color = 'b', marker='o')
-    #     axs[0, 2].set_title('μ -> Al_Up')
-    #     axs[1, 0].plot(self.__ηs, np.mean(self.__four_ps_μ[1], axis=(1, 2)), color = 'b', marker='o')
-    #     axs[1, 0].set_title('η -> Al_Down')
-    #     axs[1, 1].plot(self.__σs, np.mean(self.__four_ps_μ[1], axis=(0, 2)), color = 'b', marker='o')
-    #     axs[1, 1].set_title('σ -> Al_Down')
-    #     axs[1, 2].plot(self.__μs, np.mean(self.__four_ps_μ[1], axis=(0, 1)), color = 'b', marker='o')
-    #     axs[1, 2].set_title('μ -> Al_Down')
-    #     axs[2, 0].plot(self.__ηs, np.mean(self.__four_ps_μ[2], axis=(1, 2)), color = 'b', marker='o')
-    #     axs[2, 0].set_title('η -> Co_Up')
-    #     axs[2, 1].plot(self.__σs, np.mean(self.__four_ps_μ[2], axis=(0, 2)), color = 'b', marker='o')
-    #     axs[2, 1].set_title('σ -> Co_Up')
-    #     axs[2, 2].plot(self.__μs, np.mean(self.__four_ps_μ[2], axis=(0, 1)), color = 'b', marker='o')
-    #     axs[2, 2].set_title('μ -> Co_Up')
-    #     axs[3, 0].plot(self.__ηs, np.mean(self.__four_ps_μ[3], axis=(1, 2)), color = 'b', marker='o')
-    #     axs[3, 0].set_title('η -> Co_Down')
-    #     axs[3, 1].plot(self.__σs, np.mean(self.__four_ps_μ[3], axis=(0, 2)), color = 'b', marker='o')
-    #     axs[3, 1].set_title('σ -> Co_Down')
-    #     axs[3, 2].plot(self.__μs, np.mean(self.__four_ps_μ[3], axis=(0, 1)), color = 'b', marker='o')
-    #     axs[3, 2].set_title('μ -> Co_Down')
-
-    # @property
-    # def plot_marginals_means(self):   
-    #     fig, axs = plt.subplots(3, 1, figsize=self.__FIG_SIZE_1)
-    #     fig.suptitle('Marginals (means): ' + str(self.__count_roll[0]) +
-    #         ' \n [Al_Up, Al_Down, Co_Up, Co_Down] : \n ' +
-    #         str(self.__count_roll[1]), y=self.__Y_FIG_1)
-    #     axs[0].plot(self.__ηm.index, self.__ηm.values, color = 'r', marker='o')
-    #     axs[0].set_title('η = ' + '{:.3f}'.format(np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))))
-    #     axs[1].plot(self.__σm.index, self.__σm.values, color = 'r', marker='o')
-    #     axs[1].set_title('σ = ' + '{:.5f}'.format(np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))))
-    #     axs[2].plot(self.__μm.index, self.__μm.values, color = 'r', marker='o')
-    #     axs[2].set_title('μ = ' + '{:.3e}'.format(np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))))
-
     @property
     def plot_marginals_means(self):   
-        fig, axs = plt.subplots(3, 1, figsize=self.__FIG_SIZE_1)
+        fig, axs = plt.subplots(4, 1, figsize=self.__FIG_SIZE_2)
         fig.suptitle('Marginals (means): ' + str(self.__count[0]) +
             ' \n [Al_Up, Al_Down, Co_Up, Co_Down] : \n ' +
-            str(self.__count[1]), y=self.__Y_FIG_1)
-        axs[0].plot(self.__durs.cumsum().values, self.__ηm.values, color = 'r', marker='o', drawstyle='steps-post')
-        axs[0].set_title('η = ' + '{:.3f}'.format(np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))))
-        axs[1].plot(self.__durs.cumsum().values, self.__σm.values, color = 'r', marker='o', drawstyle='steps-post')
-        axs[1].set_title('σ = ' + '{:.5f}'.format(np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))))
-        axs[2].plot(self.__durs.cumsum().values, self.__μm.values, color = 'r', marker='o', drawstyle='steps-post')
-        axs[2].set_title('μ = ' + '{:.3e}'.format(np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))))
-
-    # def __calc_update_freq(self):
-    #     s = self.__pxs.iloc[-1]
-    #     α = self.__ticks.iloc[-1]
-    #     ηmrg = pd.Series(np.sum(self.__probs, axis=(1, 2)), index=self.__ηs)
-    #     σmrg = pd.Series(np.sum(self.__probs, axis=(0, 2)), index=self.__σs)
-    #     μmrg = pd.Series(np.sum(self.__probs, axis=(0, 1)), index=self.__μs)
-    #     likel_μ = []
-    #     η = self.__ηm.iloc[-1]
-    #     σ = self.__σm.iloc[-1]
-    #     for μi in range(self.__μn):
-    #         μ = self.__μs[μi]
-    #         # Use counts to update μ assuming average values for η and σ
-    #         new_likel = np.exp(4 + 0.25 * min(self.__count_roll[0])) *\
-    #             multinom_likel(four_ps(s, α, η, σ, μ), np.array(self.__count[1]))
-    #         likel_μ = likel_μ + [new_likel]
-    #     μmrg_μ = μmrg.values * np.array(likel_μ)
-    #     μmrg_μ = μmrg_μ / np.sum(μmrg_μ)
-    #     self.__probs_μ = np.multiply.outer(
-    #         ηmrg.values, np.multiply.outer(
-    #             σmrg.values, μmrg_μ))
-    #     self.__probs_μ = self.__probs_μ / np.sum(self.__probs_μ)
+            str(self.__count[1]) + '\n Fast: ' + str(np.sum(self.__fast)) +
+             ' Cutoff (ms): ' + str(self.__cutoffms), y=self.__Y_FIG_1)
+        axs[0].plot(self.__durs.cumsum().values, self.__sumH.values, color = 'r', marker='o', drawstyle='steps-post')
+        axs[0].set_title('H = ' + '{:.3e}'.format(self.__sumH.values[-1]))
+        axs[1].plot(self.__durs.cumsum().values, self.__ηm.values, color = 'r', marker='o', drawstyle='steps-post')
+        axs[1].set_title('η = ' + '{:.3f}'.format(np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))))
+        axs[2].plot(self.__durs.cumsum().values, self.__σm.values, color = 'r', marker='o', drawstyle='steps-post')
+        axs[2].set_title('σ = ' + '{:.5f}'.format(np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))))
+        axs[3].plot(self.__durs.cumsum().values, self.__μm.values, color = 'r', marker='o', drawstyle='steps-post')
+        axs[3].set_title('μ = ' + '{:.3e}'.format(np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))))
 
     def calc_update_freq(self):
         s = self.__pxs.iloc[-1]
         α = self.__ticks.iloc[-1]
+        # η0 = self.__ηm.iloc[-1]
         for ηi in range(self.__ηn):
             η = self.__ηs[ηi]
             for σi in range(self.__σn):
@@ -814,13 +697,14 @@ class Process():
                     μ = self.__μs[μi]
                     # Use counts to update μ
                     self.__likel_μ[ηi, σi, μi] = np.exp(0.25 * min(self.__count_roll[0])) *\
-                        multinom_likel(four_ps(s, α, η, σ, μ), np.array(self.__count_roll[1]))
+                        multinom_likel(four_ps(s, α, η, σ, μ), np.array(self.__count_roll[1]))  # η0
                     self.__probs_μ[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] * self.__likel_μ[ηi, σi, μi]
         self.__probs_μ = self.__probs_μ / np.sum(self.__probs_μ)
 
     def __calc_update_freq(self):
         s = self.__pxs.iloc[-1]
         α = self.__ticks.iloc[-1]
+        # η0 = self.__ηm.iloc[-1]
         for ηi in range(self.__ηn):
             η = self.__ηs[ηi]
             for σi in range(self.__σn):
@@ -829,7 +713,7 @@ class Process():
                     μ = self.__μs[μi]
                     # Use counts to update μ
                     self.__likel_μ[ηi, σi, μi] = np.exp(0.25 * min(self.__count_roll[0])) *\
-                        multinom_likel(four_ps(s, α, η, σ, μ), np.array(self.__count_roll[1]))
+                        multinom_likel(four_ps(s, α, η, σ, μ), np.array(self.__count_roll[1]))  # η0
                     self.__probs_μ[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] * self.__likel_μ[ηi, σi, μi]
         self.__probs_μ = self.__probs_μ / np.sum(self.__probs_μ)
 
@@ -853,13 +737,16 @@ class Process():
         self.__ηm.loc[0] = np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))
         self.__σm.loc[0] = np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))
         self.__μm.loc[0] = np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))
+        self.__sumH.loc[0] = 0.5
+        self.__fast.loc[0] = False
         self.__j += 1
-        self.__calc_four_ps()
         
     def init_px_chg(self, trade):
         ud, al, k, s, α, t = trade
         self.__durs.loc[self.__j] = t
-        # s0 = self.__pxs.loc[self.__j - 1]
+        s0 = self.__pxs.loc[self.__j - 1]
+        α0 = self.__ticks.loc[self.__j - 1]
+        # η0 = self.__ηm.loc[self.__j - 1]
         self.__pxs.loc[self.__j] = s
         self.__ticks.loc[self.__j] = α
         self.__signs.loc[self.__j] = ud
@@ -869,18 +756,27 @@ class Process():
         self.__Al_Down.loc[self.__j] = 0
         self.__Co_Down.loc[self.__j] = 0
         self.__count = [self.__j, [0, 0, 0, 0]]
-        # Use duration to update η, σ, μ, assumes continuation
-        for ηi in range(self.__ηn):
-            η = self.__ηs[ηi]
-            for σi in range(self.__σn):
-                σ = self.__σs[σi]
-                for μi in range(self.__μn):
-                    μ = self.__μs[μi]
-                    αk = k * α
-                    ηk = η / k
-                    # Use durations to update η, σ, μ
-                    self.__probs[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] *\
-                        pdftc(ud, -ud, self.__pxs.loc[self.__j - 1], αk, ηk, σ, μ, t)  # continuation: sud -> -ud
+        self.__sumCo.loc[self.__j] = 0
+        self.__sumAl.loc[self.__j] = 0
+        self.__sumAlk.loc[self.__j] = 0
+        self.__sumH.loc[self.__j] = 0.5
+        # Use durations to update η, σ, μ at every step if duration is higher than cutoff
+        # (assumes continuation at j=1)
+        if t > self.__mindt:
+            for ηi in range(self.__ηn):
+                η = self.__ηs[ηi]
+                for σi in range(self.__σn):
+                    σ = self.__σs[σi]
+                    for μi in range(self.__μn):
+                        μ = self.__μs[μi]
+                        αk = k * α
+                        ηk = η / k
+                        # Use durations to update η, σ, μ
+                        self.__probs[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] *\
+                            pdftc(ud, -ud, s0, αk, ηk, σ, μ, t)  # η0  # continuation: sud -> -ud
+            self.__fast.loc[self.__j] = False
+        else:
+            self.__fast.loc[self.__j] = True
         self.__probs = self.__probs / np.sum(self.__probs)
         self.__ηm.loc[self.__j] = np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))
         self.__σm.loc[self.__j] = np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))
@@ -892,7 +788,9 @@ class Process():
         co = 1 - al
         sud = ud * (2 * al - 1)
         self.__durs.loc[self.__j] = t
-        # s0 = self.__pxs.loc[self.__j - 1]
+        s0 = self.__pxs.loc[self.__j - 1]
+        α0 = self.__ticks.loc[self.__j - 1]
+        η0 = self.__ηm.loc[self.__j - 1]
         self.__pxs.loc[self.__j] = s
         self.__ticks.loc[self.__j] = α
         self.__signs.loc[self.__j] = ud
@@ -908,38 +806,44 @@ class Process():
         self.__count = [self.__j,
             [self.__Al_Up.loc[self.__j], self.__Al_Down.loc[self.__j],
             self.__Co_Up.loc[self.__j], self.__Co_Down.loc[self.__j]]]
+        self.__sumCo.loc[self.__j] = self.__sumCo.loc[self.__j - 1] + co * k
+        self.__sumAl.loc[self.__j] = self.__sumAl.loc[self.__j - 1] + al * k
+        self.__sumAlk.loc[self.__j] = self.__sumAlk.loc[self.__j - 1] + al * (k - 1)
+        if self.__sumAl.loc[self.__j] == 0:
+            self.__sumH.loc[self.__j] = 0.5
+        else:
+            self.__sumH.loc[self.__j] = (self.__sumCo.loc[self.__j] - self.__sumAlk.loc[self.__j]) /\
+                self.__sumAl.loc[self.__j]
         # Make a rolling count as well, use it for better μ estimation
         self.__count_roll = [[self.__j, self.__rw],
             [self.__Al_Up.loc[self.__j] - self.__Al_Up.loc[max(1, self.__j - self.__rw)],
             self.__Al_Down.loc[self.__j] - self.__Al_Down.loc[max(1, self.__j - self.__rw)],
             self.__Co_Up.loc[self.__j] - self.__Co_Up.loc[max(1, self.__j - self.__rw)],
             self.__Co_Down.loc[self.__j] - self.__Co_Down.loc[max(1, self.__j - self.__rw)]]]
-        for ηi in range(self.__ηn):
-            η = self.__ηs[ηi]
-            for σi in range(self.__σn):
-                σ = self.__σs[σi]
-                for μi in range(self.__μn):
-                    μ = self.__μs[μi]
-                    if al == 1:  # Alternation
-                        αk = α
-                        ηk = η + (k - 1) / 2
-                    else:  # Continuation
-                        αk = k * α
-                        ηk = η / k
-                    # Use durations to update η, σ, μ at every step
-                    # Use counts to update η, σ, μ  every update_freq steps
-                    # if (self.__j % self.__uf) == 0:
-                    #     self.__likel[ηi, σi, μi] = pdftc(ud, sud, self.__pxs.loc[self.__j - 1], αk, ηk, σ, μ, t) *\
-                    #         np.exp(0.25 * min(self.__count_roll[0])) * multinom_likel(four_ps(s, α, η, σ, μ), np.array(self.__count_roll[1]))
-                    # else:
-                    #     self.__likel[ηi, σi, μi] = pdftc(ud, sud, self.__pxs.loc[self.__j - 1], αk, ηk, σ, μ, t)
-                    # self.__probs[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] * self.__likel[ηi, σi, μi]   
-                    self.__likel[ηi, σi, μi] = pdftc(ud, sud, self.__pxs.loc[self.__j - 1], αk, ηk, σ, μ, t)  # new
-                    self.__probs[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] * self.__likel[ηi, σi, μi]  # new
-        self.__probs = self.__probs / np.sum(self.__probs)
+        # Use durations to update η, σ, μ at every step if duration is higher than cutoff
+        if t > self.__mindt:
+            for ηi in range(self.__ηn):
+                η = self.__ηs[ηi]
+                for σi in range(self.__σn):
+                    σ = self.__σs[σi]
+                    for μi in range(self.__μn):
+                        μ = self.__μs[μi]
+                        if al == 1:  # Alternation
+                            αk = α
+                            ηk = η + (k - 1) / 2
+                        else:  # Continuation
+                            αk = k * α
+                            ηk = η / k
+                        self.__likel[ηi, σi, μi] = pdftc(ud, sud, s0, αk, ηk, σ, μ, t)  # η0
+                        self.__probs[ηi, σi, μi] = self.__prob_floor + self.__probs[ηi, σi, μi] * self.__likel[ηi, σi, μi]
+            self.__probs = self.__probs / np.sum(self.__probs)
+            self.__fast.loc[self.__j] = False
+        else:
+            self.__fast.loc[self.__j] = True
         self.__ηm.loc[self.__j] = np.dot(self.__ηs, np.sum(self.__probs, axis=(1, 2)))
         self.__σm.loc[self.__j] = np.dot(self.__σs, np.sum(self.__probs, axis=(0, 2)))
         self.__μm.loc[self.__j] = np.dot(self.__μs, np.sum(self.__probs, axis=(0, 1)))
+        # Use counts to update η, σ, μ  every update_freq steps  
         if (self.__j % self.__uf) == 0:
             self.__calc_update_freq()
             self.__update_freq()
