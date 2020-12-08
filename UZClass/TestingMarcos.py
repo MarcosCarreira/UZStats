@@ -14,9 +14,10 @@
 #     name: python3
 # ---
 
+# %% [markdown]
+# ## Imports
+
 # %% Python imports
-
-
 import os
 # import timeit
 import pandas as pd
@@ -30,9 +31,14 @@ import scipy.stats as st
 import datetime as dtt
 # print(os.getcwd())
 
+# %%
+from functools import partial
+
+# %%
+import numba as numba
+from math import erfc
+
 # %% Armada Class imports
-
-
 from armadaClassHawkes import Armada_Data as ad
 from armadaClassHawkes import Armada_Lvl1 as al1
 from armadaClassHawkes import Armada_Collapsed as acol
@@ -47,32 +53,29 @@ from armadaClassHawkes import ArmadaData_UZModel as uz
 print(os.getcwd())
 
 # %% Import uz
-
 import uz as uz2
 
 # %% Tick Imports
-
-from tick.base import TimeFunction
-from tick.hawkes import HawkesKernelTimeFunc
-from tick.hawkes import SimuHawkes, SimuHawkesMulti
-from tick.hawkes import HawkesEM, HawkesBasisKernels
-from tick.plot import plot_timefunction, plot_hawkes_kernels
-from tick.plot import plot_basis_kernels
+# from tick.base import TimeFunction
+# from tick.hawkes import HawkesKernelTimeFunc
+# from tick.hawkes import SimuHawkes, SimuHawkesMulti
+# from tick.hawkes import HawkesEM, HawkesBasisKernels
+# from tick.plot import plot_timefunction, plot_hawkes_kernels
+# from tick.plot import plot_basis_kernels
 
 # %% Pandas Options
 # pd.set_option('mode.chained_assignment', None)
 pd.options.display.max_columns = 30
-pd.options.display.max_rows = 50
+pd.options.display.max_rows = 200
+
+# %% [markdown]
+# ## Paths, files and constants
 
 # %% Florian's PATHPROJ
-
-
 # PATHPROJ = os.path.join(os.path.expanduser("~"), "Documents", "GitHub",\
 #                        "UZStats")
 
 # %% Marcos' PATHPROJ
-
-
 PATHPROJ = os.path.join(os.path.expanduser("~"), "My Papers",
                         "UZModelUncertainty")
 
@@ -106,17 +109,17 @@ END_TIME_BMF = pd.to_timedelta('18:15:00')
 # EVENT_WINDOW_BMF = 1000
 
 # %% BMF file names
-
 FILE_BMF1 = 'DOLG1720170119.csv'
 FILE_BMF2 = 'WDOG1720170119.csv'
 
 # %% CME file names
-
 FILE_CME1 = '20180104_6EH8.zip'
 FILE_CME2 = '20180105_6EH8.zip'
 
-# %% Test init functions
+# %% [markdown]
+# ## UZ stats
 
+# %% Test init functions
 dfDOL_ad = ad(PATHIN, FILE_BMF1, 'BMF')
 dfDOL_al1 = al1(dfDOL_ad, START_TIME_BMF, END_TIME_BMF, 'BMF', MINDT_BMF)
 # dfDOL_coll = acol(dfDOL_al1, TS_BMF, MOS_DOL)
@@ -127,6 +130,7 @@ dfWDO_al1 = al1(dfWDO_ad, START_TIME_BMF, END_TIME_BMF, 'BMF', MINDT_BMF)
 # dfWDO_coll = acol(dfWDO_al1, TS_BMF, MOS_WDO)
 # dfWDO_hawk = ahawk(dfWDO_coll, DTEVSHIFT_BMF, DTCUMADD_BMF)
 
+# %% Test init functions
 df_ad = ad(PATHIN, FILE_CME1, 'CME')
 df_al1 = al1(df_ad, START_TIME_CME, END_TIME_CME, 'CME', MINDT_CME)
 # df_coll = acol(df_al1, TS_CME, MOS_CME)
@@ -136,33 +140,128 @@ df2_ad = ad(PATHIN, FILE_CME2, 'CME')
 df2_al1 = al1(df2_ad, START_TIME_CME, END_TIME_CME, 'CME', MINDT_CME)
 
 # %% Connect
-
-wb = xw.Book('HawkesLatency.xlsx')
+# wb = xw.Book('HawkesLatency.xlsx')
 
 # sht = wb.sheets('Simul')
-sht = wb.sheets('CME')
+# sht = wb.sheets('CME')
 
 # %% Preferred order for labels
-
 # EV_14_LBLS = ['L_B', 'C_A', 'M_A', 'I_B', 'DmI_A', 'Dm_A', 'Dc_A',
 #               'L_A', 'C_B', 'M_B', 'I_A', 'DmI_B', 'Dm_B', 'Dc_B']
 
 
 # %% Test init functions 2
+uz_df_DOL = uz(dfDOL_al1, TS_BMF, START_TIME_BMF, END_TIME_BMF)
+uz_df_WDO = uz(dfWDO_al1, TS_BMF, START_TIME_BMF, END_TIME_BMF)
 
+
+# %% Test init functions 2
 uz_df = uz(df_al1, TS_CME, START_TIME_CME, END_TIME_CME)
 uz_df2 = uz(df2_al1, TS_CME, START_TIME_CME, END_TIME_CME)
 
-uz_dfDOL = uz(dfDOL_al1, TS_BMF, START_TIME_BMF, END_TIME_BMF)
-uz_dfWDO = uz(dfWDO_al1, TS_BMF, START_TIME_BMF, END_TIME_BMF)
 
-# uz_stats = uz_df.df_uz_stats
-# sht.range('B2').value = uz_stats.transpose()
+# %% Test BUZ
+dftestDOL = uz_df_DOL.df_trades_adduz.copy()
+dftestDOL['sec'] = dftestDOL['dtTj'].dt.total_seconds()
 
+
+# %% Test BUZ
+dftestWDO = uz_df_WDO.df_trades_adduz.copy()
+dftestWDO['sec'] = dftestWDO['dtTj'].dt.total_seconds()
+
+
+# %% Test BUZ
+dftest1 = uz_df.df_trades_adduz.copy()
+dftest1['sec'] = dftest1['dtTj'].dt.total_seconds()
+
+
+# %% Test BUZ
+dftest2 = uz_df2.df_trades_adduz.copy()
+dftest2['sec'] = dftest2['dtTj'].dt.total_seconds()
+
+
+# %% [markdown]
+# ## Fast durations
+
+# %%
+# dftest1['sec'].dropna().describe(percentiles = np.arange(0, 1, 0.05))
+
+# %%
+# dftest1[dftest1['Co'] == 1.]['sec'].dropna().describe(percentiles = np.arange(0, 1, 0.05))
+
+# %%
+# dftest1[dftest1['Al'] == 1.]['sec'].dropna().describe(percentiles = np.arange(0, 1, 0.05))
+
+# %%
+cut_bins = np.concatenate((np.array([0., 0.001, 0.005, 0.01, 0.02]),
+    np.arange(0.05, 2.00, 0.05), np.array([2.00, 100.00, 300.00])))
+cut_labels = cut_bins[1:]
+
+# %%
+pd.value_counts(pd.cut(dftest1['sec'].dropna(), bins=cut_bins, labels=cut_labels)).sort_index()
+
+# %% [markdown]
+# ## Discretization of probabilities
+
+# %%
+ηrng = np.concatenate((np.arange(0.05, 0.55 + 0.01, 0.01),
+                       np.array([0.60, 0.70, 0.80, 1.0, 1.5, 2.0, 2.5, 5.0, 10.0])))
+
+# %%
+σrng = np.concatenate((np.arange(0.0005, 0.020 + 0.0005, 0.0005),
+                       np.arange(0.025, 0.100, 0.005),
+                       np.arange(0.100, 0.250, 0.050)))
+
+# %%
+μrng = np.arange(-1.00, +1.00 + 0.02, 0.02)  # 0.02 step
+
+
+# %%
+def prior_lognorm(param_rng, shape, loc, scale):
+    prior_vals = np.array([st.lognorm.pdf(x, shape, loc, scale) for x in param_rng])
+    return prior_vals / np.sum(prior_vals)
+
+
+# %%
+def prior_norm(param_rng, loc, scale):
+    prior_vals = np.array([st.norm.pdf(x, loc, scale) for x in param_rng])
+    return prior_vals / np.sum(prior_vals)
+
+
+# %%
+def prior_uniform(param_rng):
+    prior_vals = np.array([1 for x in param_rng])
+    return prior_vals / np.sum(prior_vals)
+
+
+# %%
+pd.Series(prior_lognorm(ηrng, 1, 0, 0.4), index=ηrng).plot();
+
+# %%
+pd.Series(prior_lognorm(σrng, 1.25, 0, 0.02), index=σrng).plot();
+
+# %%
+pd.Series(prior_norm(μrng, 0, 0.05), index=μrng).plot();
+
+# %%
+pd.Series(prior_uniform(μrng), index=μrng).plot();
+
+# %%
+η0 = prior_lognorm(ηrng, 1, 0, 0.4)
+σ0 = prior_lognorm(σrng, 1.25, 0, 0.02)
+# μ0 = prior_norm(μrng, 0, 0.05)
+μ0 = prior_uniform(μrng)
+
+# %%
+ηs = {ηrng[j]: η0[j] for j in range(len(ηrng))}
+σs = {σrng[j]: σ0[j] for j in range(len(σrng))}
+μs = {μrng[j]: μ0[j] for j in range(len(μrng))}
+
+
+# %% [markdown]
+# ## Conversion of dataframes
 
 # %% Create list
-
-
 def df_to_list(df, α, hours, mint=0.001):
     test_list = []
     for j in range(len(df)):
@@ -184,66 +283,103 @@ def df_to_list(df, α, hours, mint=0.001):
     return test_list
 
 
-# %% Test BUZ
+# %%
+pxchglist1 = df_to_list(dftest1, 0.5, 16)
 
-dftestDOL = uz_dfDOL.df_trades_adduz.copy()
+# %%
+len(pxchglist1)
 
+# %%
+pxchglist2 = df_to_list(dftest2, 0.5, 16)
 
-# %% Describe durations
+# %%
+len(pxchglist2)
 
-# dftestDOL['dtTj'].value_counts()
+# %%
+pxchglistDOL = df_to_list(dftestDOL, 0.5, 9.25)
 
+# %%
+len(pxchglistDOL)
 
-# %% Convert data
+# %%
+pxchglistWDO = df_to_list(dftestWDO, 0.5, 9.25)
 
-list_DOL = df_to_list(dftestDOL, TS_BMF, 9.25)
+# %%
+len(pxchglistWDO)
 
-# %% Define grid
+# %% [markdown]
+# ## Code Processes
 
-ηrng = np.concatenate((np.arange(0.05, 0.60 + 0.01, 0.01),
-                       np.array([0.70, 0.80, 1.0, 1.5, 2.0])))
-σrng = np.concatenate((np.arange(0.001, 0.030 + 0.001, 0.001),
-                       np.array([0.035, 0.040, 0.050, 0.075, 0.100])))
-μrng = np.arange(-0.50, +0.50 + 0.02, 0.02)
+# %% [markdown]
+# ### Limit of conditional CDFs - Numba
 
+# %%
+# @numba.jit(nopython=True)
+# def probc(ud: int, sud: int, s: float,
+#           α: float, η: float, σ: float, μ: float) -> float:
+#     '''probc(ud: int, sud: int, s: float, α0: float, η0: float,
+#           α: float, η: float, σ: float, μ: float) -> float)
+#           returns a float between 0 and 1 corresponding to the
+#           limit of P(t) for the given pair ud, sud.
+#           ud, sud = (-1, +1)
+#           s, α, η, σ: floats > 0
+#           μ = float'''
+#     ω = μ - 0.5 * (σ ** 2)
+#     x0 = np.log(s + sud * (0.5 - η) * α)
+#     b1 = np.log(s + ud * (0.5 + η) * α)
+#     b2 = np.log(s - ud * (0.5 + η) * α)
+# #   x0 should be between b1 and b2 (or b2 and b1)
+#     if ω == 0:
+#         return (b2 - x0) / (b2 - b1)
+#     else:
+#         ke = 2 * np.abs(ω) * ud / (σ ** 2)
+#         if np.exp(ke * (b2 - b1)) == 1:
+#             return (b2 - x0) / (b2 - b1)
+#         else:
+#             e0 = (1 - np.sign(ω) * ud) * ω * (b1 - x0) / (σ ** 2)
+#             return np.exp(e0) * (1 - np.exp(ke * (b2 - x0))) / (1 - np.exp(ke * (b2 - b1)))
 
-# %% Define priors - functions
+# %% [markdown]
+# ## Definition of processes
 
-def prior_lognorm(param_rng, shape, loc, scale):
-    prior_vals = np.array([st.lognorm.pdf(x, shape, loc, scale)
-                           for x in param_rng])
-    return prior_vals / np.sum(prior_vals)
+# %%
+proc1 = uz2.Process(ηs, σs, μs, hours=16, cutoff=(5e-3), roll_window=20, update_freq=20)
+proc1.init_px(pxchglist1[0])
+proc1.init_px_chg(pxchglist1[1])
 
-def prior_norm(param_rng, loc, scale):
-    prior_vals = np.array([st.norm.pdf(x, loc, scale) for x in param_rng])
-    return prior_vals / np.sum(prior_vals)
+# %%
+proc2 = uz2.Process(ηs, σs, μs, hours=16, cutoff=(5e-3), roll_window=20, update_freq=20)
+proc2.init_px(pxchglist2[0])
+proc2.init_px_chg(pxchglist2[1])
 
-# %% Define priors
+# %%
+procDOL = uz2.Process(ηs, σs, μs, hours=9.25, cutoff=(1e-3), roll_window=20, update_freq=20)
+procDOL.init_px(pxchglistDOL[0])
+procDOL.init_px_chg(pxchglistDOL[1])
 
-η0 = prior_lognorm(ηrng, 1, 0, 0.4)
-σ0 = prior_lognorm(σrng, 1.25, 0, 0.02)
-μ0 = prior_norm(μrng, 0, 0.05)
+# %%
+procWDO = uz2.Process(ηs, σs, μs, hours=9.25, cutoff=(1e-3), roll_window=20, update_freq=20)
+procWDO.init_px(pxchglistWDO[0])
+procWDO.init_px_chg(pxchglistWDO[1])
 
-ηs = {ηrng[j]: η0[j] for j in range(len(ηrng))}
-σs = {σrng[j]: σ0[j] for j in range(len(σrng))}
-μs = {μrng[j]: μ0[j] for j in range(len(μrng))}
+# %%
+proc1.plot_marginals
 
-# %% Define Process
+# %%
+proc2.plot_marginals
 
-proc = uz2.Process(ηs, σs, μs)
+# %%
+procDOL.plot_marginals
 
-# %% Initial price
+# %%
+procWDO.plot_marginals
 
-proc.init_px(list_DOL[0])
-proc.plot_marginals
-
-# %% 1st price change
-
+# %%
 print('start')
 currentDT1 = dtt.datetime.now()
 print (str(currentDT1))
 
-proc.init_px_chg(list_DOL[1])
+proc1.update_with_counts(pxchglist1[2])
 
 print('end')
 currentDT2 = dtt.datetime.now()
@@ -251,15 +387,12 @@ print (str(currentDT2))
 
 print (str(currentDT2 - currentDT1))
 
-proc.plot_marginals
-
-# %% 2nd price change
-
+# %%
 print('start')
 currentDT1 = dtt.datetime.now()
 print (str(currentDT1))
 
-proc.update_with_counts(list_DOL[2])
+proc2.update_with_counts(pxchglist2[2])
 
 print('end')
 currentDT2 = dtt.datetime.now()
@@ -267,13 +400,428 @@ print (str(currentDT2))
 
 print (str(currentDT2 - currentDT1))
 
-proc.plot_marginals
+# %%
+print('start')
+currentDT1 = dtt.datetime.now()
+print (str(currentDT1))
 
+procDOL.update_with_counts(pxchglistDOL[2])
+
+print('end')
+currentDT2 = dtt.datetime.now()
+print (str(currentDT2))
+
+print (str(currentDT2 - currentDT1))
+
+# %%
+print('start')
+currentDT1 = dtt.datetime.now()
+print (str(currentDT1))
+
+procWDO.update_with_counts(pxchglistWDO[2])
+
+print('end')
+currentDT2 = dtt.datetime.now()
+print (str(currentDT2))
+
+print (str(currentDT2 - currentDT1))
+
+# %%
+proc1.plot_marginals
+
+# %%
+proc2.plot_marginals
+
+# %%
+procDOL.plot_marginals
+
+# %%
+procWDO.plot_marginals
+
+# %%
+for j in range(3, 21):
+    proc1.update_with_counts(pxchglist1[j])
+#     proc.update(*test_list[j])
+    print(j)
+
+# %%
+for j in range(3, 21):
+    proc2.update_with_counts(pxchglist2[j])
+#     proc.update(*test_list[j])
+    print(j)
+
+# %%
+for j in range(3, 21):
+    procDOL.update_with_counts(pxchglistDOL[j])
+#     proc.update(*test_list[j])
+    print(j)
+
+# %%
+for j in range(3, 21):
+    procWDO.update_with_counts(pxchglistWDO[j])
+#     proc.update(*test_list[j])
+    print(j)
+
+# %%
+proc1.plot_marginals
+
+# %%
+proc2.plot_marginals
+
+# %%
+procDOL.plot_marginals
+
+# %%
+procWDO.plot_marginals
+
+# %%
+proc1.plot_marginals_means
+
+# %%
+proc2.plot_marginals_means
+
+# %%
+proc1.plot_marginals_means
+
+# %%
+proc2.plot_marginals_means
+
+# %%
+for j in range(21, 101):
+    proc1.update_with_counts(pxchglist1[j])
+#     proc.update(*test_list[j])
+    if j % 10 == 0:
+        print(j)
+
+# %%
+for j in range(21, 101):
+    proc2.update_with_counts(pxchglist2[j])
+#     proc.update(*test_list[j])
+    if j % 10 == 0:
+        print(j)
+
+# %%
+for j in range(21, 101):
+    procDOL.update_with_counts(pxchglistDOL[j])
+#     proc.update(*test_list[j])
+    if j % 10 == 0:
+        print(j)
+
+# %%
+for j in range(21, 101):
+    procWDO.update_with_counts(pxchglistWDO[j])
+#     proc.update(*test_list[j])
+    if j % 10 == 0:
+        print(j)
+
+# %%
+proc1.plot_marginals
+
+# %%
+proc2.plot_marginals
+
+# %%
+procDOL.plot_marginals
+
+# %%
+procWDO.plot_marginals
+
+# %%
+proc1.plot_marginals_means
+
+# %%
+proc2.plot_marginals_means
+
+# %%
+procDOL.plot_marginals_means
+
+# %%
+procWDO.plot_marginals_means
+
+# %%
+pxchglist[50:55]
+
+# %%
+1 / (16 * 3600)
+
+# %%
+2e-3 / (16 * 3600)
+
+# %%
+for j in range(101, 501):
+    proc1.update_with_counts(pxchglist1[j])
+#     proc.update(*test_list[j])
+    if j % 50 == 0:
+        print(j)
+
+# %%
+for j in range(101, 501):
+    proc2.update_with_counts(pxchglist2[j])
+#     proc.update(*test_list[j])
+    if j % 50 == 0:
+        print(j)
+
+# %%
+for j in range(101, 501):
+    procDOL.update_with_counts(pxchglistDOL[j])
+#     proc.update(*test_list[j])
+    if j % 50 == 0:
+        print(j)
+
+# %%
+for j in range(101, 501):
+    procWDO.update_with_counts(pxchglistWDO[j])
+#     proc.update(*test_list[j])
+    if j % 50 == 0:
+        print(j)
+
+# %%
+proc1.plot_marginals
+
+# %%
+proc2.plot_marginals
+
+# %%
+procDOL.plot_marginals
+
+# %%
+procWDO.plot_marginals
+
+# %%
+proc1.plot_marginals_means
+
+# %%
+proc2.plot_marginals_means
+
+# %%
+procDOL.plot_marginals_means
+
+# %%
+procWDO.plot_marginals_means
+
+# %%
+for j in range(501, len(pxchglist1)):
+    proc1.update_with_counts(pxchglist1[j])
+#     proc.update(*test_list[j])
+    if j % 100 == 0:
+        print(j)
+
+# %%
+for j in range(501, len(pxchglist2)):
+    proc2.update_with_counts(pxchglist2[j])
+#     proc.update(*test_list[j])
+    if j % 100 == 0:
+        print(j)
+
+# %%
+for j in range(501, len(pxchglistDOL)):
+    procDOL.update_with_counts(pxchglistDOL[j])
+#     proc.update(*test_list[j])
+    if j % 100 == 0:
+        print(j)
+
+# %%
+for j in range(501, len(pxchglistWDO)):
+    procWDO.update_with_counts(pxchglistWDO[j])
+#     proc.update(*test_list[j])
+    if j % 100 == 0:
+        print(j)
+
+# %%
+proc1.plot_marginals_means
+
+# %%
+proc2.plot_marginals_means
+
+# %%
+procDOL.plot_marginals_means
+
+# %%
+procWDO.plot_marginals_means
+
+# %%
+etas1, sigmas1, mus1 = proc1.marginals_means
+
+# %%
+etas2, sigmas2, mus2 = proc2.marginals_means
+
+# %%
+etasDOL, sigmasDOL, musDOL = procDOL.marginals_means
+
+# %%
+etasWDO, sigmasWDO, musWDO = procWDO.marginals_means
+
+# %%
+st.lognorm.fit(etas1)
+
+# %%
+st.lognorm.fit(sigmas1)
+
+# %%
+st.lognorm.fit(etas2)
+
+# %%
+st.lognorm.fit(sigmas2)
+
+# %%
+x1 = np.linspace(st.lognorm.ppf(0.01, 1.4153907706547502, 0.04388464041124837, 0.26425642077692085),
+                st.lognorm.ppf(0.90, 1.4153907706547502, 0.04388464041124837, 0.26425642077692085), 91)
+x2 = np.linspace(st.lognorm.ppf(0.01, 1.2356968041234087, 0.04059654129661662, 0.28221665974831367),
+                st.lognorm.ppf(0.90, 1.2356968041234087, 0.04059654129661662, 0.28221665974831367), 91)
+plt.figure(figsize=(9, 6))
+plt.plot(x1, st.lognorm.pdf(x1, 1.4153907706547502, 0.04388464041124837, 0.26425642077692085), 'r-');
+plt.plot(x2, st.lognorm.pdf(x2, 1.2356968041234087, 0.04059654129661662, 0.28221665974831367), 'b-');
+
+# %%
+x1 = np.linspace(st.lognorm.ppf(0.01, 1.0371352866198014, 0.0008216097488596356, 0.005869338563302242),
+                st.lognorm.ppf(0.99, 1.0371352866198014, 0.0008216097488596356, 0.005869338563302242), 100)
+x2 = np.linspace(st.lognorm.ppf(0.01, 1.1940368010448035, 0.0007405537206293515, 0.007587747887711125),
+                st.lognorm.ppf(0.99, 1.1940368010448035, 0.0007405537206293515, 0.007587747887711125), 100)
+plt.figure(figsize=(9, 6))
+plt.plot(x1, st.lognorm.pdf(x1, 1.0371352866198014, 0.0008216097488596356, 0.005869338563302242), 'r-');
+plt.plot(x2, st.lognorm.pdf(x2, 1.1940368010448035, 0.0007405537206293515, 0.007587747887711125), 'b-');
+
+# %%
+st.lognorm.fit(etasDOL)
+
+# %%
+st.lognorm.fit(sigmasDOL)
+
+# %%
+st.lognorm.fit(etasWDO)
+
+# %%
+st.lognorm.fit(sigmasWDO)
+
+# %%
+x1 = np.linspace(st.lognorm.ppf(0.01, 1.666714254692663, 0.046888175823021835, 0.13607263798218844),
+                st.lognorm.ppf(0.90, 1.666714254692663, 0.046888175823021835, 0.13607263798218844), 91)
+x2 = np.linspace(st.lognorm.ppf(0.01, 1.718855047760092, 0.04890748398852225, 0.06941935807841679),
+                st.lognorm.ppf(0.90, 1.718855047760092, 0.04890748398852225, 0.06941935807841679), 91)
+plt.figure(figsize=(9, 6))
+plt.plot(x1, st.lognorm.pdf(x1, 1.666714254692663, 0.046888175823021835, 0.13607263798218844), 'r-');
+plt.plot(x2, st.lognorm.pdf(x2, 1.718855047760092, 0.04890748398852225, 0.06941935807841679), 'b-');
+
+# %%
+x1 = np.linspace(st.lognorm.ppf(0.01, 0.9646589891529398, 0.002300375062951109, 0.008885686724512981),
+                st.lognorm.ppf(0.99, 0.9646589891529398, 0.002300375062951109, 0.008885686724512981), 100)
+x2 = np.linspace(st.lognorm.ppf(0.01, 1.004144393270412, 0.0023125485092246193, 0.014693296388032706),
+                st.lognorm.ppf(0.99, 1.004144393270412, 0.0023125485092246193, 0.014693296388032706), 100)
+plt.figure(figsize=(9, 6))
+plt.plot(x1, st.lognorm.pdf(x1, 0.9646589891529398, 0.002300375062951109, 0.008885686724512981), 'r-');
+plt.plot(x2, st.lognorm.pdf(x2, 1.004144393270412, 0.0023125485092246193, 0.014693296388032706), 'b-');
+
+# %%
+np.mean(etas1.iloc[100:-100])
+
+# %%
+np.mean(etas2.iloc[100:-100])
+
+# %%
+np.mean(etasDOL.iloc[100:-100])
+
+# %%
+np.mean(etasWDO.iloc[100:-100])
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(etas1.iloc[100:-100].values, stat='probability', binwidth=0.05, kde=True);
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(sigmas1.iloc[100:-100].values, stat='probability', binwidth=0.0005, kde=True);
+
+# %%
+plt.figure(figsize=(12, 9))
+data1 = pd.DataFrame({'σ': sigmas1.iloc[100:-100].values,
+                      'η': etas1.iloc[100:-100].values,
+                      'μ': mus1.iloc[100:-100].values})
+sns.histplot(data=data1, x='σ', y='η');
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(sigmas1.iloc[100:-100].diff().values, stat='probability', bins=40, binrange=(-0.002, +0.002));
+
+# %%
+pd.Series(prior_norm(np.arange(-0.002, +0.002 + 0.00001, 0.00001), 0, 0.0002),
+          index=np.arange(-0.002, +0.002 + 0.00001, 0.00001)).plot(figsize=(9, 6));
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(etas2.iloc[100:-100].values, stat='probability', binwidth=0.05, kde=True);
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(sigmas2.iloc[100:-100].values, stat='probability', binwidth=0.0005, kde=True);
+
+# %%
+plt.figure(figsize=(12, 9))
+data2 = pd.DataFrame({'σ': sigmas2.iloc[100:-100].values,
+                      'η': etas2.iloc[100:-100].values,
+                      'μ': mus2.iloc[100:-100].values})
+sns.histplot(data=data2, x='σ', y='η');
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(sigmas2.iloc[100:-100].diff().values, stat='probability', bins=40, binrange=(-0.0025, +0.0025));
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(etasDOL.iloc[100:-100].values, stat='probability', binwidth=0.05, kde=True);
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(sigmasDOL.iloc[100:-100].values, stat='probability', binwidth=0.0005, kde=True);
+
+# %%
+plt.figure(figsize=(12, 9))
+dataDOL = pd.DataFrame({'σ': sigmasDOL.iloc[100:-100].values,
+                      'η': etasDOL.iloc[100:-100].values,
+                      'μ': musDOL.iloc[100:-100].values})
+sns.histplot(data=dataDOL, x='σ', y='η');
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(sigmasDOL.iloc[100:-100].diff().values, stat='probability', bins=40, binrange=(-0.005, +0.005));
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(etasWDO.iloc[100:-100].values, stat='probability', binwidth=0.05, kde=True);
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(sigmasWDO.iloc[100:-100].values, stat='probability', binwidth=0.0005, kde=True);
+
+# %%
+plt.figure(figsize=(12, 9))
+dataWDO = pd.DataFrame({'σ': sigmasWDO.iloc[100:-100].values,
+                      'η': etasWDO.iloc[100:-100].values,
+                      'μ': musWDO.iloc[100:-100].values})
+sns.histplot(data=dataWDO, x='σ', y='η');
+
+# %%
+plt.figure(figsize=(9, 6))
+sns.histplot(sigmasWDO.iloc[100:-100].diff().values, stat='probability', bins=40, binrange=(-0.005, +0.005));
 
 # %%
 
-uz2.nprobmw(1, -1, 3237.0, 0.5, 0.5, 0.001, 0.0, 2e-5)
+# %%
+dftestfast = dftest[dftest['sec'] < 0.1]
+dftestslow = dftest[dftest['sec'] >= 0.1]
 
+# %%
+dftestfast['sec'].dropna().describe(percentiles = np.arange(0, 1, 0.05))
+
+# %%
+dftestslow['sec'].dropna().describe()
+
+# %%
+dftestfast['sec'].dropna().hist(bins=10);
+
+# %%
+dftestslow['sec'].dropna().hist(bins=[0.10, 0.11, 0.12, 0.13, 0.14, 0.15, 0.20,
+                                      0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
+                                      15.0, 20.0, 50.0, 100.0, 500.0]);
 
 # %% Test fit CME 1
 
